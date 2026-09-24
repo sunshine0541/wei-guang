@@ -84,6 +84,11 @@ public class WxAuthService {
         profileVO.setUiMode(user.getUiMode());
         profileVO.setMotionEnabled(user.getMotionEnabled());
         vo.setProfile(profileVO);
+
+        WxLoginVO.RuntimeConfig config = new WxLoginVO.RuntimeConfig();
+        config.setRetentionDays(configService.getInt("compliance.retention_days", 180));
+        config.setElderAgeThreshold(configService.getInt("elder.age_threshold", 60));
+        vo.setConfig(config);
         return vo;
     }
 

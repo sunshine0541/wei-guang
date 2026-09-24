@@ -1,0 +1,36 @@
+{
+  "easycom": {
+    "autoscan": true,
+    "custom": {
+      "^u--(.*)": "uview-plus/components/u-$1/u-$1.vue",
+      "^up-(.*)": "uview-plus/components/u-$1/u-$1.vue",
+      "^u-([^-].*)": "uview-plus/components/u-$1/u-$1.vue"
+    }
+  },
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "微光"
+      }
+    },
+    {
+      "path": "pages/guide/privacy",
+      "style": {
+        "navigationBarTitleText": "隐私说明"
+      }
+    },
+    {
+      "path": "pages/guide/index",
+      "style": {
+        "navigationBarTitleText": "欢迎您"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "微光",
+    "navigationBarBackgroundColor": "#FFF8EE",
+    "backgroundColor": "#FFF8EE"
+  }
+}
