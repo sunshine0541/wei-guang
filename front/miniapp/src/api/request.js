@@ -19,6 +19,31 @@ export function toast(message) {
 }
 
 /**
+ * 清洗请求参数：去掉 undefined（否则会被序列化成字符串 "undefined" 传给后端 → 10001）；
+ * query 类请求（GET/DELETE）额外去掉 null 与空串，避免出现 ?orderType= 这种空参数。
+ * POST/PUT 的 body 保留 null 与空串（空串可能表示"清空该字段"）。
+ */
+function cleanParams(data, method) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return data
+  }
+  const upper = (method || 'GET').toUpperCase()
+  const isQuery = upper === 'GET' || upper === 'DELETE'
+  const cleaned = {}
+  Object.keys(data).forEach((key) => {
+    const value = data[key]
+    if (value === undefined) {
+      return
+    }
+    if (isQuery && (value === null || value === '')) {
+      return
+    }
+    cleaned[key] = value
+  })
+  return cleaned
+}
+
+/**
  * 统一请求封装（详设 T05）：
  * - 自动带 token
  * - 20001/20002 时静默 wx.login 重登后重放一次（详设 §3.1 已注销/凭证过期处理）
@@ -32,10 +57,11 @@ export function request(options, retried = false) {
     if (token) {
       header.Authorization = 'Bearer ' + token
     }
+    const method = options.method || 'GET'
     uni.request({
       url: BASE_URL + options.url,
-      method: options.method || 'GET',
-      data: options.data || {},
+      method,
+      data: cleanParams(options.data, method),
       header,
       timeout: 20000,
       success: (res) => {

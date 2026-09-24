@@ -61,9 +61,16 @@
         <view class="wg-label" style="margin-top: 12px">地址</view>
         <view v-if="form.orderType === 'REMOTE'" class="wg-label">远程帮助全程线上完成，不需要地址</view>
         <template v-else>
-          <picker mode="selector" :range="addressLabels" @change="onAddressChange">
+          <picker v-if="addresses.length > 0" mode="selector" :range="addressLabels" @change="onAddressChange">
             <view class="wg-input">{{ currentAddressLabel || '请选择常用地址' }}</view>
           </picker>
+          <view v-else>
+            <view class="wg-label">您还没有常用地址，先添加一个吧</view>
+            <input class="wg-input" v-model="newAddress.label" maxlength="20" placeholder="标签，如：家" />
+            <input class="wg-input" v-model="newAddress.areaText" maxlength="100" placeholder="小区/区域" />
+            <input class="wg-input" v-model="newAddress.detailText" maxlength="100" placeholder="楼栋门牌（选填）" />
+            <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="saveNewAddress">保存这个地址</view>
+          </view>
           <view class="wg-label">上门类在您点"确认开始"后，才会把楼栋门牌给接单的邻居看</view>
         </template>
 
@@ -110,7 +117,7 @@
 <script>
 import { useUserStore } from '@/store/user'
 import { aiSuggest, listMyOrders, listTemplates, publishOrder } from '@/api/order'
-import { listAddresses } from '@/api/address'
+import { listAddresses, createAddress } from '@/api/address'
 import { EMERGENCY_TIP, HELP_TAGS, ORDER_TYPE_LABELS, TIME_EXPECT_LABELS, TIME_EXPECT_OPTIONS } from '@/utils/constants'
 
 const URGENT_CONFIRM = '勾选"急"请确认情况真的紧急。紧急情况请直接拨打120/110。滥用"急"会影响您的微光值。'
@@ -125,6 +132,7 @@ export default {
       aiResult: null,
       aiLoading: false,
       addresses: [],
+      newAddress: { label: '', areaText: '', detailText: '' },
       repeatOrders: [],
       tagOptions: HELP_TAGS,
       timeOptions: TIME_EXPECT_OPTIONS,
@@ -237,6 +245,22 @@ export default {
       const index = Number(event.detail.value)
       this.form.addressId = this.addresses[index] ? this.addresses[index].id : null
     },
+    async saveNewAddress() {
+      if (!this.newAddress.areaText || !this.newAddress.areaText.trim()) {
+        uni.showToast({ title: '请填写小区/区域', icon: 'none' })
+        return
+      }
+      const created = await createAddress({
+        label: this.newAddress.label || '家',
+        areaText: this.newAddress.areaText,
+        detailText: this.newAddress.detailText || null,
+        isDefault: this.addresses.length === 0 ? 1 : 0
+      })
+      await this.loadAddresses()
+      this.form.addressId = created.id
+      this.newAddress = { label: '', areaText: '', detailText: '' }
+      uni.showToast({ title: '地址已保存', icon: 'none' })
+    },
     toggleUrgent() {
       if (this.form.urgentFlag === 1) {
         this.form.urgentFlag = 0
@@ -270,6 +294,14 @@ export default {
       })
     },
     async doPublish() {
+      if (!this.form.title || !this.form.title.trim()) {
+        uni.showToast({ title: '请先填写标题', icon: 'none' })
+        return
+      }
+      if (this.form.orderType !== 'REMOTE' && !this.form.addressId) {
+        uni.showToast({ title: '上门/陪同类需要先选一个常用地址', icon: 'none' })
+        return
+      }
       const payload = {
         source: this.form.source,
         orderType: this.form.orderType,
