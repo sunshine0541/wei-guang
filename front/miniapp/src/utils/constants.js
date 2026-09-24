@@ -29,3 +29,26 @@ export const PAGE_PATHS = {
   PRIVACY: '/pages/guide/privacy',
   GUIDE: '/pages/guide/index'
 }
+
+/* 受控标签词表（详设 §8.4，10 项，与后端 HelpTagConstants 一致） */
+export const HELP_TAGS = ['跑腿代买', '维修', '家务', '陪伴', '散步', '手机教学', '网上办事', '宠物花草', '聊天', '其他']
+
+/* 求助类型与时间期望的中文文案 */
+export const ORDER_TYPE_LABELS = {
+  HOME_VISIT: '上门',
+  ACCOMPANY: '陪同外出',
+  REMOTE: '远程'
+}
+
+export const TIME_EXPECT_LABELS = {
+  ASAP: '尽快',
+  TODAY: '今天内',
+  TOMORROW: '明天',
+  THIS_WEEK: '本周内',
+  ANY: '不限'
+}
+
+export const TIME_EXPECT_OPTIONS = ['ASAP', 'TODAY', 'TOMORROW', 'THIS_WEEK', 'ANY']
+
+/* 紧急提示（详设 §6.1 三处常驻之一：发布页底部固定条） */
+export const EMERGENCY_TIP = '如果情况紧急，请直接拨打 120 或 110'

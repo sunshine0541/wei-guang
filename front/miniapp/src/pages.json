@@ -15,6 +15,18 @@
       }
     },
     {
+      "path": "pages/order/publish",
+      "style": {
+        "navigationBarTitleText": "发布求助"
+      }
+    },
+    {
+      "path": "pages/order/detail",
+      "style": {
+        "navigationBarTitleText": "求助详情"
+      }
+    },
+    {
       "path": "pages/guide/privacy",
       "style": {
         "navigationBarTitleText": "隐私说明"

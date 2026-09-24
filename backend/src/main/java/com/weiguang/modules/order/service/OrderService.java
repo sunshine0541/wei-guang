@@ -143,12 +143,7 @@ public class OrderService {
             throw new BizException(ErrorCode.CONTENT_BLOCKED, BLOCK_MESSAGE);
         }
 
-        Long pendingCount = helpOrderMapper.selectCount(Wrappers.<HelpOrder>lambdaQuery()
-                .eq(HelpOrder::getRequesterId, uid)
-                .eq(HelpOrder::getStatus, OrderStatus.PENDING.name()));
-        if (pendingCount != null && pendingCount >= configService.getInt("order.pending_limit", 2)) {
-            throw new BizException(ErrorCode.PENDING_LIMIT, PENDING_LIMIT_MESSAGE);
-        }
+        requirePendingLimit(uid);
 
         int urgentFlag = request.getUrgentFlag() != null && request.getUrgentFlag() == 1 ? 1 : 0;
         HelpOrder order = buildOrder(uid, user, profile, source, orderType, urgentFlag,
@@ -162,12 +157,13 @@ public class OrderService {
         return new PublishVO(order.getId(), careNotice);
     }
 
-    /** O13 一键重发：仅发布者、仅 EXPIRED 态，复制为新单 */
+    /** O13 一键重发：仅发布者、仅 EXPIRED 态，复制为新单（待响应上限与 O2 同口径，见 D04） */
     @Transactional
     public PublishVO republish(Long uid, Long orderId) {
         User user = requireUser(uid);
         UserProfile profile = findProfile(uid);
         HelpOrder origin = requireOwnExpiredOrder(uid, orderId);
+        requirePendingLimit(uid);
 
         OrderType orderType = OrderType.valueOf(origin.getOrderType());
         HelpOrder order = buildOrder(uid, user, profile, OrderSource.REPEAT.name(), orderType,
@@ -389,6 +385,15 @@ public class OrderService {
             throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
         }
         return order;
+    }
+
+    private void requirePendingLimit(Long uid) {
+        Long pendingCount = helpOrderMapper.selectCount(Wrappers.<HelpOrder>lambdaQuery()
+                .eq(HelpOrder::getRequesterId, uid)
+                .eq(HelpOrder::getStatus, OrderStatus.PENDING.name()));
+        if (pendingCount != null && pendingCount >= configService.getInt("order.pending_limit", 2)) {
+            throw new BizException(ErrorCode.PENDING_LIMIT, PENDING_LIMIT_MESSAGE);
+        }
     }
 
     private void touchInteraction(Long uid) {
