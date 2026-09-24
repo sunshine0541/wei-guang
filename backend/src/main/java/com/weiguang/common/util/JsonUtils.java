@@ -39,4 +39,13 @@ public final class JsonUtils {
             return List.of();
         }
     }
+
+    /** 泛型反序列化（热点缓存等场景使用） */
+    public static <T> T fromJson(String json, TypeReference<T> type) {
+        try {
+            return MAPPER.readValue(json, type);
+        } catch (Exception e) {
+            throw new BizException(ErrorCode.SYSTEM_ERROR);
+        }
+    }
 }
