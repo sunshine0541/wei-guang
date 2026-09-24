@@ -1,0 +1,22 @@
+# 构建产物
+target/
+dist/
+node_modules/
+unpackage/
+*.class
+
+# 环境变量与密钥（永不入仓库）
+.env
+.env.local
+
+# 上传文件（本地存储目录）
+uploads/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# 系统
+.DS_Store
+Thumbs.db

@@ -1,0 +1,74 @@
+# 微光 · 演示环境一键启动（MySQL 8 + Redis 7.4 + 后端服务）
+#
+# 常用命令（在 backend 目录下执行）：
+#   只起中间件：docker compose up -d mysql redis
+#   后端容器：  先 mvn -DskipTests package，再 docker compose up -d backend
+#   停止 Redis：docker compose stop redis（用于验收判据 13 的降级演练）
+# 变量取值来自同目录 .env（复制 .env.example 后填写）；未提供时使用下方默认值。
+services:
+  mysql:
+    image: mysql:8
+    container_name: weiguang-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:-weiguang123}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-weiguang}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+      - --default-time-zone=+08:00
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - weiguang-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_PASSWORD:-weiguang123}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: weiguang-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - weiguang-redis-data:/data
+
+  backend:
+    image: eclipse-temurin:17-jre
+    container_name: weiguang-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-weiguang}
+      MYSQL_USERNAME: root
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-weiguang123}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SERVER_PORT: 8080
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      WECHAT_APPID: ${WECHAT_APPID:-}
+      WECHAT_APP_SECRET: ${WECHAT_APP_SECRET:-}
+      JWT_SECRET: ${JWT_SECRET:-}
+      ADMIN_SEED_USERNAME: ${ADMIN_SEED_USERNAME:-admin}
+      ADMIN_SEED_PASSWORD: ${ADMIN_SEED_PASSWORD:-}
+      TZ: Asia/Shanghai
+    volumes:
+      - ./target/weiguang-backend.jar:/app/app.jar:ro
+      - ./uploads:/app/uploads
+    command: ["java", "-jar", "/app/app.jar"]
+    ports:
+      - "${SERVER_PORT:-8080}:8080"
+
+volumes:
+  weiguang-mysql-data:
+  weiguang-redis-data:
