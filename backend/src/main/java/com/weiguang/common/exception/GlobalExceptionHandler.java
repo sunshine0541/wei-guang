@@ -16,6 +16,8 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import jakarta.validation.ConstraintViolationException;
 
+import java.util.Arrays;
+
 /**
  * 全局异常处理：BizException → 对应错误码；参数类异常 → 10001；未知异常 → 50001。
  * 未匹配的静态资源（如未暴露的 Actuator 端点）保持 404，不转换为统一返回体。
@@ -32,16 +34,27 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public Result<Void> handleMethodArgumentNotValid(MethodArgumentNotValidException e) {
-        FieldError fieldError = e.getBindingResult().getFieldError();
-        String message = fieldError == null ? ErrorCode.messageOf(ErrorCode.PARAM_INVALID) : fieldError.getDefaultMessage();
-        return Result.fail(ErrorCode.PARAM_INVALID, message);
+        return failOfFieldError(e.getBindingResult().getFieldError());
     }
 
     @ExceptionHandler(BindException.class)
     public Result<Void> handleBindException(BindException e) {
-        FieldError fieldError = e.getBindingResult().getFieldError();
-        String message = fieldError == null ? ErrorCode.messageOf(ErrorCode.PARAM_INVALID) : fieldError.getDefaultMessage();
-        return Result.fail(ErrorCode.PARAM_INVALID, message);
+        return failOfFieldError(e.getBindingResult().getFieldError());
+    }
+
+    /** 长度类约束（@Size）→ 10002 内容超长；其余（@NotBlank/@Min/@Max 等）→ 10001 参数校验失败 */
+    private Result<Void> failOfFieldError(FieldError fieldError) {
+        if (fieldError == null) {
+            return Result.fail(ErrorCode.PARAM_INVALID);
+        }
+        int code = isSizeViolation(fieldError) ? ErrorCode.CONTENT_TOO_LONG : ErrorCode.PARAM_INVALID;
+        String message = fieldError.getDefaultMessage();
+        return Result.fail(code, message == null ? ErrorCode.messageOf(code) : message);
+    }
+
+    private boolean isSizeViolation(FieldError fieldError) {
+        String[] codes = fieldError.getCodes();
+        return codes != null && Arrays.stream(codes).anyMatch(code -> code != null && code.startsWith("Size"));
     }
 
     @ExceptionHandler({ConstraintViolationException.class,
