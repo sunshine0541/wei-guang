@@ -59,6 +59,7 @@ export default {
           return
         }
       } catch (e) {
+        console.error('[微光] 启动失败', e)
         uni.showToast({ title: '网络打了个盹，请再试一次，我在这儿等您。', icon: 'none' })
       } finally {
         this.loading = false

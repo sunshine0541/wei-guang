@@ -1,6 +1,7 @@
 package com.weiguang.modules.auth.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.weiguang.common.error.ErrorCode;
 import com.weiguang.common.exception.BizException;
 import com.weiguang.modules.auth.dto.WxLoginVO;
@@ -35,6 +36,7 @@ public class WxAuthService {
     private final JwtService jwtService;
     private final ConfigService configService;
     private final TransactionTemplate transactionTemplate;
+    private final ObjectMapper objectMapper;
     private final RestClient restClient;
     private final String appId;
     private final String appSecret;
@@ -44,6 +46,7 @@ public class WxAuthService {
                          JwtService jwtService,
                          ConfigService configService,
                          TransactionTemplate transactionTemplate,
+                         ObjectMapper objectMapper,
                          @Value("${WECHAT_APPID:}") String appId,
                          @Value("${WECHAT_APP_SECRET:}") String appSecret) {
         this.userMapper = userMapper;
@@ -51,6 +54,7 @@ public class WxAuthService {
         this.jwtService = jwtService;
         this.configService = configService;
         this.transactionTemplate = transactionTemplate;
+        this.objectMapper = objectMapper;
         this.appId = appId;
         this.appSecret = appSecret;
 
@@ -111,7 +115,9 @@ public class WxAuthService {
     private String code2session(String code) {
         WxSessionResponse response;
         try {
-            response = restClient.get()
+            // 微信 code2session 返回 JSON，但响应头为 Content-Type: text/plain，
+            // 直接 body(WxSessionResponse.class) 会因找不到转换器而失败，故取原文后自行解析
+            String raw = restClient.get()
                     .uri(uriBuilder -> uriBuilder
                             .scheme("https")
                             .host("api.weixin.qq.com")
@@ -122,7 +128,8 @@ public class WxAuthService {
                             .queryParam("grant_type", "authorization_code")
                             .build())
                     .retrieve()
-                    .body(WxSessionResponse.class);
+                    .body(String.class);
+            response = objectMapper.readValue(raw, WxSessionResponse.class);
         } catch (Exception e) {
             log.warn("微信 code2session 调用异常：{}", e.getMessage());
             throw new BizException(ErrorCode.DEPENDENCY_UNAVAILABLE, WX_ERROR_MESSAGE);
