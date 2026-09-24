@@ -67,6 +67,7 @@
       <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="answerInvite('LATER')">暂时还不行</view>
     </view>
 
+    <view v-if="step > 1" class="wg-btn wg-btn-plain" style="margin-bottom: 12px" @click="prev">上一步</view>
     <view class="wg-btn wg-btn-plain" @click="finish">跳过，直接进入微光</view>
   </view>
 </template>
@@ -160,6 +161,9 @@ export default {
     },
     next() {
       this.step = Math.min(this.step + 1, 4)
+    },
+    prev() {
+      this.step = Math.max(this.step - 1, 1)
     },
     finish() {
       uni.redirectTo({ url: '/pages/index/index' })
