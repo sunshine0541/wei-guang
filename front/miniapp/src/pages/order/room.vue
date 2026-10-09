@@ -80,7 +80,8 @@
 
 <script>
 import { useUserStore } from '@/store/user'
-import { cancelConfirmOrder, cancelOrder, completeOrder, getOrder, getOrderTimeline, releaseOrder, startOrder } from '@/api/order'
+import { cancelConfirmOrder, cancelOrder, getOrder, getOrderTimeline, releaseOrder, startOrder } from '@/api/order'
+import { completeOrder } from '@/api/incentive'
 import { getSession } from '@/api/chat'
 import { MESSAGES, ORDER_TYPE_LABELS, TIMELINE_LABELS } from '@/utils/constants'
 
