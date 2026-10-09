@@ -9,18 +9,56 @@ import { getToken } from '@/api/request'
  * - 信封协议：{type, payload, ts, clientMsgId}
  */
 export function createWsClient() {
-  let socketTask = null
   let heartbeatTimer = null
   let reconnectTimer = null
   let retryCount = 0
   let manualClosed = false
   let connected = false
   let connecting = false
+  let handlersBound = false
   const messageListeners = []
   const statusListeners = []
 
   function emit(listeners, payload) {
     listeners.forEach((fn) => fn(payload))
+  }
+
+  /** 全局 Socket 事件（uni.onSocketXxx）：本模块为单例，仅注册一次 */
+  function bindGlobalHandlers() {
+    if (handlersBound) {
+      return
+    }
+    handlersBound = true
+    uni.onSocketOpen(() => {
+      connected = true
+      connecting = false
+      retryCount = 0
+      startHeartbeat()
+      emit(statusListeners, 'open')
+    })
+    uni.onSocketMessage((res) => {
+      let envelope = res.data
+      try {
+        envelope = JSON.parse(res.data)
+      } catch (e) {
+        // 非 JSON 帧按原文透出
+      }
+      emit(messageListeners, envelope)
+    })
+    uni.onSocketClose(() => {
+      connected = false
+      connecting = false
+      stopHeartbeat()
+      emit(statusListeners, 'close')
+      scheduleReconnect()
+    })
+    uni.onSocketError(() => {
+      connected = false
+      connecting = false
+      stopHeartbeat()
+      emit(statusListeners, 'error')
+      scheduleReconnect()
+    })
   }
 
   function connect() {
@@ -34,37 +72,10 @@ export function createWsClient() {
       connecting = false
       return
     }
-    socketTask = uni.connectSocket({ url: `${WS_URL}?token=${token}` })
-    socketTask.onOpen(() => {
-      connected = true
-      connecting = false
-      retryCount = 0
-      startHeartbeat()
-      emit(statusListeners, 'open')
-    })
-    socketTask.onMessage((res) => {
-      let envelope = res.data
-      try {
-        envelope = JSON.parse(res.data)
-      } catch (e) {
-        // 非 JSON 帧按原文透出
-      }
-      emit(messageListeners, envelope)
-    })
-    socketTask.onClose(() => {
-      connected = false
-      connecting = false
-      stopHeartbeat()
-      emit(statusListeners, 'close')
-      scheduleReconnect()
-    })
-    socketTask.onError(() => {
-      connected = false
-      connecting = false
-      stopHeartbeat()
-      emit(statusListeners, 'error')
-      scheduleReconnect()
-    })
+    // 注意：uni.connectSocket 的返回值在 Vue3 运行时不是 SocketTask（被 Promise 化，
+    // socketTask.onOpen 不存在），故统一改用 uni 全局 Socket 事件。
+    bindGlobalHandlers()
+    uni.connectSocket({ url: `${WS_URL}?token=${token}` })
   }
 
   function startHeartbeat() {
@@ -94,17 +105,21 @@ export function createWsClient() {
   }
 
   function send(envelope) {
-    if (!socketTask || !connected) {
+    if (!connected) {
       return false
     }
-    socketTask.send({
-      data: JSON.stringify({
-        clientMsgId: `${Date.now()}-${Math.floor(Math.random() * 100000)}`,
-        ts: Date.now(),
-        ...envelope
+    try {
+      uni.sendSocketMessage({
+        data: JSON.stringify({
+          clientMsgId: `${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+          ts: Date.now(),
+          ...envelope
+        })
       })
-    })
-    return true
+      return true
+    } catch (e) {
+      return false
+    }
   }
 
   function close() {
@@ -114,11 +129,15 @@ export function createWsClient() {
       clearTimeout(reconnectTimer)
       reconnectTimer = null
     }
-    if (socketTask) {
-      socketTask.close({})
-      socketTask = null
+    if (connected || connecting) {
+      try {
+        uni.closeSocket({})
+      } catch (e) {
+        // 忽略关闭异常
+      }
     }
     connected = false
+    connecting = false
   }
 
   return {
