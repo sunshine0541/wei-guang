@@ -363,6 +363,8 @@ public class OrderService {
         vo.setCreatedAt(order.getCreatedAt());
         vo.setViewCount(order.getViewCount());
         vo.setStatus(order.getStatus());
+        vo.setMyRole(mine ? "REQUESTER" : (uid.equals(order.getHelperId()) ? "HELPER" : null));
+        vo.setConfirmInitiator(order.getConfirmInitiator());
         vo.setRequester(toRequester(profile));
         vo.setMine(mine);
         // 地址分级：仅非发布者可见小区/区域；远程类不返回地址；门牌永不返回
@@ -578,6 +580,7 @@ public class OrderService {
 
     private RequesterVO toRequester(UserProfile profile) {
         RequesterVO vo = new RequesterVO();
+        vo.setId(profile == null ? null : profile.getUserId());
         vo.setNickname(profile == null ? null : profile.getNickname());
         vo.setAvatarUrl(profile == null ? null : profile.getAvatarUrl());
         return vo;

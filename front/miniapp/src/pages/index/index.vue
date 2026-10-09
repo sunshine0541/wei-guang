@@ -5,6 +5,11 @@
     </view>
 
     <template v-else>
+      <view class="wg-home-head">
+        <text class="wg-title">微光</text>
+        <text class="wg-link" @click="goMine">我的</text>
+      </view>
+
       <!-- Tab：全部求助 / 为你推荐 -->
       <view class="wg-tabs">
         <view class="wg-tab" :class="{ 'wg-tab-active': tab === 'all' }" @click="switchTab('all')">全部求助</view>
@@ -135,6 +140,9 @@ export default {
     },
     goPublish() {
       uni.navigateTo({ url: '/pages/order/publish' })
+    },
+    goMine() {
+      uni.navigateTo({ url: '/pages/user/index' })
     }
   }
 }
@@ -212,5 +220,17 @@ export default {
 
 .wg-tag-mine {
   background-color: #e8e8e8;
+}
+
+.wg-home-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.wg-link {
+  color: #b06a00;
+  font-size: var(--wg-font-base);
 }
 </style>

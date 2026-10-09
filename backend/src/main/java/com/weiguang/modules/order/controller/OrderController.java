@@ -7,12 +7,14 @@ import com.weiguang.common.result.Result;
 import com.weiguang.infra.interceptor.AuthContext;
 import com.weiguang.modules.order.dto.AcceptVO;
 import com.weiguang.modules.order.dto.AiSuggestRequest;
+import com.weiguang.modules.order.dto.ConfirmRequest;
 import com.weiguang.modules.order.dto.MyOrderVO;
 import com.weiguang.modules.order.dto.OrderCardVO;
 import com.weiguang.modules.order.dto.OrderDetailVO;
 import com.weiguang.modules.order.dto.PublishRequest;
 import com.weiguang.modules.order.dto.PublishVO;
 import com.weiguang.modules.order.service.OrderService;
+import com.weiguang.modules.order.service.SettleService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -30,9 +32,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class OrderController {
 
     private final OrderService orderService;
+    private final SettleService settleService;
 
-    public OrderController(OrderService orderService) {
+    public OrderController(OrderService orderService, SettleService settleService) {
         this.orderService = orderService;
+        this.settleService = settleService;
     }
 
     /** O1 能力一：自由描述 → 类型/标签/紧急度/标题建议（不落库） */
@@ -76,6 +80,20 @@ public class OrderController {
     @PostMapping("/{id}/accept")
     public Result<AcceptVO> accept(@PathVariable Long id) {
         return Result.ok(orderService.accept(AuthContext.requireUid(), id));
+    }
+
+    /** O11 标记完成（发起双确认） */
+    @PostMapping("/{id}/complete")
+    public Result<Void> complete(@PathVariable Long id) {
+        settleService.complete(AuthContext.requireUid(), id);
+        return Result.ok();
+    }
+
+    /** O12 确认/拒绝完成（逐字段见详设 §3.3） */
+    @PostMapping("/{id}/confirm")
+    public Result<Void> confirm(@PathVariable Long id, @RequestBody ConfirmRequest request) {
+        settleService.confirm(AuthContext.requireUid(), id, request);
+        return Result.ok();
     }
 
     /** O13 一键重发（仅 EXPIRED 态） */

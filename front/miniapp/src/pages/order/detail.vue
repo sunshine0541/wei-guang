@@ -18,7 +18,7 @@
       </view>
 
       <view class="wg-card">
-        <view>发布者：{{ order.requester.nickname || '邻居' }}</view>
+        <view @click="goNeighbor">发布者：{{ order.requester.nickname || '邻居' }}（点看邻居主页）</view>
         <view v-if="order.addressArea" style="margin-top: 6px">地址：{{ order.addressArea }}</view>
         <view v-else-if="order.orderType === 'REMOTE'" class="wg-label" style="margin-top: 6px">
           远程帮助全程线上完成，不需要地址
@@ -40,6 +40,19 @@
       <view v-if="canChat" class="wg-card">
         <view class="wg-btn wg-btn-plain" @click="goChat">去聊天</view>
       </view>
+
+      <view v-if="canMarkDone" class="wg-card">
+        <view class="wg-btn" @click="doComplete">标记完成</view>
+      </view>
+
+      <view v-if="canConfirm" class="wg-card">
+        <view class="wg-btn" @click="goConfirm">去确认</view>
+      </view>
+
+      <view v-if="isSettled" class="wg-card">
+        <view class="wg-btn wg-btn-plain" @click="goEvaluate">评价 / 悄悄话</view>
+        <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="goStory">看看这次的故事卡</view>
+      </view>
     </template>
 
     <view v-else class="wg-card">
@@ -51,6 +64,7 @@
 <script>
 import { useUserStore } from '@/store/user'
 import { acceptOrder, getOrder } from '@/api/order'
+import { completeOrder } from '@/api/incentive'
 import { MESSAGES, ORDER_TYPE_LABELS, TIME_EXPECT_LABELS } from '@/utils/constants'
 
 /* 接单成功文案（详设 §6.5） */
@@ -82,6 +96,20 @@ export default {
     canChat() {
       const chatStates = ['ACCEPTED', 'IN_SERVICE', 'PENDING_CONFIRM', 'APPEALING']
       return this.order && chatStates.indexOf(this.order.status) >= 0
+    },
+    canMarkDone() {
+      return this.order && this.order.myRole && this.order.status === 'IN_SERVICE'
+    },
+    canConfirm() {
+      return (
+        this.order &&
+        this.order.myRole &&
+        this.order.status === 'PENDING_CONFIRM' &&
+        this.order.myRole !== this.order.confirmInitiator
+      )
+    },
+    isSettled() {
+      return this.order && this.order.myRole && this.order.status === 'COMPLETED'
     },
     /** 年龄未填的置灰文案；微光值不足/冷却中由后端 30006/30002 返回时提示 */
     gateReason() {
@@ -128,6 +156,40 @@ export default {
     },
     goChat() {
       uni.navigateTo({ url: `/pages/chat/room?orderId=${this.orderId}` })
+    },
+    goNeighbor() {
+      const id = this.order && this.order.requester && this.order.requester.id
+      if (id) {
+        uni.navigateTo({ url: `/pages/neighbor/profile?id=${id}` })
+      }
+    },
+    goConfirm() {
+      uni.navigateTo({ url: `/pages/order/confirm?id=${this.orderId}` })
+    },
+    goEvaluate() {
+      uni.navigateTo({ url: `/pages/settle/evaluate?id=${this.orderId}` })
+    },
+    goStory() {
+      uni.navigateTo({ url: `/pages/settle/story?id=${this.orderId}` })
+    },
+    doComplete() {
+      uni.showModal({
+        title: '标记完成',
+        content: '确认这次帮助已经完成了吗？',
+        success: async (res) => {
+          if (!res.confirm) {
+            return
+          }
+          try {
+            await completeOrder(this.orderId)
+            uni.showToast({ title: '已标记完成，等对方确认一下', icon: 'none' })
+            this.load()
+          } catch (e) {
+            console.error('[微光] 标记完成失败', e)
+            uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
+          }
+        }
+      })
     },
     async doAccept() {
       try {

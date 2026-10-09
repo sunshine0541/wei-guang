@@ -22,6 +22,10 @@ public class OrderDetailVO {
     private Integer viewCount;
     /** 订单状态（详设未枚举 O4 响应字段；P04 据此渲染"我愿意帮助"等状态动作，见《实现偏差清单》D07） */
     private String status;
+    /** 我的角色：REQUESTER/HELPER/null（非参与方）——P04 据此渲染行动按钮（见 D12） */
+    private String myRole;
+    /** 待确认阶段的发起方：REQUESTER/HELPER——"另一方"才显示确认入口（见 D12） */
+    private String confirmInitiator;
     private RequesterVO requester;
     /** 仅当浏览者不是发布者时返回小区/区域；远程类为 null */
     private String addressArea;

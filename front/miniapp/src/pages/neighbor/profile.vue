@@ -1,0 +1,130 @@
+<template>
+  <view class="wg-page" :class="userStore.rootClass">
+    <view v-if="loading" class="wg-card">
+      <text>正在为您准备，请稍等</text>
+    </view>
+
+    <template v-else-if="profile">
+      <view class="wg-card wg-neighbor-head">
+        <image v-if="profile.avatarUrl" class="wg-avatar" :src="fileUrl(profile.avatarUrl)" mode="aspectFill" />
+        <text class="wg-title">{{ profile.nickname || '邻居' }}</text>
+        <text v-if="profile.signature" class="wg-label">{{ profile.signature }}</text>
+      </view>
+
+      <view class="wg-card">
+        <view class="wg-card-head">
+          <text>收到的评价</text>
+          <text class="wg-strong">{{ avgText }}</text>
+        </view>
+      </view>
+
+      <view v-if="evaluations.length === 0" class="wg-card">
+        <text class="wg-label">{{ emptyText }}</text>
+      </view>
+      <view v-for="(item, index) in evaluations" :key="index" class="wg-card">
+        <view class="wg-card-head">
+          <text class="wg-stars-line">{{ '★'.repeat(item.stars) }}</text>
+          <text class="wg-label">{{ item.requesterNickname || '邻居' }} · {{ item.createdAt }}</text>
+        </view>
+        <text v-if="item.advice">{{ item.advice }}</text>
+      </view>
+
+      <view class="wg-card">
+        <text>我收到的感谢</text>
+        <view v-if="profile.thanks.length === 0" class="wg-label" style="margin-top: 8px">{{ emptyText }}</view>
+        <view v-for="item in profile.thanks" :key="item.letterId" class="wg-thanks-item">
+          <view class="wg-label">{{ item.senderNickname || '邻居' }} · {{ item.title }}</view>
+          <text>{{ item.content }}</text>
+        </view>
+      </view>
+    </template>
+
+    <view v-else class="wg-card">
+      <text>这个页面暂时不能看哦</text>
+    </view>
+  </view>
+</template>
+
+<script>
+import { useUserStore } from '@/store/user'
+import { getNeighborEvaluations, getNeighborProfile } from '@/api/incentive'
+import { BASE_URL, MESSAGES } from '@/utils/constants'
+
+export default {
+  data() {
+    return {
+      loading: true,
+      userId: null,
+      profile: null,
+      evaluations: [],
+      emptyText: MESSAGES.EMPTY
+    }
+  },
+  computed: {
+    userStore() {
+      return useUserStore()
+    },
+    avgText() {
+      if (!this.profile || this.profile.evaluationAvg === null || this.profile.evaluationAvg === undefined) {
+        return '暂无评价'
+      }
+      return `${this.profile.evaluationAvg} 分 · ${this.profile.evaluationCount} 条`
+    }
+  },
+  onLoad(options) {
+    this.userId = options.id
+    this.load()
+  },
+  methods: {
+    fileUrl(url) {
+      if (!url) {
+        return ''
+      }
+      return url.indexOf('http') === 0 ? url : BASE_URL + url
+    },
+    async load() {
+      this.loading = true
+      try {
+        this.profile = await getNeighborProfile(this.userId)
+        const result = await getNeighborEvaluations(this.userId, { page: 1, pageSize: 20 })
+        this.evaluations = result.records || []
+      } catch (e) {
+        console.error('[微光] 邻居主页加载失败', e)
+        this.profile = null
+      } finally {
+        this.loading = false
+      }
+    }
+  }
+}
+</script>
+
+<style lang="scss">
+.wg-neighbor-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.wg-avatar {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  margin-bottom: 8px;
+  background-color: #eee5d8;
+}
+
+.wg-strong {
+  color: #b06a00;
+  font-size: var(--wg-font-lg, 20px);
+}
+
+.wg-stars-line {
+  color: #f5a623;
+}
+
+.wg-thanks-item {
+  padding: 10px 0;
+  border-bottom: 1px solid #f0e9dd;
+}
+</style>

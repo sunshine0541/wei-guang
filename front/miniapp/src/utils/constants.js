@@ -50,5 +50,23 @@ export const TIME_EXPECT_LABELS = {
 
 export const TIME_EXPECT_OPTIONS = ['ASAP', 'TODAY', 'TOMORROW', 'THIS_WEEK', 'ANY']
 
+/* 账本 reason_code 中文（详设 §2.11/§2.12 枚举，仅展示用） */
+export const CREDIT_REASON_LABELS = {
+  COMPLETE: '完成帮助',
+  ACCEPT_CANCEL: '接单后取消',
+  START_TIMEOUT: '超时未确认开始',
+  MID_QUIT: '服务中失联或中途退出',
+  URGENT_ABUSE: '滥用急标',
+  MALICIOUS_CANCEL: '恶意取消',
+  FAKE_ORDER: '虚假求助',
+  APPEAL_LOSS: '仲裁败诉',
+  ADMIN_ADJUST: '管理员人工调整',
+  APPEAL_REVERT: '仲裁撤销扣分'
+}
+
+export const POINT_REASON_LABELS = {
+  COMPLETE: '完成帮助'
+}
+
 /* 紧急提示（详设 §6.1 三处常驻之一：发布页底部固定条） */
 export const EMERGENCY_TIP = '如果情况紧急，请直接拨打 120 或 110'
