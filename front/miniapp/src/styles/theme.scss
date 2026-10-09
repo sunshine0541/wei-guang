@@ -126,3 +126,67 @@ page {
 .wg-tag-mine {
   background-color: #e8e8e8;
 }
+
+/* 顶部 Tab（全局兜底）：此前仅 index 页内定义，P06 我的求助等页取不到样式 */
+.wg-tabs {
+  display: flex;
+  margin-bottom: var(--wg-space);
+}
+
+.wg-tab {
+  flex: 1;
+  text-align: center;
+  padding: 12px 0;
+  border-radius: var(--wg-radius);
+  background-color: #ffffff;
+  margin-right: 8px;
+  font-size: var(--wg-font-base);
+}
+
+.wg-tab:last-child {
+  margin-right: 0;
+}
+
+.wg-tab-active {
+  background-color: var(--wg-primary-light);
+  color: #b06a00;
+  font-weight: 600;
+}
+
+/* 基础表单与卡片元件（全局兜底）：此前 .wg-input/.wg-textarea 只在 guide 页、
+   .wg-card-head/.wg-urgent 只在部分页定义，其余页面取不到样式。T16 再做适老精修 */
+.wg-input {
+  min-height: var(--wg-btn-min-height);
+  border: 1px solid #e6ded2;
+  border-radius: var(--wg-radius);
+  padding: 0 12px;
+  margin-top: 8px;
+  background-color: #ffffff;
+  font-size: var(--wg-font-base);
+}
+
+.wg-textarea {
+  width: 100%;
+  min-height: 120px;
+  box-sizing: border-box;
+  border: 1px solid #e6ded2;
+  border-radius: var(--wg-radius);
+  padding: 10px 12px;
+  margin-top: 8px;
+  background-color: #ffffff;
+  font-size: var(--wg-font-base);
+}
+
+.wg-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wg-urgent {
+  color: #ffffff;
+  background-color: var(--wg-danger);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: var(--wg-font-sm);
+}
