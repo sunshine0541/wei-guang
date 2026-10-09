@@ -488,20 +488,28 @@ public class OrderService {
 
     /** O5 我的求助 */
     public PageVO<MyOrderVO> mine(Long uid, String tab, Long page, Long pageSize) {
+        // tab: DOING 进行中 / DONE 已了结 / HELPING 我接的单（全部状态，按接单者过滤，见 D16）
+        boolean helping = "HELPING".equals(tab);
         List<String> statuses = "DONE".equals(tab)
                 ? List.of(OrderStatus.COMPLETED.name(), OrderStatus.CANCELLED.name(), OrderStatus.EXPIRED.name())
                 : List.of(OrderStatus.PENDING.name(), OrderStatus.ACCEPTED.name(), OrderStatus.IN_SERVICE.name(),
                 OrderStatus.PENDING_CONFIRM.name(), OrderStatus.APPEALING.name());
 
+        LambdaQueryWrapper<HelpOrder> wrapper = Wrappers.<HelpOrder>lambdaQuery()
+                .orderByDesc(HelpOrder::getCreatedAt);
+        if (helping) {
+            wrapper.eq(HelpOrder::getHelperId, uid);
+        } else {
+            wrapper.eq(HelpOrder::getRequesterId, uid).in(HelpOrder::getStatus, statuses);
+        }
         Page<HelpOrder> result = helpOrderMapper.selectPage(
-                new Page<>(PageUtils.normalizePage(page), PageUtils.normalizeSize(pageSize)),
-                Wrappers.<HelpOrder>lambdaQuery()
-                        .eq(HelpOrder::getRequesterId, uid)
-                        .in(HelpOrder::getStatus, statuses)
-                        .orderByDesc(HelpOrder::getCreatedAt));
+                new Page<>(PageUtils.normalizePage(page), PageUtils.normalizeSize(pageSize)), wrapper);
 
         Map<Long, UserProfile> helpers = loadProfiles(result.getRecords().stream()
                 .map(HelpOrder::getHelperId).filter(java.util.Objects::nonNull).toList());
+        Map<Long, UserProfile> requesters = helping
+                ? loadProfiles(result.getRecords().stream().map(HelpOrder::getRequesterId).toList())
+                : Map.of();
         return PageVO.of(result.convert(order -> {
             MyOrderVO vo = new MyOrderVO();
             vo.setId(order.getId());
@@ -515,6 +523,8 @@ public class OrderService {
             vo.setCreatedAt(order.getCreatedAt());
             UserProfile helper = order.getHelperId() == null ? null : helpers.get(order.getHelperId());
             vo.setHelperNickname(helper == null ? null : helper.getNickname());
+            UserProfile requester = requesters.get(order.getRequesterId());
+            vo.setRequesterNickname(requester == null ? null : requester.getNickname());
             return vo;
         }));
     }

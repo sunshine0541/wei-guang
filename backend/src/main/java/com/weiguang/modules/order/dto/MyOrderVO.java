@@ -21,5 +21,7 @@ public class MyOrderVO {
     private Integer currentRound;
     /** 当前轮接单者昵称，未接单为 null */
     private String helperNickname;
+    /** 发布者昵称——仅 tab=HELPING（我接的单）时返回，供接单者识别是谁的求助（见《实现偏差清单》D16） */
+    private String requesterNickname;
     private LocalDateTime createdAt;
 }

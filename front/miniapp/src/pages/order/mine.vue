@@ -3,6 +3,7 @@
     <view class="wg-tabs">
       <view class="wg-tab" :class="{ 'wg-tab-active': tab === 'DOING' }" @click="switchTab('DOING')">进行中</view>
       <view class="wg-tab" :class="{ 'wg-tab-active': tab === 'DONE' }" @click="switchTab('DONE')">已了结</view>
+      <view class="wg-tab" :class="{ 'wg-tab-active': tab === 'HELPING' }" @click="switchTab('HELPING')">我接的单</view>
     </view>
 
     <view v-if="orders.length === 0" class="wg-card">
@@ -16,7 +17,7 @@
       </view>
       <view class="wg-label" style="margin-top: 6px">{{ statusText(order) }}</view>
       <view
-        v-if="order.status === 'EXPIRED'"
+        v-if="order.status === 'EXPIRED' && tab !== 'HELPING'"
         class="wg-btn wg-btn-plain"
         style="margin-top: 8px"
         @click.stop="republish(order)"
@@ -46,7 +47,13 @@ export default {
       return useUserStore()
     },
     emptyText() {
-      return this.tab === 'DOING' ? EMPTY_DOING : MESSAGES.EMPTY
+      if (this.tab === 'DOING') {
+        return EMPTY_DOING
+      }
+      if (this.tab === 'HELPING') {
+        return '您还没有接过邻居的求助'
+      }
+      return MESSAGES.EMPTY
     }
   },
   onShow() {
@@ -66,6 +73,20 @@ export default {
       }
     },
     statusText(order) {
+      // 「我接的单」视角：显示是谁的求助
+      if (this.tab === 'HELPING') {
+        const who = order.requesterNickname || '邻居'
+        const stateMap = {
+          ACCEPTED: '等您开始帮忙',
+          IN_SERVICE: '正在帮 ' + who,
+          PENDING_CONFIRM: '等 ' + who + ' 确认完成',
+          COMPLETED: '已帮 ' + who + ' 完成',
+          CANCELLED: who + ' 已取消',
+          APPEALING: '正在请管理员帮忙看看',
+          EXPIRED: '已超时'
+        }
+        return stateMap[order.status] || order.status
+      }
       const name = order.helperNickname || '邻居'
       switch (order.status) {
         case 'PENDING':
