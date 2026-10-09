@@ -53,6 +53,10 @@
         <view class="wg-btn wg-btn-plain" @click="goEvaluate">评价 / 悄悄话</view>
         <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="goStory">看看这次的故事卡</view>
       </view>
+
+      <view v-if="order.myRole" class="wg-card">
+        <view class="wg-btn wg-btn-plain" @click="goRoom">查看进展与操作</view>
+      </view>
     </template>
 
     <view v-else class="wg-card">
@@ -165,6 +169,9 @@ export default {
     },
     goConfirm() {
       uni.navigateTo({ url: `/pages/order/confirm?id=${this.orderId}` })
+    },
+    goRoom() {
+      uni.navigateTo({ url: `/pages/order/room?id=${this.orderId}` })
     },
     goEvaluate() {
       uni.navigateTo({ url: `/pages/settle/evaluate?id=${this.orderId}` })

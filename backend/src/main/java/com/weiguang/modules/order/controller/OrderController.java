@@ -7,13 +7,19 @@ import com.weiguang.common.result.Result;
 import com.weiguang.infra.interceptor.AuthContext;
 import com.weiguang.modules.order.dto.AcceptVO;
 import com.weiguang.modules.order.dto.AiSuggestRequest;
+import com.weiguang.modules.order.dto.CancelConfirmRequest;
+import com.weiguang.modules.order.dto.CancelRequest;
 import com.weiguang.modules.order.dto.ConfirmRequest;
 import com.weiguang.modules.order.dto.MyOrderVO;
 import com.weiguang.modules.order.dto.OrderCardVO;
 import com.weiguang.modules.order.dto.OrderDetailVO;
 import com.weiguang.modules.order.dto.PublishRequest;
 import com.weiguang.modules.order.dto.PublishVO;
+import com.weiguang.modules.order.dto.ReleaseRequest;
+import com.weiguang.modules.order.dto.TimelineVO;
+import com.weiguang.modules.order.service.CancelService;
 import com.weiguang.modules.order.service.OrderService;
+import com.weiguang.modules.order.service.ReleaseService;
 import com.weiguang.modules.order.service.SettleService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,8 +30,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 /**
- * 求助单接口（详设 §3.2 O1–O6、O13）。
+ * 求助单接口（详设 §3.2 O1–O14）。
  */
 @RestController
 @RequestMapping("/api/orders")
@@ -33,10 +41,17 @@ public class OrderController {
 
     private final OrderService orderService;
     private final SettleService settleService;
+    private final ReleaseService releaseService;
+    private final CancelService cancelService;
 
-    public OrderController(OrderService orderService, SettleService settleService) {
+    public OrderController(OrderService orderService,
+                           SettleService settleService,
+                           ReleaseService releaseService,
+                           CancelService cancelService) {
         this.orderService = orderService;
         this.settleService = settleService;
+        this.releaseService = releaseService;
+        this.cancelService = cancelService;
     }
 
     /** O1 能力一：自由描述 → 类型/标签/紧急度/标题建议（不落库） */
@@ -80,6 +95,40 @@ public class OrderController {
     @PostMapping("/{id}/accept")
     public Result<AcceptVO> accept(@PathVariable Long id) {
         return Result.ok(orderService.accept(AuthContext.requireUid(), id));
+    }
+
+    /** O7 确认开始（仅当前轮接单者） */
+    @PostMapping("/{id}/start")
+    public Result<Void> start(@PathVariable Long id) {
+        orderService.start(AuthContext.requireUid(), id);
+        return Result.ok();
+    }
+
+    /** O8 释放（放弃/实在帮不上/服务中退出） */
+    @PostMapping("/{id}/release")
+    public Result<Void> release(@PathVariable Long id, @RequestBody ReleaseRequest request) {
+        releaseService.release(AuthContext.requireUid(), id, request);
+        return Result.ok();
+    }
+
+    /** O9 取消（mode=CANCEL 单方取消 / NEGOTIATE 发起协商，见 D13） */
+    @PostMapping("/{id}/cancel")
+    public Result<Void> cancel(@PathVariable Long id, @RequestBody CancelRequest request) {
+        cancelService.cancel(AuthContext.requireUid(), id, request);
+        return Result.ok();
+    }
+
+    /** O10 协商取消应答（仅另一方） */
+    @PostMapping("/{id}/cancel-confirm")
+    public Result<Void> cancelConfirm(@PathVariable Long id, @RequestBody CancelConfirmRequest request) {
+        cancelService.cancelConfirm(AuthContext.requireUid(), id, request);
+        return Result.ok();
+    }
+
+    /** O14 订单时间线（归属=订单双方） */
+    @GetMapping("/{id}/timeline")
+    public Result<List<TimelineVO>> timeline(@PathVariable Long id) {
+        return Result.ok(orderService.timeline(AuthContext.requireUid(), id));
     }
 
     /** O11 标记完成（发起双确认） */

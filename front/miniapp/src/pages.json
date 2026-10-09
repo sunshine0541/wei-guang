@@ -33,6 +33,18 @@
       }
     },
     {
+      "path": "pages/order/room",
+      "style": {
+        "navigationBarTitleText": "这次求助"
+      }
+    },
+    {
+      "path": "pages/order/mine",
+      "style": {
+        "navigationBarTitleText": "我的求助"
+      }
+    },
+    {
       "path": "pages/order/confirm",
       "style": {
         "navigationBarTitleText": "确认完成"

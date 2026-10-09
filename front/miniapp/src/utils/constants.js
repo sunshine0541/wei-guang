@@ -68,5 +68,24 @@ export const POINT_REASON_LABELS = {
   COMPLETE: '完成帮助'
 }
 
+/* O14 时间线事件中文（详设 §2.8 枚举，仅展示用） */
+export const TIMELINE_LABELS = {
+  PUBLISH: '发布求助',
+  ACCEPT: '邻居接单',
+  START: '开始帮忙',
+  RELEASE: '释放重派',
+  CANCEL: '已取消',
+  CANCEL_REQUEST: '发起商量取消',
+  CANCEL_CONFIRM_REJECT: '拒绝了商量取消',
+  COMPLETE_REQUEST: '标记完成',
+  CONFIRM: '确认完成',
+  COMPLETE: '完成结算',
+  EXPIRE: '超时未响应',
+  APPEAL_OPEN: '进入申诉',
+  ARBITRATE: '管理员裁决',
+  ADMIN_ACTION: '管理员操作',
+  REPUBLISH: '一键重发'
+}
+
 /* 紧急提示（详设 §6.1 三处常驻之一：发布页底部固定条） */
 export const EMERGENCY_TIP = '如果情况紧急，请直接拨打 120 或 110'

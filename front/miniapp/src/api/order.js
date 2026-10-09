@@ -39,3 +39,28 @@ export function acceptOrder(id) {
 export function republishOrder(id) {
   return request({ url: `/api/orders/${id}/republish`, method: 'POST' })
 }
+
+/** O7 确认开始（仅当前轮接单者） */
+export function startOrder(id) {
+  return request({ url: `/api/orders/${id}/start`, method: 'POST' })
+}
+
+/** O8 释放（reasonType: HELPER_QUIT/HELPLESS/HELPER_LOST） */
+export function releaseOrder(id, data) {
+  return request({ url: `/api/orders/${id}/release`, method: 'POST', data })
+}
+
+/** O9 取消（mode: CANCEL 单方 / NEGOTIATE 发起商量） */
+export function cancelOrder(id, data) {
+  return request({ url: `/api/orders/${id}/cancel`, method: 'POST', data })
+}
+
+/** O10 协商取消应答 */
+export function cancelConfirmOrder(id, data) {
+  return request({ url: `/api/orders/${id}/cancel-confirm`, method: 'POST', data })
+}
+
+/** O14 订单时间线 */
+export function getOrderTimeline(id) {
+  return request({ url: `/api/orders/${id}/timeline` })
+}

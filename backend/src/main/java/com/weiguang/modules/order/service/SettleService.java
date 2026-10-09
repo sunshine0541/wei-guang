@@ -18,6 +18,8 @@ import com.weiguang.modules.incentive.mapper.StoryCardMapper;
 import com.weiguang.modules.light.entity.LightEvent;
 import com.weiguang.modules.light.mapper.LightEventMapper;
 import com.weiguang.modules.notify.service.NotifyService;
+import com.weiguang.infra.websocket.WsEnvelope;
+import com.weiguang.infra.websocket.WsSessionRegistry;
 import com.weiguang.modules.order.dto.ConfirmRequest;
 import com.weiguang.modules.order.entity.HelpOrder;
 import com.weiguang.modules.order.mapper.HelpOrderMapper;
@@ -56,6 +58,7 @@ public class SettleService {
     private final OrderTimelineRecorder timelineRecorder;
     private final NotifyService notifyService;
     private final ConfigService configService;
+    private final WsSessionRegistry wsSessionRegistry;
 
     public SettleService(HelpOrderMapper helpOrderMapper,
                          UserMapper userMapper,
@@ -68,7 +71,8 @@ public class SettleService {
                          AppealMapper appealMapper,
                          OrderTimelineRecorder timelineRecorder,
                          NotifyService notifyService,
-                         ConfigService configService) {
+                         ConfigService configService,
+                         WsSessionRegistry wsSessionRegistry) {
         this.helpOrderMapper = helpOrderMapper;
         this.userMapper = userMapper;
         this.userProfileMapper = userProfileMapper;
@@ -81,6 +85,7 @@ public class SettleService {
         this.timelineRecorder = timelineRecorder;
         this.notifyService = notifyService;
         this.configService = configService;
+        this.wsSessionRegistry = wsSessionRegistry;
     }
 
     /** O11 标记完成：双方任一方，IN_SERVICE → PENDING_CONFIRM */
@@ -103,6 +108,7 @@ public class SettleService {
         timelineRecorder.record(orderId, "COMPLETE_REQUEST", uid, null);
         Long peerId = iAmRequester ? order.getHelperId() : order.getRequesterId();
         notifyService.confirmRequest(peerId, nicknameOf(uid), order.getTitle(), orderId);
+        pushStatus(order, OrderStatus.PENDING_CONFIRM.name());
     }
 
     /** O12 确认/拒绝：仅另一方；agree=true → 结算；agree=false → APPEALING + appeal(CONFIRM_REJECT) */
@@ -151,6 +157,7 @@ public class SettleService {
         appeal.setCreatedAt(LocalDateTime.now());
         appealMapper.insert(appeal);
         timelineRecorder.record(orderId, "APPEAL_OPEN", uid, request.getReason());
+        pushStatus(order, OrderStatus.APPEALING.name());
     }
 
     /**
@@ -290,7 +297,18 @@ public class SettleService {
         timelineRecorder.record(order.getId(), "COMPLETE", 0L, null);
         notifyService.settled(requesterId, order.getTitle(), order.getId());
         notifyService.settled(helperId, order.getTitle(), order.getId());
+        pushStatus(order, OrderStatus.COMPLETED.name());
         return true;
+    }
+
+    private void pushStatus(HelpOrder order, String status) {
+        Object envelope = WsEnvelope.orderStatus(order.getId(), status, order.getTitle());
+        if (order.getRequesterId() != null) {
+            wsSessionRegistry.push(order.getRequesterId(), envelope);
+        }
+        if (order.getHelperId() != null) {
+            wsSessionRegistry.push(order.getHelperId(), envelope);
+        }
     }
 
     /** 故事卡一句话小结（详设 P12 写死三套模板之一） */

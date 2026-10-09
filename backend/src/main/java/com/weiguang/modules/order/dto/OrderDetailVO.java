@@ -26,6 +26,8 @@ public class OrderDetailVO {
     private String myRole;
     /** 待确认阶段的发起方：REQUESTER/HELPER——"另一方"才显示确认入口（见 D12） */
     private String confirmInitiator;
+    /** 协商取消挂起：发起的角色 REQUESTER/HELPER，null=无挂起——P07 据此渲染应答按钮（见 D14） */
+    private String cancelPendingBy;
     private RequesterVO requester;
     /** 仅当浏览者不是发布者时返回小区/区域；远程类为 null */
     private String addressArea;

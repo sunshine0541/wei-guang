@@ -17,7 +17,11 @@ import com.weiguang.common.util.JsonUtils;
 import com.weiguang.common.util.PageUtils;
 import com.weiguang.config.BizMetrics;
 import com.weiguang.infra.ratelimit.RedisHealthProbe;
+import com.weiguang.infra.websocket.WsEnvelope;
+import com.weiguang.infra.websocket.WsSessionRegistry;
+import com.weiguang.modules.chat.entity.ChatMessage;
 import com.weiguang.modules.chat.entity.ChatSession;
+import com.weiguang.modules.chat.mapper.ChatMessageMapper;
 import com.weiguang.modules.chat.mapper.ChatSessionMapper;
 import com.weiguang.modules.notify.service.NotifyService;
 import com.weiguang.modules.order.dto.AcceptVO;
@@ -28,9 +32,12 @@ import com.weiguang.modules.order.dto.OrderDetailVO;
 import com.weiguang.modules.order.dto.PublishRequest;
 import com.weiguang.modules.order.dto.PublishVO;
 import com.weiguang.modules.order.dto.RequesterVO;
+import com.weiguang.modules.order.dto.TimelineVO;
 import com.weiguang.modules.order.entity.HelpOrder;
+import com.weiguang.modules.order.entity.OrderTimeline;
 import com.weiguang.modules.order.entity.OrderView;
 import com.weiguang.modules.order.mapper.HelpOrderMapper;
+import com.weiguang.modules.order.mapper.OrderTimelineMapper;
 import com.weiguang.modules.order.mapper.OrderViewMapper;
 import com.weiguang.modules.security.service.SensitiveWordService;
 import com.weiguang.modules.system.service.ConfigService;
@@ -71,6 +78,7 @@ public class OrderService {
 
     private final HelpOrderMapper helpOrderMapper;
     private final OrderViewMapper orderViewMapper;
+    private final OrderTimelineMapper orderTimelineMapper;
     private final AddressBookMapper addressBookMapper;
     private final UserMapper userMapper;
     private final UserProfileMapper userProfileMapper;
@@ -81,11 +89,14 @@ public class OrderService {
     private final StringRedisTemplate redisTemplate;
     private final RedisHealthProbe redisHealthProbe;
     private final ChatSessionMapper chatSessionMapper;
+    private final ChatMessageMapper chatMessageMapper;
     private final NotifyService notifyService;
     private final BizMetrics bizMetrics;
+    private final WsSessionRegistry wsSessionRegistry;
 
     public OrderService(HelpOrderMapper helpOrderMapper,
                         OrderViewMapper orderViewMapper,
+                        OrderTimelineMapper orderTimelineMapper,
                         AddressBookMapper addressBookMapper,
                         UserMapper userMapper,
                         UserProfileMapper userProfileMapper,
@@ -96,10 +107,13 @@ public class OrderService {
                         StringRedisTemplate redisTemplate,
                         RedisHealthProbe redisHealthProbe,
                         ChatSessionMapper chatSessionMapper,
+                        ChatMessageMapper chatMessageMapper,
                         NotifyService notifyService,
-                        BizMetrics bizMetrics) {
+                        BizMetrics bizMetrics,
+                        WsSessionRegistry wsSessionRegistry) {
         this.helpOrderMapper = helpOrderMapper;
         this.orderViewMapper = orderViewMapper;
+        this.orderTimelineMapper = orderTimelineMapper;
         this.addressBookMapper = addressBookMapper;
         this.userMapper = userMapper;
         this.userProfileMapper = userProfileMapper;
@@ -110,8 +124,10 @@ public class OrderService {
         this.redisTemplate = redisTemplate;
         this.redisHealthProbe = redisHealthProbe;
         this.chatSessionMapper = chatSessionMapper;
+        this.chatMessageMapper = chatMessageMapper;
         this.notifyService = notifyService;
         this.bizMetrics = bizMetrics;
+        this.wsSessionRegistry = wsSessionRegistry;
     }
 
     /** O1 能力一 · 求助理解：先本地敏感词（仅 BLOCK 拦截），否则交 AI（Mock 模式为本地规则） */
@@ -249,7 +265,99 @@ public class OrderService {
                         ? "邻居" : helperProfile.getNickname(),
                 order.getTitle(), orderId);
         bizMetrics.orderAccepted();
+        pushOrderStatus(orderId, OrderStatus.ACCEPTED.name(), order.getTitle(), order.getRequesterId(), uid);
         return new AcceptVO(session.getId());
+    }
+
+    /**
+     * O7 确认开始：仅当前轮接单者；ACCEPTED → IN_SERVICE（详设 §3.3）。
+     * 事务内：时间线(START) + 双方互动时间 + 会话系统消息"邻居已确认开始帮忙"；通知求助者 SERVICE_STARTED。
+     */
+    @Transactional
+    public void start(Long uid, Long orderId) {
+        HelpOrder order = helpOrderMapper.selectById(orderId);
+        if (order == null) {
+            throw new BizException(ErrorCode.FORBIDDEN);
+        }
+        if (!uid.equals(order.getHelperId())) {
+            throw new BizException(ErrorCode.FORBIDDEN);
+        }
+        int rows = helpOrderMapper.update(null, Wrappers.<HelpOrder>lambdaUpdate()
+                .eq(HelpOrder::getId, orderId)
+                .eq(HelpOrder::getStatus, OrderStatus.ACCEPTED.name())
+                .eq(HelpOrder::getHelperId, uid)
+                .set(HelpOrder::getStatus, OrderStatus.IN_SERVICE.name())
+                .set(HelpOrder::getStartedAt, LocalDateTime.now()));
+        if (rows == 0) {
+            throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
+        }
+
+        int round = order.getCurrentRound() == null ? 1 : order.getCurrentRound();
+        ChatSession session = chatSessionMapper.selectOne(Wrappers.<ChatSession>lambdaQuery()
+                .eq(ChatSession::getOrderId, orderId)
+                .eq(ChatSession::getRound, round));
+        if (session != null) {
+            ChatMessage systemMessage = new ChatMessage();
+            systemMessage.setSessionId(session.getId());
+            systemMessage.setSenderId(0L);
+            systemMessage.setMessageType("SYSTEM");
+            systemMessage.setContent("邻居已确认开始帮忙");
+            systemMessage.setRiskFlag("NONE");
+            systemMessage.setCreatedAt(LocalDateTime.now());
+            chatMessageMapper.insert(systemMessage);
+        }
+
+        timelineRecorder.record(orderId, "START", uid, null);
+        touchInteraction(uid);
+        touchInteraction(order.getRequesterId());
+        notifyService.serviceStarted(order.getRequesterId(), nicknameOf(uid), order.getTitle(), orderId);
+        pushOrderStatus(orderId, OrderStatus.IN_SERVICE.name(), order.getTitle(), order.getRequesterId(), uid);
+    }
+
+    /** O14 订单时间线（归属=订单双方，按时间升序，operatorRole 派生） */
+    public List<TimelineVO> timeline(Long uid, Long orderId) {
+        HelpOrder order = helpOrderMapper.selectById(orderId);
+        if (order == null
+                || (!uid.equals(order.getRequesterId()) && !uid.equals(order.getHelperId()))) {
+            throw new BizException(ErrorCode.FORBIDDEN);
+        }
+        List<OrderTimeline> records = orderTimelineMapper.selectList(Wrappers.<OrderTimeline>lambdaQuery()
+                .eq(OrderTimeline::getOrderId, orderId)
+                .orderByAsc(OrderTimeline::getId));
+        return records.stream().map(record -> {
+            TimelineVO vo = new TimelineVO();
+            vo.setEventType(record.getEventType());
+            vo.setOperatorRole(operatorRole(record.getOperatorId(), order));
+            vo.setRemark(record.getRemark());
+            vo.setCreatedAt(record.getCreatedAt());
+            return vo;
+        }).toList();
+    }
+
+    private String operatorRole(Long operatorId, HelpOrder order) {
+        if (operatorId == null || operatorId == 0L) {
+            return "SYSTEM";
+        }
+        if (operatorId.equals(order.getRequesterId())) {
+            return "REQUESTER";
+        }
+        if (operatorId.equals(order.getHelperId())) {
+            return "HELPER";
+        }
+        return "ADMIN";
+    }
+
+    private void pushOrderStatus(Long orderId, String status, String title, Long requesterId, Long helperId) {
+        Object envelope = WsEnvelope.orderStatus(orderId, status, title);
+        wsSessionRegistry.push(requesterId, envelope);
+        if (helperId != null) {
+            wsSessionRegistry.push(helperId, envelope);
+        }
+    }
+
+    private String nicknameOf(Long uid) {
+        UserProfile profile = findProfile(uid);
+        return profile == null || profile.getNickname() == null ? "邻居" : profile.getNickname();
     }
 
     /** O6 类型门槛：上门/陪同需年龄已填且 ≥18、微光值 ≥`credit.threshold`、不在冷却；远程无门槛 */
@@ -365,6 +473,7 @@ public class OrderService {
         vo.setStatus(order.getStatus());
         vo.setMyRole(mine ? "REQUESTER" : (uid.equals(order.getHelperId()) ? "HELPER" : null));
         vo.setConfirmInitiator(order.getConfirmInitiator());
+        vo.setCancelPendingBy(order.getCancelPendingBy());
         vo.setRequester(toRequester(profile));
         vo.setMine(mine);
         // 地址分级：仅非发布者可见小区/区域；远程类不返回地址；门牌永不返回

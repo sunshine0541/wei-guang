@@ -5,6 +5,13 @@
       <text class="wg-title">{{ userStore.nickname || '邻居' }}</text>
     </view>
 
+    <view class="wg-card" @click="goMyOrders">
+      <view class="wg-card-head">
+        <text>我的求助</text>
+        <text class="wg-label">查看进展</text>
+      </view>
+    </view>
+
     <view class="wg-card" @click="goCredit">
       <view class="wg-card-head">
         <text>我的微光值</text>
@@ -77,6 +84,9 @@ export default {
     },
     goCredit() {
       uni.navigateTo({ url: '/pages/user/credit' })
+    },
+    goMyOrders() {
+      uni.navigateTo({ url: '/pages/order/mine' })
     },
     goPoints() {
       uni.navigateTo({ url: '/pages/user/points' })
