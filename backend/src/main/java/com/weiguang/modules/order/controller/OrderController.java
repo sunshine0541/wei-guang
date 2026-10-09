@@ -5,6 +5,7 @@ import com.weiguang.common.annotation.RateLimit;
 import com.weiguang.common.result.PageVO;
 import com.weiguang.common.result.Result;
 import com.weiguang.infra.interceptor.AuthContext;
+import com.weiguang.modules.order.dto.AcceptVO;
 import com.weiguang.modules.order.dto.AiSuggestRequest;
 import com.weiguang.modules.order.dto.MyOrderVO;
 import com.weiguang.modules.order.dto.OrderCardVO;
@@ -22,7 +23,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 求助单接口（详设 §3.2 O1–O5、O13）。
+ * 求助单接口（详设 §3.2 O1–O6、O13）。
  */
 @RestController
 @RequestMapping("/api/orders")
@@ -69,6 +70,12 @@ public class OrderController {
     @GetMapping("/{id}")
     public Result<OrderDetailVO> detail(@PathVariable Long id) {
         return Result.ok(orderService.detail(AuthContext.requireUid(), id));
+    }
+
+    /** O6 接单（"我愿意帮助"） */
+    @PostMapping("/{id}/accept")
+    public Result<AcceptVO> accept(@PathVariable Long id) {
+        return Result.ok(orderService.accept(AuthContext.requireUid(), id));
     }
 
     /** O13 一键重发（仅 EXPIRED 态） */

@@ -20,6 +20,8 @@ public class OrderDetailVO {
     private String timeExpect;
     private LocalDateTime createdAt;
     private Integer viewCount;
+    /** 订单状态（详设未枚举 O4 响应字段；P04 据此渲染"我愿意帮助"等状态动作，见《实现偏差清单》D07） */
+    private String status;
     private RequesterVO requester;
     /** 仅当浏览者不是发布者时返回小区/区域；远程类为 null */
     private String addressArea;

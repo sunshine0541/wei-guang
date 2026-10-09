@@ -30,6 +30,11 @@ export function listMyOrders(params) {
   return request({ url: '/api/orders/mine', data: params })
 }
 
+/** O6 接单（"我愿意帮助"）；silent：由详情页按错误码给出 P04 指定文案 */
+export function acceptOrder(id) {
+  return request({ url: `/api/orders/${id}/accept`, method: 'POST', silent: true })
+}
+
 /** O13 一键重发 */
 export function republishOrder(id) {
   return request({ url: `/api/orders/${id}/republish`, method: 'POST' })

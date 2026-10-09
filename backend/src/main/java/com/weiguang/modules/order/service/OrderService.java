@@ -15,7 +15,12 @@ import com.weiguang.common.exception.BizException;
 import com.weiguang.common.result.PageVO;
 import com.weiguang.common.util.JsonUtils;
 import com.weiguang.common.util.PageUtils;
+import com.weiguang.config.BizMetrics;
 import com.weiguang.infra.ratelimit.RedisHealthProbe;
+import com.weiguang.modules.chat.entity.ChatSession;
+import com.weiguang.modules.chat.mapper.ChatSessionMapper;
+import com.weiguang.modules.notify.service.NotifyService;
+import com.weiguang.modules.order.dto.AcceptVO;
 import com.weiguang.modules.order.dto.MyOrderVO;
 import com.weiguang.modules.order.dto.OrderCardVO;
 import com.weiguang.modules.order.dto.OrderDetailVO;
@@ -70,6 +75,9 @@ public class OrderService {
     private final OrderTimelineRecorder timelineRecorder;
     private final StringRedisTemplate redisTemplate;
     private final RedisHealthProbe redisHealthProbe;
+    private final ChatSessionMapper chatSessionMapper;
+    private final NotifyService notifyService;
+    private final BizMetrics bizMetrics;
 
     public OrderService(HelpOrderMapper helpOrderMapper,
                         OrderViewMapper orderViewMapper,
@@ -81,7 +89,10 @@ public class OrderService {
                         AiService aiService,
                         OrderTimelineRecorder timelineRecorder,
                         StringRedisTemplate redisTemplate,
-                        RedisHealthProbe redisHealthProbe) {
+                        RedisHealthProbe redisHealthProbe,
+                        ChatSessionMapper chatSessionMapper,
+                        NotifyService notifyService,
+                        BizMetrics bizMetrics) {
         this.helpOrderMapper = helpOrderMapper;
         this.orderViewMapper = orderViewMapper;
         this.addressBookMapper = addressBookMapper;
@@ -93,6 +104,9 @@ public class OrderService {
         this.timelineRecorder = timelineRecorder;
         this.redisTemplate = redisTemplate;
         this.redisHealthProbe = redisHealthProbe;
+        this.chatSessionMapper = chatSessionMapper;
+        this.notifyService = notifyService;
+        this.bizMetrics = bizMetrics;
     }
 
     /** O1 能力一 · 求助理解：先本地敏感词（仅 BLOCK 拦截），否则交 AI（Mock 模式为本地规则） */
@@ -177,6 +191,88 @@ public class OrderService {
         return new PublishVO(order.getId(), false);
     }
 
+    /**
+     * O6 接单（"我愿意帮助"）：核心并发点。
+     * 封禁用户由 UserAuthInterceptor 统一拦写（20004），此处不再重复校验。
+     */
+    @Transactional
+    public AcceptVO accept(Long uid, Long orderId) {
+        HelpOrder order = helpOrderMapper.selectById(orderId);
+        if (order == null) {
+            throw new BizException(ErrorCode.FORBIDDEN);
+        }
+        if (order.getRequesterId().equals(uid)) {
+            throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
+        }
+        if (!OrderStatus.PENDING.name().equals(order.getStatus())) {
+            throw new BizException(ErrorCode.ACCEPT_CONFLICT);
+        }
+
+        User helper = requireUser(uid);
+        UserProfile helperProfile = findProfile(uid);
+        requireAcceptGates(helper, helperProfile, OrderType.valueOf(order.getOrderType()));
+
+        LocalDateTime now = LocalDateTime.now();
+        int rows = helpOrderMapper.update(null, Wrappers.<HelpOrder>lambdaUpdate()
+                .eq(HelpOrder::getId, orderId)
+                .eq(HelpOrder::getStatus, OrderStatus.PENDING.name())
+                .eq(HelpOrder::getVersion, order.getVersion())
+                .set(HelpOrder::getStatus, OrderStatus.ACCEPTED.name())
+                .set(HelpOrder::getHelperId, uid)
+                .set(HelpOrder::getAcceptedAt, now)
+                .set(HelpOrder::getStartDeadline,
+                        now.plusHours(configService.getInt("order.accept_timeout_hours", 2)))
+                .set(HelpOrder::getVersion, order.getVersion() + 1));
+        if (rows == 0) {
+            throw new BizException(ErrorCode.ACCEPT_CONFLICT);
+        }
+
+        ChatSession session = new ChatSession();
+        session.setOrderId(orderId);
+        session.setRound(order.getCurrentRound() == null ? 1 : order.getCurrentRound());
+        session.setRequesterId(order.getRequesterId());
+        session.setHelperId(uid);
+        session.setStatus("ACTIVE");
+        session.setRequesterUnread(0);
+        session.setHelperUnread(0);
+        chatSessionMapper.insert(session);
+
+        timelineRecorder.record(orderId, "ACCEPT", uid, null);
+        touchInteraction(uid);
+        notifyService.accepted(order.getRequesterId(),
+                helperProfile == null || helperProfile.getNickname() == null
+                        ? "邻居" : helperProfile.getNickname(),
+                order.getTitle(), orderId);
+        bizMetrics.orderAccepted();
+        return new AcceptVO(session.getId());
+    }
+
+    /** O6 类型门槛：上门/陪同需年龄已填且 ≥18、微光值 ≥`credit.threshold`、不在冷却；远程无门槛 */
+    private void requireAcceptGates(User helper, UserProfile profile, OrderType orderType) {
+        if (orderType == OrderType.REMOTE) {
+            return;
+        }
+        if (profile == null || profile.getAge() == null || profile.getAge() < 18) {
+            throw new BizException(ErrorCode.AGE_REQUIRED);
+        }
+        if (helper.getCreditScore() == null
+                || helper.getCreditScore() < configService.getInt("credit.threshold", 60)) {
+            throw new BizException(ErrorCode.CREDIT_INSUFFICIENT);
+        }
+        LocalDateTime cooldownUntil = helper.getCooldownUntil();
+        if (cooldownUntil == null) {
+            return;
+        }
+        if (cooldownUntil.isAfter(LocalDateTime.now())) {
+            throw new BizException(ErrorCode.ACCEPT_COOLDOWN);
+        }
+        // 冷却已到期：懒清零（详设 §4.1 违约冷却）
+        userMapper.update(null, Wrappers.<User>lambdaUpdate()
+                .eq(User::getId, helper.getId())
+                .set(User::getCooldownUntil, null)
+                .set(User::getViolationCount, 0));
+    }
+
     /** O3 求助列表（tab=all|recommend；响应不含 age_priority 与发布者年龄） */
     public PageVO<OrderCardVO> list(Long uid, String tab, String orderType, Boolean urgentOnly, Long page, Long pageSize) {
         if (orderType != null && !orderType.isBlank() && !OrderType.isValid(orderType)) {
@@ -247,6 +343,7 @@ public class OrderService {
         vo.setTimeExpect(order.getTimeExpect());
         vo.setCreatedAt(order.getCreatedAt());
         vo.setViewCount(order.getViewCount());
+        vo.setStatus(order.getStatus());
         vo.setRequester(toRequester(profile));
         vo.setMine(mine);
         // 地址分级：仅非发布者可见小区/区域；远程类不返回地址；门牌永不返回
