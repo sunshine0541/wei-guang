@@ -27,6 +27,12 @@
       }
     },
     {
+      "path": "pages/chat/room",
+      "style": {
+        "navigationBarTitleText": "聊天"
+      }
+    },
+    {
       "path": "pages/guide/privacy",
       "style": {
         "navigationBarTitleText": "隐私说明"

@@ -21,6 +21,7 @@ import com.weiguang.modules.chat.entity.ChatSession;
 import com.weiguang.modules.chat.mapper.ChatSessionMapper;
 import com.weiguang.modules.notify.service.NotifyService;
 import com.weiguang.modules.order.dto.AcceptVO;
+import com.weiguang.modules.order.dto.CareTipVO;
 import com.weiguang.modules.order.dto.MyOrderVO;
 import com.weiguang.modules.order.dto.OrderCardVO;
 import com.weiguang.modules.order.dto.OrderDetailVO;
@@ -63,6 +64,10 @@ public class OrderService {
     private static final String PENDING_LIMIT_MESSAGE = "您还有求助在等待邻居响应，先等它们被看到，再发新的吧";
     private static final String BROWSE_DEDUP_KEY_PREFIX = "browse:dedup:";
     private static final int AI_SUGGEST_TEXT_MAX_LENGTH = 500;
+    /** O15 照护提示卡可见状态：接单后至服务结束，结束即收回 */
+    private static final java.util.Set<String> CARE_TIP_VISIBLE_STATES = java.util.Set.of(
+            OrderStatus.ACCEPTED.name(), OrderStatus.IN_SERVICE.name(),
+            OrderStatus.PENDING_CONFIRM.name(), OrderStatus.APPEALING.name());
 
     private final HelpOrderMapper helpOrderMapper;
     private final OrderViewMapper orderViewMapper;
@@ -271,6 +276,20 @@ public class OrderService {
                 .eq(User::getId, helper.getId())
                 .set(User::getCooldownUntil, null)
                 .set(User::getViolationCount, 0));
+    }
+
+    /** O15 照护提示卡：仅当前轮接单者且服务有效状态内；结束/非接单者 → 20003 收回 */
+    public CareTipVO careTip(Long uid, Long orderId) {
+        HelpOrder order = helpOrderMapper.selectById(orderId);
+        if (order == null
+                || !uid.equals(order.getHelperId())
+                || !CARE_TIP_VISIBLE_STATES.contains(order.getStatus())) {
+            throw new BizException(ErrorCode.FORBIDDEN);
+        }
+        UserProfile requester = findProfile(order.getRequesterId());
+        return new CareTipVO(
+                requester == null ? null : requester.getNickname(),
+                requester == null ? null : requester.getCareTip());
     }
 
     /** O3 求助列表（tab=all|recommend；响应不含 age_priority 与发布者年龄） */

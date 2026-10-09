@@ -15,6 +15,7 @@ export function createWsClient() {
   let retryCount = 0
   let manualClosed = false
   let connected = false
+  let connecting = false
   const messageListeners = []
   const statusListeners = []
 
@@ -23,14 +24,20 @@ export function createWsClient() {
   }
 
   function connect() {
+    if (connecting || connected) {
+      return
+    }
+    connecting = true
     manualClosed = false
     const token = getToken()
     if (!token) {
+      connecting = false
       return
     }
     socketTask = uni.connectSocket({ url: `${WS_URL}?token=${token}` })
     socketTask.onOpen(() => {
       connected = true
+      connecting = false
       retryCount = 0
       startHeartbeat()
       emit(statusListeners, 'open')
@@ -46,12 +53,14 @@ export function createWsClient() {
     })
     socketTask.onClose(() => {
       connected = false
+      connecting = false
       stopHeartbeat()
       emit(statusListeners, 'close')
       scheduleReconnect()
     })
     socketTask.onError(() => {
       connected = false
+      connecting = false
       stopHeartbeat()
       emit(statusListeners, 'error')
       scheduleReconnect()
@@ -116,8 +125,24 @@ export function createWsClient() {
     connect,
     close,
     send,
-    onMessage: (fn) => messageListeners.push(fn),
-    onStatus: (fn) => statusListeners.push(fn),
+    onMessage: (fn) => {
+      messageListeners.push(fn)
+      return () => {
+        const index = messageListeners.indexOf(fn)
+        if (index >= 0) {
+          messageListeners.splice(index, 1)
+        }
+      }
+    },
+    onStatus: (fn) => {
+      statusListeners.push(fn)
+      return () => {
+        const index = statusListeners.indexOf(fn)
+        if (index >= 0) {
+          statusListeners.splice(index, 1)
+        }
+      }
+    },
     isConnected: () => connected
   }
 }

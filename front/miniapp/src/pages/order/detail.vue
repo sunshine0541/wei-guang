@@ -36,6 +36,10 @@
         <view v-else class="wg-btn" @click="confirmAccept">我愿意帮助</view>
         <view v-if="gateReason" class="wg-label" style="margin-top: 8px">{{ gateReason }}</view>
       </view>
+
+      <view v-if="canChat" class="wg-card">
+        <view class="wg-btn wg-btn-plain" @click="goChat">去聊天</view>
+      </view>
     </template>
 
     <view v-else class="wg-card">
@@ -73,6 +77,11 @@ export default {
     },
     canAccept() {
       return this.order && !this.order.mine && this.order.status === 'PENDING'
+    },
+    /** 已接单后双方都可进入聊天（会话由接单动作创建） */
+    canChat() {
+      const chatStates = ['ACCEPTED', 'IN_SERVICE', 'PENDING_CONFIRM', 'APPEALING']
+      return this.order && chatStates.indexOf(this.order.status) >= 0
     },
     /** 年龄未填的置灰文案；微光值不足/冷却中由后端 30006/30002 返回时提示 */
     gateReason() {
@@ -116,6 +125,9 @@ export default {
           }
         }
       })
+    },
+    goChat() {
+      uni.navigateTo({ url: `/pages/chat/room?orderId=${this.orderId}` })
     },
     async doAccept() {
       try {
