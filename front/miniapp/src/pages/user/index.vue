@@ -79,11 +79,13 @@ export default {
     },
     async load() {
       try {
-        const credit = await getCreditLedger({ page: 1, pageSize: 1 })
+        const [credit, points, wall] = await Promise.all([
+          getCreditLedger({ page: 1, pageSize: 1 }),
+          getPointLedger({ page: 1, pageSize: 1 }),
+          getMyThanks({ page: 1, pageSize: 10 })
+        ])
         this.creditBalance = credit.balance || 0
-        const points = await getPointLedger({ page: 1, pageSize: 1 })
         this.pointBalance = points.balance || 0
-        const wall = await getMyThanks({ page: 1, pageSize: 10 })
         this.thanks = wall.records || []
       } catch (e) {
         console.error('[微光] 个人中心加载失败', e)

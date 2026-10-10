@@ -51,7 +51,7 @@
           <text>{{ item.type === 'FEEDBACK' ? '反馈' : '申诉' }}</text>
           <text class="wg-label">{{ statusLabel(item) }}</text>
         </view>
-        <view v-if="item.orderTitle" class="wg-label" style="margin-top: 6px">针对：{{ item.orderTitle }}</view>
+        <view v-if="item.orderTitle" class="wg-label" style="margin-top: 6px">关联求助：{{ item.orderTitle }}</view>
         <view class="wg-label" style="margin-top: 6px">{{ item.reason }}</view>
         <view v-if="item.conclusion" class="wg-label" style="margin-top: 6px">处理结果：{{ item.conclusion }}</view>
         <view class="wg-label" style="margin-top: 6px">
