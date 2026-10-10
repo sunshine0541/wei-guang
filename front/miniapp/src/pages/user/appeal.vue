@@ -51,6 +51,7 @@
           <text>{{ item.type === 'FEEDBACK' ? '反馈' : '申诉' }}</text>
           <text class="wg-label">{{ statusLabel(item) }}</text>
         </view>
+        <view v-if="item.orderTitle" class="wg-label" style="margin-top: 6px">针对：{{ item.orderTitle }}</view>
         <view class="wg-label" style="margin-top: 6px">{{ item.reason }}</view>
         <view v-if="item.conclusion" class="wg-label" style="margin-top: 6px">处理结果：{{ item.conclusion }}</view>
         <view class="wg-label" style="margin-top: 6px">
@@ -125,18 +126,24 @@ export default {
       this.loading = false
       await Promise.all([this.loadAppealableOrders(), this.loadList()])
     },
-    /** 可申诉范围（详设 §2.19）：COMPLETED/CANCELLED 且窗口内、无进行中申诉的本人求助 */
+    /** 可申诉范围（详设 §2.19）：本人参与的 COMPLETED/CANCELLED 且窗口内、无进行中申诉的求助
+     * （数据源=「我发布的」+「我接的单」合并：F1 允许订单双方提交，只读 DONE 会漏掉接单侧的单） */
     async loadAppealableOrders() {
       try {
-        const [orders, appeals] = await Promise.all([
+        const [published, helping, appeals] = await Promise.all([
           listMyOrders({ tab: 'DONE', page: 1, pageSize: 50 }),
+          listMyOrders({ tab: 'HELPING', page: 1, pageSize: 50 }),
           getMyAppeals({ tab: 'APPEAL', page: 1, pageSize: 50 })
         ])
+        const merged = {}
+        for (const order of [...(published.records || []), ...(helping.records || [])]) {
+          merged[order.id] = order
+        }
         const pendingOrderIds = (appeals.records || [])
           .filter((item) => item.status === 'PENDING' && item.orderId)
           .map((item) => item.orderId)
         const now = Date.now()
-        this.appealableOrders = (orders.records || []).filter((order) => {
+        this.appealableOrders = Object.values(merged).filter((order) => {
           const inRange = order.status === 'COMPLETED' || order.status === 'CANCELLED'
           const inWindow = order.appealDeadline && new Date(order.appealDeadline).getTime() >= now
           return inRange && inWindow && pendingOrderIds.indexOf(order.id) < 0

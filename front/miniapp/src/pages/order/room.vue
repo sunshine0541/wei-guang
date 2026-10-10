@@ -281,7 +281,13 @@ export default {
       uni.navigateTo({ url: `/pages/settle/story?id=${this.orderId}` })
     },
     goAppeal() {
-      uni.navigateTo({ url: `/pages/user/appeal?orderId=${this.orderId}` })
+      uni.navigateTo({
+        url: `/pages/user/appeal?orderId=${this.orderId}`,
+        fail: (err) => {
+          console.error('[微光] 打开申诉页失败', err)
+          uni.showToast({ title: '页面没打开，请再试一次', icon: 'none' })
+        }
+      })
     }
   }
 }

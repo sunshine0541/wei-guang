@@ -12,6 +12,8 @@ public class AppealVO {
     private Long id;
     private String type;
     private Long orderId;
+    /** 关联求助标题（反馈为 null）——P17 列表需展示"针对哪件事"（见《实现偏差清单》D20） */
+    private String orderTitle;
     private String reason;
     private String status;
     private String conclusion;

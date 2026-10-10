@@ -224,7 +224,18 @@ public class AppealService {
         }
         Page<Appeal> result = appealMapper.selectPage(
                 new Page<>(PageUtils.normalizePage(page), PageUtils.normalizeSize(pageSize)), wrapper);
-        return PageVO.of(result.convert(this::toVO));
+        // 关联求助标题（P17 列表展示"针对哪件事"，见 D20）
+        java.util.Set<Long> orderIds = result.getRecords().stream()
+                .map(Appeal::getOrderId).filter(java.util.Objects::nonNull).collect(Collectors.toSet());
+        Map<Long, HelpOrder> orders = orderIds.isEmpty() ? Map.of()
+                : helpOrderMapper.selectBatchIds(orderIds).stream()
+                .collect(Collectors.toMap(HelpOrder::getId, Function.identity(), (a, b) -> a));
+        return PageVO.of(result.convert(appeal -> {
+            AppealVO vo = toVO(appeal);
+            HelpOrder order = appeal.getOrderId() == null ? null : orders.get(appeal.getOrderId());
+            vo.setOrderTitle(order == null ? null : order.getTitle());
+            return vo;
+        }));
     }
 
     /** GET /admin/appeals 申诉/反馈列表（type/status 筛选） */
