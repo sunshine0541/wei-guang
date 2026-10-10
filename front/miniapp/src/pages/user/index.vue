@@ -38,6 +38,13 @@
         <text>{{ item.content }}</text>
       </view>
     </view>
+
+    <view class="wg-card" @click="goAppeal">
+      <view class="wg-card-head">
+        <text>反馈与申诉</text>
+        <text class="wg-label">查看进度</text>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -90,6 +97,9 @@ export default {
     },
     goPoints() {
       uni.navigateTo({ url: '/pages/user/points' })
+    },
+    goAppeal() {
+      uni.navigateTo({ url: '/pages/user/appeal' })
     }
   }
 }

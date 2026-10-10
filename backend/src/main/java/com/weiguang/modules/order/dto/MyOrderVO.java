@@ -23,5 +23,7 @@ public class MyOrderVO {
     private String helperNickname;
     /** 发布者昵称——仅 tab=HELPING（我接的单）时返回，供接单者识别是谁的求助（见《实现偏差清单》D16） */
     private String requesterNickname;
+    /** 申诉截止——P17 关联求助选择器据此过滤可申诉范围（见《实现偏差清单》D17） */
+    private LocalDateTime appealDeadline;
     private LocalDateTime createdAt;
 }

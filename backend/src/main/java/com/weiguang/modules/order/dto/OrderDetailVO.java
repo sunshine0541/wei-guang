@@ -28,6 +28,8 @@ public class OrderDetailVO {
     private String confirmInitiator;
     /** 协商取消挂起：发起的角色 REQUESTER/HELPER，null=无挂起——P07 据此渲染应答按钮（见 D14） */
     private String cancelPendingBy;
+    /** 是否可发起申诉（参与方 + COMPLETED/CANCELLED 且窗口内 + 无进行中申诉）——P07"申诉入口仅在允许范围显示"（见 D17） */
+    private boolean canAppeal;
     private RequesterVO requester;
     /** 仅当浏览者不是发布者时返回小区/区域；远程类为 null */
     private String addressArea;

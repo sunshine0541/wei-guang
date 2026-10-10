@@ -70,6 +70,10 @@
         <view class="wg-btn wg-btn-plain" @click="goEvaluate">评价 / 悄悄话</view>
         <view class="wg-btn wg-btn-plain" style="margin-top: 8px" @click="goStory">看看这次的故事卡</view>
       </view>
+
+      <view v-if="order.canAppeal" class="wg-card">
+        <view class="wg-btn wg-btn-plain" @click="goAppeal">去申诉</view>
+      </view>
     </template>
 
     <view v-else class="wg-card">
@@ -275,6 +279,9 @@ export default {
     },
     goStory() {
       uni.navigateTo({ url: `/pages/settle/story?id=${this.orderId}` })
+    },
+    goAppeal() {
+      uni.navigateTo({ url: `/pages/user/appeal?orderId=${this.orderId}` })
     }
   }
 }

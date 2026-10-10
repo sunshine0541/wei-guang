@@ -93,6 +93,7 @@ public class OrderService {
     private final NotifyService notifyService;
     private final BizMetrics bizMetrics;
     private final WsSessionRegistry wsSessionRegistry;
+    private final com.weiguang.modules.appeal.service.AppealService appealService;
 
     public OrderService(HelpOrderMapper helpOrderMapper,
                         OrderViewMapper orderViewMapper,
@@ -110,7 +111,8 @@ public class OrderService {
                         ChatMessageMapper chatMessageMapper,
                         NotifyService notifyService,
                         BizMetrics bizMetrics,
-                        WsSessionRegistry wsSessionRegistry) {
+                        WsSessionRegistry wsSessionRegistry,
+                        com.weiguang.modules.appeal.service.AppealService appealService) {
         this.helpOrderMapper = helpOrderMapper;
         this.orderViewMapper = orderViewMapper;
         this.orderTimelineMapper = orderTimelineMapper;
@@ -128,6 +130,7 @@ public class OrderService {
         this.notifyService = notifyService;
         this.bizMetrics = bizMetrics;
         this.wsSessionRegistry = wsSessionRegistry;
+        this.appealService = appealService;
     }
 
     /** O1 能力一 · 求助理解：先本地敏感词（仅 BLOCK 拦截），否则交 AI（Mock 模式为本地规则） */
@@ -474,6 +477,7 @@ public class OrderService {
         vo.setMyRole(mine ? "REQUESTER" : (uid.equals(order.getHelperId()) ? "HELPER" : null));
         vo.setConfirmInitiator(order.getConfirmInitiator());
         vo.setCancelPendingBy(order.getCancelPendingBy());
+        vo.setCanAppeal(appealService.canAppeal(order, uid));
         vo.setRequester(toRequester(profile));
         vo.setMine(mine);
         // 地址分级：仅非发布者可见小区/区域；远程类不返回地址；门牌永不返回
@@ -525,6 +529,7 @@ public class OrderService {
             vo.setHelperNickname(helper == null ? null : helper.getNickname());
             UserProfile requester = requesters.get(order.getRequesterId());
             vo.setRequesterNickname(requester == null ? null : requester.getNickname());
+            vo.setAppealDeadline(order.getAppealDeadline());
             return vo;
         }));
     }

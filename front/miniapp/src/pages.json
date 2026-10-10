@@ -87,6 +87,12 @@
       }
     },
     {
+      "path": "pages/user/appeal",
+      "style": {
+        "navigationBarTitleText": "反馈与申诉"
+      }
+    },
+    {
       "path": "pages/neighbor/profile",
       "style": {
         "navigationBarTitleText": "邻居"

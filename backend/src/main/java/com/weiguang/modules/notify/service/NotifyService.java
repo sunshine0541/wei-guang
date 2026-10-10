@@ -95,6 +95,18 @@ public class NotifyService {
                 "\"" + orderTitle + "\"还没有邻居响应，可以试试\"一键重发\"", "ORDER", orderId);
     }
 
+    /** 申诉有结果了：您关于"{title}"的申诉已有处理结果，请查看（详设 §4.4 APPEAL_RESULT，jump=APPEAL） */
+    public void appealResult(Long userId, String orderTitle, Long appealId) {
+        insert(userId, "APPEAL_RESULT", "申诉有结果了",
+                "您关于\"" + orderTitle + "\"的申诉已有处理结果，请查看", "APPEAL", appealId);
+    }
+
+    /** 您的反馈有回音了：您提交的反馈已处理，感谢您的建议（详设 §4.4 FEEDBACK_RESULT） */
+    public void feedbackResult(Long userId) {
+        insert(userId, "FEEDBACK_RESULT", "您的反馈有回音了",
+                "您提交的反馈已处理，感谢您的建议", "NONE", null);
+    }
+
     private void insert(Long userId, String type, String title, String content, String jumpType, Long jumpId) {
         Notification notification = new Notification();
         notification.setUserId(userId);
