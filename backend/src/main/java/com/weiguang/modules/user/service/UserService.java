@@ -6,6 +6,7 @@ import com.weiguang.common.constants.ProfileConstants;
 import com.weiguang.common.error.ErrorCode;
 import com.weiguang.common.exception.BizException;
 import com.weiguang.common.util.JsonUtils;
+import com.weiguang.modules.light.service.LightEventRecorder;
 import com.weiguang.modules.system.service.ConfigService;
 import com.weiguang.modules.user.dto.ModeVO;
 import com.weiguang.modules.user.dto.MotionVO;
@@ -43,15 +44,18 @@ public class UserService {
     private final UserProfileMapper userProfileMapper;
     private final AddressBookMapper addressBookMapper;
     private final ConfigService configService;
+    private final LightEventRecorder lightEventRecorder;
 
     public UserService(UserMapper userMapper,
                        UserProfileMapper userProfileMapper,
                        AddressBookMapper addressBookMapper,
-                       ConfigService configService) {
+                       ConfigService configService,
+                       LightEventRecorder lightEventRecorder) {
         this.userMapper = userMapper;
         this.userProfileMapper = userProfileMapper;
         this.addressBookMapper = addressBookMapper;
         this.configService = configService;
+        this.lightEventRecorder = lightEventRecorder;
     }
 
     /** U1 我的档案 */
@@ -161,6 +165,9 @@ public class UserService {
 
         if (toSteady) {
             writeMappedDirections(uid);
+            // 光语映射（详设 §4.2）：选择"我愿意成为微光" → STEADY + 事件
+            lightEventRecorder.record(LightEventRecorder.TYPE_STATE_CHANGE, uid,
+                    user.getLightState() == null ? "UNLIT" : user.getLightState(), STATE_STEADY, null, null);
         }
     }
 

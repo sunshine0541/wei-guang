@@ -25,6 +25,11 @@ export function lightInvite(choice) {
   return request({ url: '/api/user/light-invite', method: 'POST', data: { choice } })
 }
 
+/** U7 我的光语状态（含推导态被点亮/徽记/解释文案/inviteDue） */
+export function getLight() {
+  return request({ url: '/api/user/light' })
+}
+
 /** U6 注销账号 */
 export function cancelAccount() {
   return request({ url: '/api/user/cancel-account', method: 'POST' })

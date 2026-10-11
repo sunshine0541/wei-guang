@@ -6,6 +6,7 @@ import com.weiguang.modules.chat.entity.ChatMessage;
 import com.weiguang.modules.chat.mapper.ChatMessageMapper;
 import com.weiguang.modules.incentive.entity.CreditLedger;
 import com.weiguang.modules.incentive.mapper.CreditLedgerMapper;
+import com.weiguang.modules.light.service.LightService;
 import com.weiguang.modules.notify.service.NotifyService;
 import com.weiguang.modules.order.entity.HelpOrder;
 import com.weiguang.modules.order.entity.OrderTimeline;
@@ -42,6 +43,7 @@ public class OrderScheduledTasks {
     private final OrderTimelineRecorder timelineRecorder;
     private final ReleaseService releaseService;
     private final SettleService settleService;
+    private final LightService lightService;
     private final NotifyService notifyService;
     private final ConfigService configService;
 
@@ -53,6 +55,7 @@ public class OrderScheduledTasks {
                                OrderTimelineRecorder timelineRecorder,
                                ReleaseService releaseService,
                                SettleService settleService,
+                               LightService lightService,
                                NotifyService notifyService,
                                ConfigService configService) {
         this.helpOrderMapper = helpOrderMapper;
@@ -63,8 +66,19 @@ public class OrderScheduledTasks {
         this.timelineRecorder = timelineRecorder;
         this.releaseService = releaseService;
         this.settleService = settleService;
+        this.lightService = lightService;
         this.notifyService = notifyService;
         this.configService = configService;
+    }
+
+    /** J7 光语扫描：每 1 h（初始延迟 1 min 便于启动后尽快校准；条件更新幂等，详设 §4.3） */
+    @Scheduled(fixedDelay = 3_600_000, initialDelay = 60_000)
+    public void j7LightScan() {
+        try {
+            lightService.j7Scan();
+        } catch (Exception e) {
+            log.warn("J7 光语扫描异常：{}", e.getMessage());
+        }
     }
 
     /** J1 待响应超时：每 1 min，PENDING 且 publish_deadline<now → EXPIRED */

@@ -17,6 +17,7 @@ import com.weiguang.modules.incentive.mapper.PointLedgerMapper;
 import com.weiguang.modules.incentive.mapper.StoryCardMapper;
 import com.weiguang.modules.light.entity.LightEvent;
 import com.weiguang.modules.light.mapper.LightEventMapper;
+import com.weiguang.modules.light.service.LightService;
 import com.weiguang.modules.notify.service.NotifyService;
 import com.weiguang.infra.websocket.WsEnvelope;
 import com.weiguang.infra.websocket.WsSessionRegistry;
@@ -54,6 +55,7 @@ public class SettleService {
     private final PointLedgerMapper pointLedgerMapper;
     private final StoryCardMapper storyCardMapper;
     private final LightEventMapper lightEventMapper;
+    private final LightService lightService;
     private final AppealMapper appealMapper;
     private final OrderTimelineRecorder timelineRecorder;
     private final NotifyService notifyService;
@@ -68,6 +70,7 @@ public class SettleService {
                          PointLedgerMapper pointLedgerMapper,
                          StoryCardMapper storyCardMapper,
                          LightEventMapper lightEventMapper,
+                         LightService lightService,
                          AppealMapper appealMapper,
                          OrderTimelineRecorder timelineRecorder,
                          NotifyService notifyService,
@@ -81,6 +84,7 @@ public class SettleService {
         this.pointLedgerMapper = pointLedgerMapper;
         this.storyCardMapper = storyCardMapper;
         this.lightEventMapper = lightEventMapper;
+        this.lightService = lightService;
         this.appealMapper = appealMapper;
         this.timelineRecorder = timelineRecorder;
         this.notifyService = notifyService;
@@ -278,11 +282,9 @@ public class SettleService {
                 .eq(User::getId, requesterId)
                 .set(User::getConsecutiveReleaseCount, 0));
 
-        // 7) 双方互动时间
-        userMapper.update(null, Wrappers.<User>lambdaUpdate()
-                .eq(User::getId, requesterId).set(User::getLastInteractionAt, now));
-        userMapper.update(null, Wrappers.<User>lambdaUpdate()
-                .eq(User::getId, helperId).set(User::getLastInteractionAt, now));
+        // 7) 双方互动时间（含 RESTING 的 rest_since 重置口径，详设 §4.2）
+        lightService.interaction(requesterId);
+        lightService.interaction(helperId);
 
         // 8) 关闭当前轮会话
         chatSessionMapper.update(null, Wrappers.<ChatSession>lambdaUpdate()

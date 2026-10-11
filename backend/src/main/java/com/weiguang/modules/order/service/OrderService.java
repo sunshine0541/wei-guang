@@ -23,6 +23,7 @@ import com.weiguang.modules.chat.entity.ChatMessage;
 import com.weiguang.modules.chat.entity.ChatSession;
 import com.weiguang.modules.chat.mapper.ChatMessageMapper;
 import com.weiguang.modules.chat.mapper.ChatSessionMapper;
+import com.weiguang.modules.light.service.LightService;
 import com.weiguang.modules.notify.service.NotifyService;
 import com.weiguang.modules.order.dto.AcceptVO;
 import com.weiguang.modules.order.dto.CareTipVO;
@@ -91,6 +92,7 @@ public class OrderService {
     private final ChatSessionMapper chatSessionMapper;
     private final ChatMessageMapper chatMessageMapper;
     private final NotifyService notifyService;
+    private final LightService lightService;
     private final BizMetrics bizMetrics;
     private final WsSessionRegistry wsSessionRegistry;
     private final com.weiguang.modules.appeal.service.AppealService appealService;
@@ -110,6 +112,7 @@ public class OrderService {
                         ChatSessionMapper chatSessionMapper,
                         ChatMessageMapper chatMessageMapper,
                         NotifyService notifyService,
+                        LightService lightService,
                         BizMetrics bizMetrics,
                         WsSessionRegistry wsSessionRegistry,
                         com.weiguang.modules.appeal.service.AppealService appealService) {
@@ -128,6 +131,7 @@ public class OrderService {
         this.chatSessionMapper = chatSessionMapper;
         this.chatMessageMapper = chatMessageMapper;
         this.notifyService = notifyService;
+        this.lightService = lightService;
         this.bizMetrics = bizMetrics;
         this.wsSessionRegistry = wsSessionRegistry;
         this.appealService = appealService;
@@ -190,6 +194,8 @@ public class OrderService {
         helpOrderMapper.insert(order);
         timelineRecorder.record(order.getId(), "PUBLISH", uid, null);
         touchInteraction(uid);
+        // 光语映射（详设 §4.2）：常亮者发布求助 → 小憩
+        lightService.onPublish(uid);
 
         boolean careNotice = isNightTime() && urgentFlag == 0;
         return new PublishVO(order.getId(), careNotice);
@@ -212,6 +218,8 @@ public class OrderService {
         timelineRecorder.record(order.getId(), "PUBLISH", uid, "一键重发");
         timelineRecorder.record(origin.getId(), "REPUBLISH", uid, "已重发为新单 " + order.getId());
         touchInteraction(uid);
+        // 一键重发同属发布事件（详设 §4.2）
+        lightService.onPublish(uid);
         return new PublishVO(order.getId(), false);
     }
 
@@ -639,9 +647,8 @@ public class OrderService {
     }
 
     private void touchInteraction(Long uid) {
-        userMapper.update(null, Wrappers.<User>lambdaUpdate()
-                .eq(User::getId, uid)
-                .set(User::getLastInteractionAt, LocalDateTime.now()));
+        // 互动口径（详设 §4.2）：更新互动时间；RESTING 则 rest_since 重置（持久态不变）
+        lightService.interaction(uid);
     }
 
     private boolean isNightTime() {

@@ -6,6 +6,7 @@ import com.weiguang.common.error.ErrorCode;
 import com.weiguang.common.exception.BizException;
 import com.weiguang.modules.auth.dto.WxLoginVO;
 import com.weiguang.modules.system.service.ConfigService;
+import com.weiguang.modules.light.service.LightEventRecorder;
 import com.weiguang.modules.user.entity.User;
 import com.weiguang.modules.user.entity.UserProfile;
 import com.weiguang.modules.user.mapper.UserMapper;
@@ -36,6 +37,7 @@ public class WxAuthService {
     private final JwtService jwtService;
     private final ConfigService configService;
     private final TransactionTemplate transactionTemplate;
+    private final LightEventRecorder lightEventRecorder;
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
     private final String appId;
@@ -46,6 +48,7 @@ public class WxAuthService {
                          JwtService jwtService,
                          ConfigService configService,
                          TransactionTemplate transactionTemplate,
+                         LightEventRecorder lightEventRecorder,
                          ObjectMapper objectMapper,
                          @Value("${WECHAT_APPID:}") String appId,
                          @Value("${WECHAT_APP_SECRET:}") String appSecret) {
@@ -54,6 +57,7 @@ public class WxAuthService {
         this.jwtService = jwtService;
         this.configService = configService;
         this.transactionTemplate = transactionTemplate;
+        this.lightEventRecorder = lightEventRecorder;
         this.objectMapper = objectMapper;
         this.appId = appId;
         this.appSecret = appSecret;
@@ -104,6 +108,8 @@ public class WxAuthService {
         user.setLightState("UNLIT");
         user.setCreditScore(configService.getInt("credit.init", 100));
         userMapper.insert(user);
+        // 光语映射（详设 §4.2）：建号 → UNLIT + 事件
+        lightEventRecorder.record(LightEventRecorder.TYPE_STATE_CHANGE, user.getId(), null, "UNLIT", null, null);
 
         UserProfile profile = new UserProfile();
         profile.setUserId(user.getId());

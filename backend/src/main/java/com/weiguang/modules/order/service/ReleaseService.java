@@ -8,6 +8,7 @@ import com.weiguang.infra.websocket.WsEnvelope;
 import com.weiguang.infra.websocket.WsSessionRegistry;
 import com.weiguang.modules.chat.entity.ChatSession;
 import com.weiguang.modules.chat.mapper.ChatSessionMapper;
+import com.weiguang.modules.light.service.LightService;
 import com.weiguang.modules.incentive.entity.CreditLedger;
 import com.weiguang.modules.incentive.mapper.CreditLedgerMapper;
 import com.weiguang.modules.notify.service.NotifyService;
@@ -57,6 +58,7 @@ public class ReleaseService {
     private final UserProfileMapper userProfileMapper;
     private final ConfigService configService;
     private final NotifyService notifyService;
+    private final LightService lightService;
     private final OrderTimelineRecorder timelineRecorder;
     private final WsSessionRegistry wsSessionRegistry;
 
@@ -68,6 +70,7 @@ public class ReleaseService {
                           UserProfileMapper userProfileMapper,
                           ConfigService configService,
                           NotifyService notifyService,
+                          LightService lightService,
                           OrderTimelineRecorder timelineRecorder,
                           WsSessionRegistry wsSessionRegistry) {
         this.helpOrderMapper = helpOrderMapper;
@@ -78,6 +81,7 @@ public class ReleaseService {
         this.userProfileMapper = userProfileMapper;
         this.configService = configService;
         this.notifyService = notifyService;
+        this.lightService = lightService;
         this.timelineRecorder = timelineRecorder;
         this.wsSessionRegistry = wsSessionRegistry;
     }
@@ -201,11 +205,11 @@ public class ReleaseService {
             applyViolation(helperId, order, reasonType, penalty);
         }
 
-        // 求助者连续被释放计数 +1（达 light.rest_release_count 触发熄灭见 §4.2，状态机在 T15 落地，
-        // 见《实现偏差清单》D14：本步只落数据）
+        // 求助者连续被释放计数 +1；达 light.rest_release_count → 常亮转小憩（详设 §4.2；D15① 于 T15 落地）
         userMapper.update(null, Wrappers.<User>lambdaUpdate()
                 .eq(User::getId, order.getRequesterId())
                 .setSql("consecutive_release_count = consecutive_release_count + 1"));
+        lightService.onConsecutiveRelease(order.getRequesterId());
 
         notifyService.released(order.getRequesterId(), order.getTitle(), order.getId());
         pushOrderStatus(order.getId(), OrderStatus.PENDING.name(), order.getTitle(),

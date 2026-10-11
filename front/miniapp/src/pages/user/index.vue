@@ -5,6 +5,19 @@
       <text class="wg-title">{{ userStore.nickname || '邻居' }}</text>
     </view>
 
+    <!-- 光语徽标（详设 §6.2 P13 / §6.4）：当前状态图标+名字，点开一句话解释 -->
+    <view class="wg-card">
+      <LightBadge
+        :name="light ? light.lightStateName : '未点亮'"
+        :desc="light ? light.lightStateDesc : ''"
+        :light-state="light ? light.lightState : 'UNLIT'"
+        :lit="light ? light.lit : false"
+      />
+      <view v-if="light && light.lightPassed === 1" class="wg-badge-row" @click="showBadgeExplain">
+        <text>💫 光已传递</text>
+      </view>
+    </view>
+
     <view class="wg-card" @click="goMyOrders">
       <view class="wg-card-head">
         <text>我的求助</text>
@@ -52,6 +65,14 @@
         <text class="wg-label">查看进度</text>
       </view>
     </view>
+
+    <!-- 成为微光入口（详设 §6.2 P13：非"常亮"用户可见） -->
+    <view v-if="light && light.lightState !== 'STEADY'" class="wg-card" @click="showInvite(false)">
+      <view class="wg-card-head">
+        <text>成为微光</text>
+        <text class="wg-label">查看</text>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -59,14 +80,22 @@
 import { useUserStore } from '@/store/user'
 import { useNotifyStore } from '@/store/notify'
 import { getCreditLedger, getMyThanks, getPointLedger } from '@/api/incentive'
+import { getLight } from '@/api/user'
 import { BASE_URL, MESSAGES } from '@/utils/constants'
+import LightBadge from '@/components/LightBadge.vue'
+
+/* 微光邀请弹窗文案（写死：详设 P02 首次邀请 / P13 Q13 再触发） */
+const INVITE_TEXT_FIRST = '你愿意成为一缕微光，在别人需要时也照亮他一下吗？'
+const INVITE_TEXT_RETRIGGER = '你曾感受过被帮助的温暖，是否也愿意成为一缕微光，照亮他人？'
 
 export default {
+  components: { LightBadge },
   data() {
     return {
       creditBalance: 0,
       pointBalance: 0,
       thanks: [],
+      light: null,
       emptyText: MESSAGES.EMPTY
     }
   },
@@ -81,6 +110,7 @@ export default {
   onShow() {
     this.load()
     this.notifyStore.refresh()
+    this.loadLight()
   },
   methods: {
     fileUrl(url) {
@@ -117,6 +147,42 @@ export default {
     },
     goNotify() {
       uni.navigateTo({ url: '/pages/user/notify' })
+    },
+    /** U7 光语状态：徽标数据 + 邀请再触发（P13 Q13 规则） */
+    async loadLight() {
+      try {
+        this.light = await getLight()
+        if (this.light && this.light.inviteDue) {
+          this.showInvite(true)
+        }
+      } catch (e) {
+        console.error('[微光] 光语状态加载失败', e)
+      }
+    },
+    showBadgeExplain() {
+      if (this.light && this.light.badgeDesc) {
+        uni.showModal({ title: '光已传递', content: this.light.badgeDesc, showCancel: false, confirmText: '知道了' })
+      }
+    },
+    /** 微光邀请弹窗：auto=true 为结算后再触发文案；否则为首次邀请文案；两种选择均应答 U5 */
+    showInvite(auto) {
+      uni.showModal({
+        title: '微光邀请',
+        content: auto ? INVITE_TEXT_RETRIGGER : INVITE_TEXT_FIRST,
+        confirmText: '我愿意',
+        cancelText: '暂时还不行',
+        success: (res) => {
+          this.answerInvite(res.confirm ? 'WILLING' : 'LATER')
+        }
+      })
+    },
+    async answerInvite(choice) {
+      try {
+        await this.userStore.answerLightInvite(choice)
+        await this.loadLight()
+      } catch (e) {
+        console.error('[微光] 邀请应答失败', e)
+      }
     }
   }
 }
@@ -145,5 +211,11 @@ export default {
 .wg-thanks-item {
   padding: 10px 0;
   border-bottom: 1px solid #f0e9dd;
+}
+
+.wg-badge-row {
+  margin-top: 10px;
+  color: #b06a00;
+  font-size: var(--wg-font-base);
 }
 </style>
