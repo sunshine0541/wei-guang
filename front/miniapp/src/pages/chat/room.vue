@@ -199,7 +199,10 @@ export default {
       if (envelope.type === 'SYSTEM') {
         const payload = envelope.payload || {}
         if (payload.code === WS_CODE_FRAUD_ALERT) {
-          // 防诈强提示（复核确认高危）：弹窗而非 toast
+          // 防诈强提示（复核确认高危）：弹窗 + 就地升级气泡为 STRONG（即时红条，无需重进页面）
+          if (payload.msgId) {
+            this.messages = this.messages.map((m) => (m.msgId === payload.msgId ? { ...m, riskFlag: 'STRONG' } : m))
+          }
           this.alertFraud(payload.msgId, payload.message)
           return
         }
@@ -384,14 +387,14 @@ export default {
   color: #ffffff;
 }
 
-/* 防诈分级（详设 §5.3 / P08）：HIGHLIGHT 高亮、STRONG 强提示 */
+/* 防诈分级（详设 §5.3 / P08）：用左侧色条标识风险，不改气泡底色与文字色，确保消息清晰可读 */
 .wg-msg-bubble-warn {
-  background-color: #fff7e0;
+  border-left: 4px solid #e6a23c;
 }
 
 .wg-msg-bubble-strong {
-  background-color: #fdeceb;
-  border: 2px solid var(--wg-danger);
+  border: 1px solid var(--wg-danger);
+  border-left: 4px solid var(--wg-danger);
 }
 
 .wg-msg-image {
