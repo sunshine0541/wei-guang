@@ -147,7 +147,6 @@ export default {
           riskFlag: item.riskFlag,
           createdAt: item.createdAt
         }))
-        this.messages.filter((m) => m.riskFlag === 'STRONG').forEach((m) => this.alertFraud(m.msgId))
         this.scrollToBottom()
       } catch (e) {
         console.error('[微光] 消息加载失败', e)
@@ -178,7 +177,8 @@ export default {
         readSession(this.session.sessionId).catch(() => {})
       }
     },
-    /** 防诈强提示弹窗（详设 §5.3 / P08）：复核确认高危的 SYSTEM 推送与历史 STRONG 消息共用 */
+    /** 防诈强提示弹窗（详设 §5.3 / P08）：仅在实时收到复核确认高危的 SYSTEM 推送时弹出；
+     * 历史 STRONG 消息只显示红色左条（进页零打扰，见《实现偏差清单》D25） */
     alertFraud(msgId, text) {
       const key = msgId || 'unknown'
       if (this.fraudAlerted.indexOf(key) >= 0) {

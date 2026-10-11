@@ -32,9 +32,12 @@ public class FraudPipeline {
     public static final String FLAG_HIGHLIGHT = "HIGHLIGHT";
     public static final String FLAG_STRONG = "STRONG";
     public static final String DIRECTION_HELPER_TO_REQUESTER = "HELPER_TO_REQUESTER";
-    /** 强提示文案（详设 §5.3，写死不得改写） */
+    /** 强提示文案·受保护方（详设 §5.3，写死不得改写） */
     public static final String ALERT_MESSAGE =
             "为了您的安全，请不要把验证码、银行卡、密码等信息告诉任何人。真正的邻居不会向您索要这些。";
+    /** 强提示文案·发送方回执（详设未定义，T14 需求方反馈新增，见《实现偏差清单》D25） */
+    public static final String SENDER_RECEIPT_MESSAGE =
+            "您发送的内容涉及敏感信息，请避免向他人索要验证码、银行卡、密码等。真正的邻里互助不涉及这些。";
 
     private final SensitiveWordService sensitiveWordService;
     private final AiService aiService;
@@ -100,9 +103,9 @@ public class FraudPipeline {
             report.setStatus("PENDING");
             report.setCreatedAt(LocalDateTime.now());
             reportMapper.insert(report);
-            // WS 强提示：受保护方=警示、发送方=回执（见《实现偏差清单》D24）
+            // WS 强提示：受保护方=警示（§5.3 文案）、发送方=回执（文案分流，见《实现偏差清单》D25）
             wsSessionRegistry.pushAsync(requesterId, WsEnvelope.fraudAlert(ALERT_MESSAGE, messageId));
-            wsSessionRegistry.pushAsync(senderId, WsEnvelope.fraudAlert(ALERT_MESSAGE, messageId));
+            wsSessionRegistry.pushAsync(senderId, WsEnvelope.fraudAlert(SENDER_RECEIPT_MESSAGE, messageId));
             bizMetrics.fraudHit();
             log.info("防诈高危命中 messageId={} orderId={} 要素={}", messageId, orderId, String.join("、", hitWords));
         } catch (Exception e) {
