@@ -220,7 +220,7 @@ public class ChatService {
         Long peerId = uid.equals(session.getRequesterId()) ? session.getHelperId() : session.getRequesterId();
         Object envelope = WsEnvelope.chatMessage(session.getId(), message, null);
         if (!wsSessionRegistry.push(peerId, envelope)) {
-            notifyService.newMessage(peerId, nicknameOf(uid), session.getId());
+            notifyService.newMessage(peerId, nicknameOf(uid), session.getOrderId());
         }
         wsSessionRegistry.push(uid, WsEnvelope.chatMessage(session.getId(), message, clientMsgId));
     }

@@ -93,6 +93,12 @@
       }
     },
     {
+      "path": "pages/user/notify",
+      "style": {
+        "navigationBarTitleText": "通知中心"
+      }
+    },
+    {
       "path": "pages/neighbor/profile",
       "style": {
         "navigationBarTitleText": "邻居"

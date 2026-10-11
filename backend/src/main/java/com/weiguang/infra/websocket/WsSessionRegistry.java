@@ -2,6 +2,7 @@ package com.weiguang.infra.websocket;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -66,6 +67,12 @@ public class WsSessionRegistry {
             unregister(session);
             return false;
         }
+    }
+
+    /** 异步推送（T12 通知中心：不动用业务线程，慢连接不阻塞主流程） */
+    @Async
+    public void pushAsync(Long uid, Object envelope) {
+        push(uid, envelope);
     }
 
     /** 直接回帧（如 PONG） */

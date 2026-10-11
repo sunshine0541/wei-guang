@@ -10,6 +10,12 @@
         <text class="wg-link" @click="goMine">我的</text>
       </view>
 
+      <!-- 顶部通知横幅（详设 §6.2 P03：N2 最近 1 条未读+聚合） -->
+      <view v-if="notifyStore.hasUnread" class="wg-banner" @click="openBanner">
+        <view class="wg-dot" />
+        <text class="wg-banner-text">{{ notifyStore.bannerText }}</text>
+      </view>
+
       <!-- Tab：全部求助 / 为你推荐 -->
       <view class="wg-tabs">
         <view class="wg-tab" :class="{ 'wg-tab-active': tab === 'all' }" @click="switchTab('all')">全部求助</view>
@@ -58,6 +64,7 @@
 
 <script>
 import { useUserStore } from '@/store/user'
+import { useNotifyStore } from '@/store/notify'
 import { listOrders } from '@/api/order'
 import { ORDER_TYPE_LABELS, TIME_EXPECT_LABELS } from '@/utils/constants'
 
@@ -65,6 +72,7 @@ export default {
   data() {
     return {
       loading: true,
+      bootstrapped: false,
       tab: 'all',
       orderType: '',
       urgentOnly: false,
@@ -80,10 +88,19 @@ export default {
   computed: {
     userStore() {
       return useUserStore()
+    },
+    notifyStore() {
+      return useNotifyStore()
     }
   },
   onLoad() {
     this.bootstrap()
+  },
+  onShow() {
+    // 回到首页时刷新横幅（如刚在 P16 全部已读 → 横幅消失）
+    if (this.bootstrapped) {
+      this.notifyStore.refresh()
+    }
   },
   methods: {
     async bootstrap() {
@@ -99,6 +116,8 @@ export default {
           return
         }
         await this.loadOrders()
+        this.bootstrapped = true
+        this.notifyStore.refresh()
       } catch (e) {
         console.error('[微光] 启动失败', e)
         uni.showToast({ title: '网络打了个盹，请再试一次，我在这儿等您。', icon: 'none' })
@@ -143,6 +162,27 @@ export default {
     },
     goMine() {
       uni.navigateTo({ url: '/pages/user/index' })
+    },
+    /** 横幅点击：按 jump_type 跳对应页；NONE 或无目标 → 通知中心（见偏差 D21） */
+    openBanner() {
+      const latest = this.notifyStore.latest
+      if (!latest) {
+        return
+      }
+      let url = '/pages/user/notify'
+      if (latest.jumpType === 'ORDER' && latest.jumpId) {
+        url = `/pages/order/room?id=${latest.jumpId}`
+      } else if (latest.jumpType === 'SESSION' && latest.jumpId) {
+        url = `/pages/chat/room?orderId=${latest.jumpId}`
+      } else if (latest.jumpType === 'APPEAL') {
+        url = '/pages/user/appeal'
+      }
+      uni.navigateTo({
+        url,
+        fail: () => {
+          uni.showToast({ title: '页面没打开，请再试一次', icon: 'none' })
+        }
+      })
     }
   }
 }
@@ -232,5 +272,20 @@ export default {
 .wg-link {
   color: #b06a00;
   font-size: var(--wg-font-base);
+}
+
+.wg-banner {
+  display: flex;
+  align-items: center;
+  background-color: var(--wg-primary-light);
+  border-radius: var(--wg-radius);
+  padding: 12px;
+  margin-bottom: var(--wg-space);
+}
+
+.wg-banner-text {
+  margin-left: 8px;
+  font-size: var(--wg-font-base);
+  color: #b06a00;
 }
 </style>

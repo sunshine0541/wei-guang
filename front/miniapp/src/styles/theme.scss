@@ -89,6 +89,15 @@ page {
   border: 1px solid #e6ded2;
 }
 
+/* 未读红点（P03 横幅 / P13 通知中心入口 / P16 列表共用，T12） */
+.wg-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--wg-danger);
+  flex-shrink: 0;
+}
+
 .wg-danger {
   color: var(--wg-danger);
 }

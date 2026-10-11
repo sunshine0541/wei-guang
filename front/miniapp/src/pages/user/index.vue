@@ -39,6 +39,13 @@
       </view>
     </view>
 
+    <view class="wg-card" @click="goNotify">
+      <view class="wg-card-head">
+        <text>通知中心</text>
+        <view v-if="notifyStore.hasUnread" class="wg-dot" />
+      </view>
+    </view>
+
     <view class="wg-card" @click="goAppeal">
       <view class="wg-card-head">
         <text>反馈与申诉</text>
@@ -50,6 +57,7 @@
 
 <script>
 import { useUserStore } from '@/store/user'
+import { useNotifyStore } from '@/store/notify'
 import { getCreditLedger, getMyThanks, getPointLedger } from '@/api/incentive'
 import { BASE_URL, MESSAGES } from '@/utils/constants'
 
@@ -65,10 +73,14 @@ export default {
   computed: {
     userStore() {
       return useUserStore()
+    },
+    notifyStore() {
+      return useNotifyStore()
     }
   },
   onShow() {
     this.load()
+    this.notifyStore.refresh()
   },
   methods: {
     fileUrl(url) {
@@ -102,6 +114,9 @@ export default {
     },
     goAppeal() {
       uni.navigateTo({ url: '/pages/user/appeal' })
+    },
+    goNotify() {
+      uni.navigateTo({ url: '/pages/user/notify' })
     }
   }
 }

@@ -17,6 +17,8 @@ public final class WsEnvelope {
     public static final String TYPE_SYSTEM = "SYSTEM";
     public static final String TYPE_PING = "PING";
     public static final String TYPE_PONG = "PONG";
+    /** 通知推送（§3.5 枚举未含通知类型，T12 新增，见《实现偏差清单》D21） */
+    public static final String TYPE_NOTIFICATION = "NOTIFICATION";
 
     private WsEnvelope() {
     }
@@ -68,5 +70,19 @@ public final class WsEnvelope {
     /** 心跳应答 */
     public static Map<String, Object> pong() {
         return of(TYPE_PONG, null, null);
+    }
+
+    /** 通知推送（T12：离线落库、在线即时推送；payload=notification 行字段） */
+    public static Map<String, Object> notification(Long id, String type, String title, String content,
+                                                   String jumpType, Long jumpId, Object createdAt) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("id", id);
+        payload.put("type", type);
+        payload.put("title", title);
+        payload.put("content", content);
+        payload.put("jumpType", jumpType);
+        payload.put("jumpId", jumpId);
+        payload.put("createdAt", createdAt);
+        return of(TYPE_NOTIFICATION, payload, null);
     }
 }
