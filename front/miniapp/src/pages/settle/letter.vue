@@ -61,7 +61,7 @@ export default {
       }
       try {
         await submitLetter(this.orderId, { content: text, aiAssisted: this.usedAiDraft ? true : undefined })
-        uni.showToast({ title: '已送出，谢谢您', icon: 'none' })
+        uni.showToast({ title: '您的感谢已送达，它会被好好珍藏。', icon: 'none' })
       } catch (e) {
         console.error('[微光] 感谢信发送失败', e)
         if (e && e.code === 40003) {

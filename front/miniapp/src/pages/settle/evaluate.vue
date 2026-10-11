@@ -90,13 +90,20 @@ export default {
         return
       }
       try {
+        let okText = null
         if (this.isRequester && this.stars) {
           await submitEvaluation(this.orderId, { stars: this.stars, advice: this.advice || null })
+          okText = '谢谢您的评价，这会让善意被更多人看见。'
         }
         if (this.whisper.trim()) {
           await submitWhisper(this.orderId, { content: this.whisper.trim() })
+          if (!okText) {
+            okText = '这句话已悄悄送到。'
+          }
         }
-        uni.showToast({ title: '谢谢您', icon: 'none' })
+        if (okText) {
+          uni.showToast({ title: okText, icon: 'none' })
+        }
       } catch (e) {
         console.error('[微光] 提交失败', e)
         if (e && e.code === 40003) {

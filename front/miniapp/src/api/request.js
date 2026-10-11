@@ -83,6 +83,12 @@ export function request(options, retried = false) {
             .catch(reject)
           return
         }
+        if (body.code === 20004) {
+          // 封禁拦截：按 §6.5 写死文案呈现（错误码表 message 仅为内部标注）
+          toast(MESSAGES.BANNED)
+          reject(body)
+          return
+        }
         if (options.silent !== true) {
           toast(body.message || MESSAGES.ERROR)
         }

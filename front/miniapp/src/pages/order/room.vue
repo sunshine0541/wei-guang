@@ -215,7 +215,7 @@ export default {
       }
     },
     doStart() {
-      this.action(startOrder(this.orderId), '出发啦，邻居知道您开始了')
+      this.action(startOrder(this.orderId), '已告诉对方您开始帮忙啦。')
     },
     doQuit() {
       uni.showModal({

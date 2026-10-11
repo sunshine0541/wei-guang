@@ -66,6 +66,27 @@
       </view>
     </view>
 
+    <view class="wg-card" @click="goProfile">
+      <view class="wg-card-head">
+        <text>我的资料</text>
+        <text class="wg-label">编辑</text>
+      </view>
+    </view>
+
+    <view class="wg-card" @click="goAddress">
+      <view class="wg-card-head">
+        <text>我的地址</text>
+        <text class="wg-label">常用地址</text>
+      </view>
+    </view>
+
+    <view class="wg-card" @click="goSettings">
+      <view class="wg-card-head">
+        <text>设置</text>
+        <text class="wg-label">{{ userStore.isElder ? '大字模式' : '普通模式' }}</text>
+      </view>
+    </view>
+
     <!-- 成为微光入口（详设 §6.2 P13：非"常亮"用户可见） -->
     <view v-if="light && light.lightState !== 'STEADY'" class="wg-card" @click="openInvite">
       <view class="wg-card-head">
@@ -155,6 +176,15 @@ export default {
     },
     goAppeal() {
       uni.navigateTo({ url: '/pages/user/appeal' })
+    },
+    goProfile() {
+      uni.navigateTo({ url: '/pages/user/profile' })
+    },
+    goAddress() {
+      uni.navigateTo({ url: '/pages/user/address' })
+    },
+    goSettings() {
+      uni.navigateTo({ url: '/pages/user/settings' })
     },
     goNotify() {
       uni.navigateTo({ url: '/pages/user/notify' })

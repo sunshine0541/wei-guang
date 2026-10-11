@@ -16,14 +16,17 @@
         <text class="wg-banner-text">{{ notifyStore.bannerText }}</text>
       </view>
 
-      <!-- Tab：全部求助 / 为你推荐 -->
-      <view class="wg-tabs">
+      <!-- 紧急电话卡片（详设 §6.1 紧急提示三处常驻之③） -->
+      <EmergencyCard />
+
+      <!-- Tab：全部求助 / 为你推荐（年长模式精简为单列表，详设 §6.2 P03 适老差异） -->
+      <view v-if="!userStore.isElder" class="wg-tabs">
         <view class="wg-tab" :class="{ 'wg-tab-active': tab === 'all' }" @click="switchTab('all')">全部求助</view>
         <view class="wg-tab" :class="{ 'wg-tab-active': tab === 'recommend' }" @click="switchTab('recommend')">为你推荐</view>
       </view>
 
-      <!-- 筛选：类型 3 选 + 只看急 -->
-      <view class="wg-filter">
+      <!-- 筛选：类型 3 选 + 只看急（年长模式隐藏，详设 §6.2 P03 适老差异） -->
+      <view v-if="!userStore.isElder" class="wg-filter">
         <view
           v-for="item in typeFilters"
           :key="item.value"
@@ -52,12 +55,45 @@
           <text v-for="tag in order.tags" :key="tag" class="wg-tag">{{ tag }}</text>
           <text v-if="order.mine" class="wg-tag wg-tag-mine">这是我发的</text>
         </view>
-        <view class="wg-label">
-          {{ order.requester.nickname || '邻居' }} · 已有 {{ order.viewCount }} 位邻居看过
+        <view class="wg-card-foot">
+          <image
+            v-if="order.requester.avatarUrl"
+            class="wg-foot-avatar"
+            :src="fileUrl(order.requester.avatarUrl)"
+            mode="aspectFill"
+          />
+          <text class="wg-label">{{ order.requester.nickname || '邻居' }} · 已有 {{ order.viewCount }} 位邻居看过</text>
         </view>
       </view>
 
       <view class="wg-btn" @click="goPublish">我要发布求助</view>
+
+      <!-- 荣耀榜：助人之星 TOP10（H1 / 详设 §6.2 P03） -->
+      <view v-if="honorList.length > 0" class="wg-card">
+        <view class="wg-card-head">
+          <text>助人之星</text>
+          <text class="wg-label">近 30 天</text>
+        </view>
+        <view v-for="(item, index) in honorList" :key="index" class="wg-honor-row">
+          <text class="wg-honor-rank">{{ index + 1 }}</text>
+          <image v-if="item.avatarUrl" class="wg-honor-avatar" :src="fileUrl(item.avatarUrl)" mode="aspectFill" />
+          <text class="wg-honor-name">{{ item.nickname || '邻居' }}</text>
+          <text class="wg-strong">{{ item.helpCount }} 次</text>
+        </view>
+      </view>
+
+      <!-- 善意回流计数（H1 / 详设 §6.2 P03） -->
+      <view class="wg-card">
+        <text>社区已有 {{ lightPassedCount }} 束光，从被照亮走向照亮他人</text>
+      </view>
+
+      <!-- 首次进入紧急提示弹窗（详设 §6.1 紧急提示三处常驻之①） -->
+      <view v-if="entryTipVisible" class="wg-dialog-mask">
+        <view class="wg-dialog-box">
+          <text class="wg-dialog-text">{{ entryTip }}</text>
+          <view class="wg-btn" @click="dismissEntryTip">我知道了</view>
+        </view>
+      </view>
     </template>
   </view>
 </template>
@@ -66,9 +102,12 @@
 import { useUserStore } from '@/store/user'
 import { useNotifyStore } from '@/store/notify'
 import { listOrders } from '@/api/order'
-import { ORDER_TYPE_LABELS, TIME_EXPECT_LABELS } from '@/utils/constants'
+import { getHomeSummary } from '@/api/home'
+import { ORDER_TYPE_LABELS, TIME_EXPECT_LABELS, EMERGENCY_TIP, STORAGE_KEYS, BASE_URL } from '@/utils/constants'
+import EmergencyCard from '@/components/EmergencyCard.vue'
 
 export default {
+  components: { EmergencyCard },
   data() {
     return {
       loading: true,
@@ -77,6 +116,10 @@ export default {
       orderType: '',
       urgentOnly: false,
       orders: [],
+      honorList: [],
+      lightPassedCount: 0,
+      entryTipVisible: false,
+      entryTip: EMERGENCY_TIP,
       typeFilters: [
         { label: '全部类型', value: '' },
         { label: '上门', value: 'HOME_VISIT' },
@@ -116,6 +159,8 @@ export default {
           return
         }
         await this.loadOrders()
+        this.loadHomeSummary()
+        this.checkEntryTip()
         this.bootstrapped = true
         this.notifyStore.refresh()
       } catch (e) {
@@ -127,11 +172,38 @@ export default {
     },
     async loadOrders() {
       const result = await listOrders({
-        tab: this.tab,
+        tab: this.userStore.isElder ? 'all' : this.tab,
         orderType: this.orderType || undefined,
         urgentOnly: this.urgentOnly ? true : undefined
       })
       this.orders = result.records || []
+    },
+    /** H1 首页聚合：荣耀榜 TOP10 + 善意回流计数 */
+    async loadHomeSummary() {
+      try {
+        const summary = await getHomeSummary()
+        this.honorList = summary.honorTop10 || []
+        this.lightPassedCount = summary.lightPassedCount || 0
+      } catch (e) {
+        console.error('[微光] 首页聚合加载失败', e)
+      }
+    },
+    /** 首次进入紧急提示（详设 §6.1 三处常驻之①）：本地标记，只弹一次 */
+    checkEntryTip() {
+      if (uni.getStorageSync(STORAGE_KEYS.ENTRY_TIP_SHOWN)) {
+        return
+      }
+      this.entryTipVisible = true
+    },
+    dismissEntryTip() {
+      uni.setStorageSync(STORAGE_KEYS.ENTRY_TIP_SHOWN, 1)
+      this.entryTipVisible = false
+    },
+    fileUrl(url) {
+      if (!url) {
+        return ''
+      }
+      return url.indexOf('http') === 0 ? url : BASE_URL + url
     },
     switchTab(tab) {
       if (this.tab === tab) {
@@ -287,5 +359,50 @@ export default {
   margin-left: 8px;
   font-size: var(--wg-font-base);
   color: #b06a00;
+}
+
+/* 荣耀榜行（H1） */
+.wg-honor-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0e9dd;
+}
+
+.wg-honor-rank {
+  width: 26px;
+  color: #b06a00;
+  font-weight: 600;
+}
+
+.wg-honor-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  margin-right: 8px;
+  background-color: #eee5d8;
+}
+
+.wg-honor-name {
+  flex: 1;
+}
+
+/* 卡片底部发布者行（昵称+头像，详设 §6.2 P03） */
+.wg-card-foot {
+  display: flex;
+  align-items: center;
+}
+
+.wg-foot-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  margin-right: 6px;
+  background-color: #eee5d8;
+}
+
+/* 适老差异：卡片加大（详设 §6.2 P03） */
+.mode-elder .wg-card {
+  padding: calc(var(--wg-space) + 6px);
 }
 </style>

@@ -19,7 +19,8 @@
           <text class="wg-notify-title">{{ iconOf(item.type) }} {{ item.title }}</text>
           <view v-if="item.isRead === 0" class="wg-dot" />
         </view>
-        <view class="wg-notify-content">{{ item.content }}</view>
+        <!-- 适老差异：年长模式仅保留标题+时间两行（详设 §6.2 P16） -->
+        <view v-if="!userStore.isElder" class="wg-notify-content">{{ item.content }}</view>
         <view class="wg-label" style="margin-top: 6px">{{ item.createdAt }}</view>
       </view>
     </template>

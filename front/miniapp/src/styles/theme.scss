@@ -199,3 +199,39 @@ page {
   padding: 2px 8px;
   font-size: var(--wg-font-sm);
 }
+
+/* 数值强调（全局兜底）：此前在个人中心/账本/邻居页各自重复定义 */
+.wg-strong {
+  color: #b06a00;
+  font-size: var(--wg-font-lg, 20px);
+}
+
+/* 自绘遮罩弹窗（全局兜底，T16）：uni.showModal 按钮文案限 4 字，
+   且适老场景需要大字弹窗，统一走自绘（P03 首次进入紧急提示、P13 微光邀请） */
+.wg-dialog-mask {
+  position: fixed;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.wg-dialog-box {
+  width: 78%;
+  background-color: #ffffff;
+  border-radius: var(--wg-radius);
+  padding: var(--wg-gap);
+}
+
+.wg-dialog-text {
+  display: block;
+  font-size: var(--wg-font-lg);
+  line-height: 1.6;
+  margin-bottom: var(--wg-gap);
+  color: var(--wg-text);
+}

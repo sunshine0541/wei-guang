@@ -76,8 +76,7 @@
 import { useUserStore } from '@/store/user'
 import { updateProfile } from '@/api/user'
 import { createAddress } from '@/api/address'
-
-const HOBBY_OPTIONS = ['聊天', '养花', '下棋', '散步', '做饭', '看书', '手机使用', '手工维修']
+import { HOBBY_OPTIONS } from '@/utils/constants'
 
 export default {
   data() {

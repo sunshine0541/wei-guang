@@ -4,7 +4,9 @@ export const BASE_URL = 'http://localhost:8080'
 export const WS_URL = 'ws://localhost:8080/ws'
 
 export const STORAGE_KEYS = {
-  TOKEN: 'wg_token'
+  TOKEN: 'wg_token',
+  /** 首次进入紧急提示（详设 §6.1 三处常驻之①）已展示标记，只弹一次 */
+  ENTRY_TIP_SHOWN: 'wg_entry_tip_shown'
 }
 
 /* 写死文案（详设 §6.1 空/加载/错误通用文案、§6.5） */
@@ -16,7 +18,9 @@ export const MESSAGES = {
   FORBIDDEN: '这个页面暂时不能看哦',
   RATE_LIMIT: '您操作得有点快，喝口水歇一下，我马上就好',
   LOGIN_FAILED: '网络打了个盹，请再试一次，我在这儿等您。',
-  PUBLISH_OK: '已发布，邻居们很快就能看到了。'
+  PUBLISH_OK: '已发布，邻居们很快就能看到了。',
+  /* 封禁拦截（详设 §6.5，20004 时替代错误码表 message 展示） */
+  BANNED: "您的账号暂时被限制了，如有疑问可在'反馈与申诉'中留言。"
 }
 
 /* WebSocket（详设确认项 22：客户端 30s 心跳、退避重连 1s→2s→4s…上限 30s） */
@@ -32,6 +36,9 @@ export const PAGE_PATHS = {
 
 /* 受控标签词表（详设 §8.4，10 项，与后端 HelpTagConstants 一致） */
 export const HELP_TAGS = ['跑腿代买', '维修', '家务', '陪伴', '散步', '手机教学', '网上办事', '宠物花草', '聊天', '其他']
+
+/* 喜欢做的事（8 项多选，详设 §8.4：P02 画像填写与 P14 画像编辑共用） */
+export const HOBBY_OPTIONS = ['聊天', '养花', '下棋', '散步', '做饭', '看书', '手机使用', '手工维修']
 
 /* 求助类型与时间期望的中文文案 */
 export const ORDER_TYPE_LABELS = {

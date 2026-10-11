@@ -75,6 +75,24 @@
       }
     },
     {
+      "path": "pages/user/profile",
+      "style": {
+        "navigationBarTitleText": "我的资料"
+      }
+    },
+    {
+      "path": "pages/user/address",
+      "style": {
+        "navigationBarTitleText": "我的地址"
+      }
+    },
+    {
+      "path": "pages/user/settings",
+      "style": {
+        "navigationBarTitleText": "设置"
+      }
+    },
+    {
       "path": "pages/user/credit",
       "style": {
         "navigationBarTitleText": "我的微光值"

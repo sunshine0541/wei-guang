@@ -1,11 +1,13 @@
 <template>
   <view class="wg-page" :class="userStore.rootClass">
-    <view class="wg-tabs">
+    <!-- 适老差异：年长模式两个 Tab 合并为单页顺序表单（详设 §6.2 P17） -->
+    <view v-if="!userStore.isElder" class="wg-tabs">
       <view class="wg-tab" :class="{ 'wg-tab-active': tab === 'APPEAL' }" @click="switchTab('APPEAL')">申诉</view>
       <view class="wg-tab" :class="{ 'wg-tab-active': tab === 'FEEDBACK' }" @click="switchTab('FEEDBACK')">反馈</view>
     </view>
 
-    <view v-if="tab === 'APPEAL'" class="wg-card">
+    <view v-if="tab === 'APPEAL' || userStore.isElder" class="wg-card">
+      <view v-if="userStore.isElder" class="wg-title">申诉</view>
       <view class="wg-label">选择这次求助</view>
       <picker
         v-if="appealableOrders.length > 0"
@@ -28,7 +30,8 @@
       <view class="wg-btn" style="margin-top: 12px" @click="doSubmitAppeal">提交申诉</view>
     </view>
 
-    <view v-else class="wg-card">
+    <view v-if="tab === 'FEEDBACK' || userStore.isElder" class="wg-card">
+      <view v-if="userStore.isElder" class="wg-title">反馈</view>
       <view class="wg-label">您的建议或遇到的问题（最多 500 字）</view>
       <textarea
         v-model="feedbackContent"
@@ -70,7 +73,7 @@ import { MESSAGES } from '@/utils/constants'
 
 /* P17 写死文案（详设 §6.2）：空态与提交成功 */
 const EMPTY_TEXT = '您还没有提交过申诉或反馈'
-const SUBMIT_SUCCESS = '收到啦，我们会尽快处理'
+const SUBMIT_SUCCESS = '收到啦，我们会尽快处理。'
 
 export default {
   data() {

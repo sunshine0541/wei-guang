@@ -32,7 +32,8 @@
       </view>
 
       <view v-if="canAccept" class="wg-card">
-        <view v-if="gateReason" class="wg-btn wg-btn-off">我愿意帮助</view>
+        <!-- 年龄未填：点击跳 P14 画像编辑完善资料（详设 §6.2 P04） -->
+        <view v-if="gateReason" class="wg-btn wg-btn-off" @click="goFixProfile">我愿意帮助</view>
         <view v-else class="wg-btn" @click="confirmAccept">我愿意帮助</view>
         <view v-if="gateReason" class="wg-label" style="margin-top: 8px">{{ gateReason }}</view>
       </view>
@@ -216,7 +217,16 @@ export default {
         if (code === 40001) {
           this.load()
         }
+        if (code === 30004) {
+          // 需先补填年龄：提示后跳画像编辑（详设 §6.2 P04）
+          setTimeout(() => {
+            this.goFixProfile()
+          }, 800)
+        }
       }
+    },
+    goFixProfile() {
+      uni.navigateTo({ url: '/pages/user/profile' })
     }
   }
 }
