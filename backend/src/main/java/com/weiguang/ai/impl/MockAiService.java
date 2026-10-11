@@ -1,6 +1,7 @@
 package com.weiguang.ai.impl;
 
 import com.weiguang.ai.AiService;
+import com.weiguang.ai.dto.ThankLetterDraftResult;
 import com.weiguang.ai.dto.UnderstandHelpResult;
 import org.springframework.stereotype.Service;
 
@@ -8,7 +9,7 @@ import java.util.List;
 
 /**
  * Mock AI 实现（详设 §5.5，演示/无网时默认启用）：本地规则与模板，同一输入返回稳定结果。
- * 能力一走 §5.2 的本地降级规则；degraded=false（mock 是正式演示模式，非降级）。
+ * 能力一走 §5.2 的本地降级规则；能力三返回兜底模板；degraded=false（mock 是正式演示模式，非降级）。
  */
 @Service
 public class MockAiService implements AiService {
@@ -17,6 +18,8 @@ public class MockAiService implements AiService {
     private static final int TAG_MAX = 3;
     private static final double GUESS_CONFIDENCE = 0.3;
     private static final String GUESS_REASON = "根据您的描述猜的，您可以改";
+    /** 感谢信兜底模板长度上限（ai.letter_max_length 默认值） */
+    private static final int LETTER_MAX_LENGTH = 200;
 
     @Override
     public UnderstandHelpResult understandHelp(String text) {
@@ -60,6 +63,22 @@ public class MockAiService implements AiService {
         result.setConfidence(GUESS_CONFIDENCE);
         result.setReason(GUESS_REASON);
         return result;
+    }
+
+    @Override
+    public ThankLetterDraftResult draftThankLetter(String orderTitle, String requesterName, String helperName) {
+        ThankLetterDraftResult result = new ThankLetterDraftResult();
+        result.setLetterDraft(letterFallback(orderTitle, helperName));
+        result.setDegraded(false);
+        return result;
+    }
+
+    /** 能力三兜底模板（详设 §5.4）："{helperName}，谢谢您帮我"{title}"。有您这样的邻居，真好。"（≤200 字） */
+    static String letterFallback(String orderTitle, String helperName) {
+        String name = helperName == null || helperName.isBlank() ? "邻居" : helperName;
+        String title = orderTitle == null ? "" : orderTitle;
+        String text = name + "，谢谢您帮我\"" + title + "\"。有您这样的邻居，真好。";
+        return text.length() <= LETTER_MAX_LENGTH ? text : text.substring(0, LETTER_MAX_LENGTH);
     }
 
     private boolean containsAny(String text, String... keywords) {

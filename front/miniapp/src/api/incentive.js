@@ -20,6 +20,11 @@ export function submitLetter(id, data) {
   return request({ url: `/api/orders/${id}/thank-letter`, method: 'POST', data })
 }
 
+/** S2 感谢信 AI 起头（返回 {letterDraft, degraded}） */
+export function aiDraftLetter(id) {
+  return request({ url: `/api/orders/${id}/thank-letter/ai-draft`, method: 'POST' })
+}
+
 /** S4 发送悄悄话（双方各一条） */
 export function submitWhisper(id, data) {
   return request({ url: `/api/orders/${id}/whisper`, method: 'POST', data })

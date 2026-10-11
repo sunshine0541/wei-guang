@@ -2,6 +2,8 @@ package com.weiguang.modules.incentive.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.weiguang.ai.AiService;
+import com.weiguang.ai.dto.ThankLetterDraftResult;
 import com.weiguang.common.enums.OrderStatus;
 import com.weiguang.common.error.ErrorCode;
 import com.weiguang.common.exception.BizException;
@@ -67,6 +69,7 @@ public class IncentiveService {
     private final CreditLedgerMapper creditLedgerMapper;
     private final PointLedgerMapper pointLedgerMapper;
     private final ConfigService configService;
+    private final AiService aiService;
 
     public IncentiveService(HelpOrderMapper helpOrderMapper,
                             UserMapper userMapper,
@@ -77,7 +80,8 @@ public class IncentiveService {
                             StoryCardMapper storyCardMapper,
                             CreditLedgerMapper creditLedgerMapper,
                             PointLedgerMapper pointLedgerMapper,
-                            ConfigService configService) {
+                            ConfigService configService,
+                            AiService aiService) {
         this.helpOrderMapper = helpOrderMapper;
         this.userMapper = userMapper;
         this.userProfileMapper = userProfileMapper;
@@ -88,6 +92,7 @@ public class IncentiveService {
         this.creditLedgerMapper = creditLedgerMapper;
         this.pointLedgerMapper = pointLedgerMapper;
         this.configService = configService;
+        this.aiService = aiService;
     }
 
     /** S1 评价（仅受助者、一单一评、窗口内） */
@@ -138,7 +143,7 @@ public class IncentiveService {
         letter.setSenderId(uid);
         letter.setHelperId(order.getHelperId());
         letter.setContent(content);
-        letter.setAiAssisted(0);
+        letter.setAiAssisted(Boolean.TRUE.equals(request.getAiAssisted()) ? 1 : 0);
         letter.setCreatedAt(LocalDateTime.now());
         try {
             thankLetterMapper.insert(letter);
@@ -146,6 +151,15 @@ public class IncentiveService {
             throw new BizException(ErrorCode.DUPLICATE_SUBMIT);
         }
         return IdVO.of(letter.getId());
+    }
+
+    /** S2 感谢信 AI 起头（详设 §3.3 / §5.4）：仅受助者、COMPLETED 且窗口内；不落库，前端可改可弃 */
+    public ThankLetterDraftResult thankLetterDraft(Long uid, Long orderId) {
+        HelpOrder order = requireCompletedInWindow(orderId);
+        if (!uid.equals(order.getRequesterId())) {
+            throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
+        }
+        return aiService.draftThankLetter(order.getTitle(), nicknameOf(uid), nicknameOf(order.getHelperId()));
     }
 
     /** S4 悄悄话（双方各一条、窗口内） */
@@ -321,6 +335,14 @@ public class IncentiveService {
             throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
         }
         return order;
+    }
+
+    /** 昵称快照（AI 能力三入参"双方称呼"；昵称属公开信息，不做脱敏） */
+    private String nicknameOf(Long uid) {
+        UserProfile profile = userProfileMapper.selectOne(
+                Wrappers.<UserProfile>lambdaQuery().eq(UserProfile::getUserId, uid));
+        return profile == null || profile.getNickname() == null || profile.getNickname().isBlank()
+                ? "邻居" : profile.getNickname();
     }
 
     private UserProfile requireNeighbor(Long targetUid) {

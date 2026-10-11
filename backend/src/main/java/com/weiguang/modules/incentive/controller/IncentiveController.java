@@ -4,6 +4,7 @@ import com.weiguang.common.result.IdVO;
 import com.weiguang.common.result.PageVO;
 import com.weiguang.common.result.Result;
 import com.weiguang.infra.interceptor.AuthContext;
+import com.weiguang.ai.dto.ThankLetterDraftResult;
 import com.weiguang.modules.incentive.dto.EvaluationRequest;
 import com.weiguang.modules.incentive.dto.LetterRequest;
 import com.weiguang.modules.incentive.dto.LedgerVO;
@@ -34,6 +35,12 @@ public class IncentiveController {
     @PostMapping("/api/orders/{id}/evaluation")
     public Result<IdVO> evaluate(@PathVariable Long id, @RequestBody EvaluationRequest request) {
         return Result.ok(incentiveService.evaluate(AuthContext.requireUid(), id, request));
+    }
+
+    /** S2 感谢信 AI 起头（仅受助者、COMPLETED 且窗口内；不落库） */
+    @PostMapping("/api/orders/{id}/thank-letter/ai-draft")
+    public Result<ThankLetterDraftResult> thankLetterDraft(@PathVariable Long id) {
+        return Result.ok(incentiveService.thankLetterDraft(AuthContext.requireUid(), id));
     }
 
     /** S3 提交感谢信（一单一封） */

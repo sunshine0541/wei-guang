@@ -51,7 +51,7 @@ INSERT INTO `sys_config` (`config_key`, `config_value`, `description`, `default_
 ('compliance.retention_days',       '180',        '注销后留存期（天）',                     '180',        '30-3650',     'system'),
 ('notify.banner_max_extra',         '3',          '横幅聚合条数上限',                       '3',          '1-10',        'system'),
 ('ai.mode',                         'mock',       'AI 模式 real/mock',                      'mock',       'real/mock',   'system'),
-('ai.real-impl',                    'springai',   '真实实现 springai/restclient',           'springai',   'springai/restclient', 'system'),
+('ai.real-impl',                    'restclient', '真实实现 springai/restclient（默认 restclient，见实现偏差清单 D22）', 'restclient', 'springai/restclient', 'system'),
 ('ai.model.understand',             'qwen3.8-flash', '能力一模型',                          'qwen3.8-flash', '已开通模型名', 'system'),
 ('ai.model.review',                 'qwen3.7-plus',  '能力二复核模型',                      'qwen3.7-plus',  '已开通模型名', 'system'),
 ('ai.model.letter',                 'qwen3.8-flash', '能力三模型',                          'qwen3.8-flash', '已开通模型名', 'system'),

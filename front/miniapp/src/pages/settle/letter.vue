@@ -4,22 +4,25 @@
       <view class="wg-label">这封信会署您的名字，展示在对方的"我收到的感谢"里。</view>
       <textarea class="wg-textarea" v-model="content" maxlength="500" placeholder="想对邻居说点什么" style="margin-top: 8px" />
     </view>
-    <!-- "不会写？我帮您起个头"（能力三 S2）在 T13 落地后加入 -->
-    <view class="wg-btn" @click="send">发送</view>
+    <!-- 能力三 S2："不会写？我帮您起个头"（详设 §6.2 P11） -->
+    <view class="wg-btn wg-btn-plain" @click="aiDraft">{{ draftLoading ? '小助手正在起头…' : '不会写？我帮您起个头' }}</view>
+    <view class="wg-btn" style="margin-top: 12px" @click="send">发送</view>
     <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="skip">放弃</view>
   </view>
 </template>
 
 <script>
 import { useUserStore } from '@/store/user'
-import { submitLetter } from '@/api/incentive'
+import { aiDraftLetter, submitLetter } from '@/api/incentive'
 import { MESSAGES } from '@/utils/constants'
 
 export default {
   data() {
     return {
       orderId: null,
-      content: ''
+      content: '',
+      draftLoading: false,
+      usedAiDraft: false
     }
   },
   computed: {
@@ -31,6 +34,25 @@ export default {
     this.orderId = options.id
   },
   methods: {
+    /** 能力三 S2：AI 起个头（degraded 时按 P11 文案提示"小助手在休息，给您一个简单开头"） */
+    async aiDraft() {
+      if (this.draftLoading) {
+        return
+      }
+      this.draftLoading = true
+      try {
+        const result = await aiDraftLetter(this.orderId)
+        this.content = result.letterDraft || this.content
+        this.usedAiDraft = true
+        if (result.degraded) {
+          uni.showToast({ title: '小助手在休息，给您一个简单开头', icon: 'none' })
+        }
+      } catch (e) {
+        console.error('[微光] 感谢信起头失败', e)
+      } finally {
+        this.draftLoading = false
+      }
+    },
     async send() {
       const text = this.content.trim()
       if (!text) {
@@ -38,7 +60,7 @@ export default {
         return
       }
       try {
-        await submitLetter(this.orderId, { content: text })
+        await submitLetter(this.orderId, { content: text, aiAssisted: this.usedAiDraft ? true : undefined })
         uni.showToast({ title: '已送出，谢谢您', icon: 'none' })
       } catch (e) {
         console.error('[微光] 感谢信发送失败', e)
