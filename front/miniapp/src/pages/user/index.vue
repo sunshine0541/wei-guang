@@ -12,7 +12,7 @@
         :desc="light ? light.lightStateDesc : ''"
         :light-state="light ? light.lightState : 'UNLIT'"
         :lit="light ? light.lit : false"
-      />
+      ></LightBadge>
       <view v-if="light && light.lightPassed === 1" class="wg-badge-row" @click="showBadgeExplain">
         <text>💫 光已传递</text>
       </view>
@@ -67,7 +67,7 @@
     </view>
 
     <!-- 成为微光入口（详设 §6.2 P13：非"常亮"用户可见） -->
-    <view v-if="light && light.lightState !== 'STEADY'" class="wg-card" @click="showInvite(false)">
+    <view v-if="light && light.lightState !== 'STEADY'" class="wg-card" @click="openInvite">
       <view class="wg-card-head">
         <text>成为微光</text>
         <text class="wg-label">查看</text>
@@ -78,8 +78,8 @@
     <view v-if="inviteVisible" class="wg-invite-mask">
       <view class="wg-invite-box">
         <text class="wg-invite-text">{{ inviteText }}</text>
-        <view class="wg-btn wg-invite-btn" @click="answerInvite('WILLING')">我愿意</view>
-        <view class="wg-btn wg-btn-plain wg-invite-btn" @click="answerInvite('LATER')">暂时还不行</view>
+        <view class="wg-btn wg-invite-btn" @click="onInviteWilling">我愿意</view>
+        <view class="wg-btn wg-btn-plain wg-invite-btn" @click="onInviteLater">暂时还不行</view>
       </view>
     </view>
   </view>
@@ -180,6 +180,16 @@ export default {
     showInvite(auto) {
       this.inviteText = auto ? INVITE_TEXT_RETRIGGER : INVITE_TEXT_FIRST
       this.inviteVisible = true
+    },
+    /** 入口点击（模板内联带参调用统一拆为无参方法，避免 wxml 编译兼容性问题） */
+    openInvite() {
+      this.showInvite(false)
+    },
+    onInviteWilling() {
+      this.answerInvite('WILLING')
+    },
+    onInviteLater() {
+      this.answerInvite('LATER')
     },
     async answerInvite(choice) {
       this.inviteVisible = false
