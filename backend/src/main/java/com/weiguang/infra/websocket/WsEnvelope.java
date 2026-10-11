@@ -19,6 +19,8 @@ public final class WsEnvelope {
     public static final String TYPE_PONG = "PONG";
     /** 通知推送（§3.5 枚举未含通知类型，T12 新增，见《实现偏差清单》D21） */
     public static final String TYPE_NOTIFICATION = "NOTIFICATION";
+    /** 防诈强提示 WS 码（T14：SYSTEM 帧；非业务错误码，见《实现偏差清单》D24） */
+    public static final int CODE_FRAUD_ALERT = 49001;
 
     private WsEnvelope() {
     }
@@ -70,6 +72,15 @@ public final class WsEnvelope {
     /** 心跳应答 */
     public static Map<String, Object> pong() {
         return of(TYPE_PONG, null, null);
+    }
+
+    /** 防诈强提示（详设 §5.3 写死文案；T14：复核确认高危后推送；msgId 供前端去重） */
+    public static Map<String, Object> fraudAlert(String message, Long msgId) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("code", CODE_FRAUD_ALERT);
+        payload.put("message", message);
+        payload.put("msgId", msgId);
+        return of(TYPE_SYSTEM, payload, null);
     }
 
     /** 通知推送（T12：离线落库、在线即时推送；payload=notification 行字段） */

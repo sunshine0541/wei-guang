@@ -1,15 +1,18 @@
 package com.weiguang.ai.impl;
 
 import com.weiguang.ai.AiService;
+import com.weiguang.ai.dto.ReviewResult;
 import com.weiguang.ai.dto.ThankLetterDraftResult;
 import com.weiguang.ai.dto.UnderstandHelpResult;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Mock AI 实现（详设 §5.5，演示/无网时默认启用）：本地规则与模板，同一输入返回稳定结果。
- * 能力一走 §5.2 的本地降级规则；能力三返回兜底模板；degraded=false（mock 是正式演示模式，非降级）。
+ * 能力一走 §5.2 的本地降级规则；能力二按"含发我/告诉我/给我 且命中防诈要素 → HIGH"；能力三返回兜底模板；
+ * degraded=false（mock 是正式演示模式，非降级）。
  */
 @Service
 public class MockAiService implements AiService {
@@ -20,6 +23,9 @@ public class MockAiService implements AiService {
     private static final String GUESS_REASON = "根据您的描述猜的，您可以改";
     /** 感谢信兜底模板长度上限（ai.letter_max_length 默认值） */
     private static final int LETTER_MAX_LENGTH = 200;
+    /** 防诈要素（详设 §2.21 seed，与 sensitive_word action=REVIEW 的 8 条一致） */
+    private static final List<String> FRAUD_ELEMENTS = List.of(
+            "验证码", "银行卡", "密码", "转账", "汇款", "扫码付款", "身份证号", "社保卡");
 
     @Override
     public UnderstandHelpResult understandHelp(String text) {
@@ -70,6 +76,30 @@ public class MockAiService implements AiService {
         ThankLetterDraftResult result = new ThankLetterDraftResult();
         result.setLetterDraft(letterFallback(orderTitle, helperName));
         result.setDegraded(false);
+        return result;
+    }
+
+    /** 能力二 mock（详设 §5.5 写死）：含"发我/告诉我/给我"且命中防诈要素 → HIGH，其余 NONE */
+    @Override
+    public ReviewResult reviewChat(String text, String direction) {
+        String content = text == null ? "" : text;
+        List<String> hits = new ArrayList<>();
+        for (String element : FRAUD_ELEMENTS) {
+            if (content.contains(element)) {
+                hits.add(element);
+            }
+        }
+        ReviewResult result = new ReviewResult();
+        result.setHitWords(hits);
+        result.setDegraded(false);
+        boolean asking = content.contains("发我") || content.contains("告诉我") || content.contains("给我");
+        if (!hits.isEmpty() && asking) {
+            result.setRiskLevel("HIGH");
+            result.setSuggestion("请不要把验证码、银行卡、密码等信息告诉任何人");
+        } else {
+            result.setRiskLevel("NONE");
+            result.setSuggestion("暂未发现索要敏感信息的风险");
+        }
         return result;
     }
 

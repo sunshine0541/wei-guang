@@ -12,6 +12,7 @@ public class BizMetrics {
 
     private final Counter orderAccept;
     private final Counter aiDegraded;
+    private final Counter fraudHit;
 
     public BizMetrics(MeterRegistry meterRegistry) {
         this.orderAccept = Counter.builder("weiguang.order.accept.total")
@@ -19,6 +20,9 @@ public class BizMetrics {
                 .register(meterRegistry);
         this.aiDegraded = Counter.builder("weiguang.ai.degraded.total")
                 .description("AI 降级次数（超时/失败/解析失败/合规不合格）")
+                .register(meterRegistry);
+        this.fraudHit = Counter.builder("weiguang.fraud.hit.total")
+                .description("防诈高危命中次数（能力二复核确认 HIGH）")
                 .register(meterRegistry);
     }
 
@@ -30,5 +34,10 @@ public class BizMetrics {
     /** AI 降级 +1（详设 §5.1） */
     public void aiDegraded() {
         aiDegraded.increment();
+    }
+
+    /** 防诈高危命中 +1（详设 §5.3） */
+    public void fraudHit() {
+        fraudHit.increment();
     }
 }

@@ -21,7 +21,7 @@ import com.weiguang.modules.chat.mapper.ChatSessionMapper;
 import com.weiguang.modules.notify.service.NotifyService;
 import com.weiguang.modules.order.entity.HelpOrder;
 import com.weiguang.modules.order.mapper.HelpOrderMapper;
-import com.weiguang.modules.security.service.SensitiveWordService;
+import com.weiguang.modules.security.service.FraudPipeline;
 import com.weiguang.modules.system.service.ConfigService;
 import com.weiguang.modules.user.entity.User;
 import com.weiguang.modules.user.entity.UserProfile;
@@ -60,7 +60,7 @@ public class ChatService {
     private final UserMapper userMapper;
     private final UserProfileMapper userProfileMapper;
     private final ConfigService configService;
-    private final SensitiveWordService sensitiveWordService;
+    private final FraudPipeline fraudPipeline;
     private final NotifyService notifyService;
     private final WsSessionRegistry wsSessionRegistry;
     private final TransactionTemplate transactionTemplate;
@@ -71,7 +71,7 @@ public class ChatService {
                        UserMapper userMapper,
                        UserProfileMapper userProfileMapper,
                        ConfigService configService,
-                       SensitiveWordService sensitiveWordService,
+                       FraudPipeline fraudPipeline,
                        NotifyService notifyService,
                        WsSessionRegistry wsSessionRegistry,
                        TransactionTemplate transactionTemplate) {
@@ -81,7 +81,7 @@ public class ChatService {
         this.userMapper = userMapper;
         this.userProfileMapper = userProfileMapper;
         this.configService = configService;
-        this.sensitiveWordService = sensitiveWordService;
+        this.fraudPipeline = fraudPipeline;
         this.notifyService = notifyService;
         this.wsSessionRegistry = wsSessionRegistry;
         this.transactionTemplate = transactionTemplate;
@@ -162,21 +162,28 @@ public class ChatService {
         }
         validate(request);
 
-        // 详设 §3.3 C3 第 1 层：本地敏感词命中 HIGHLIGHT → 高亮预警（AI 复核与 STRONG 在 T14 接入）
-        String riskFlag = "TEXT".equals(request.getMessageType())
-                && sensitiveWordService.hit(request.getContent(), SensitiveWordService.ACTION_HIGHLIGHT)
-                ? "HIGHLIGHT" : "NONE";
+        // 详设 §5.3 防诈管线第 1、2 层：本地分级（HIGHLIGHT 高亮；防诈要素+助人者→求助者 → 交能力二异步复核）
+        FraudPipeline.LocalDecision decision = "TEXT".equals(request.getMessageType())
+                ? fraudPipeline.evaluateLocal(request.getContent(), uid.equals(session.getHelperId()))
+                : new FraudPipeline.LocalDecision(FraudPipeline.FLAG_NONE, false, List.of());
 
         MessageVO message;
+        boolean fresh = true;
         try {
-            message = transactionTemplate.execute(status -> persist(session, uid, request, riskFlag));
+            message = transactionTemplate.execute(status -> persist(session, uid, request, decision.riskFlag()));
         } catch (DuplicateKeyException e) {
+            fresh = false;
             message = findByClientMsgId(request.getClientMsgId());
             if (message == null) {
                 throw e;
             }
         }
         pushAfterSend(session, uid, message, request.getClientMsgId());
+        if (fresh && decision.reviewRequired()) {
+            // 第 3 层：异步复核（不阻塞发送、不在事务内）；HIGH → STRONG+上报+强提示，否则维持 HIGHLIGHT
+            fraudPipeline.reviewAsync(session.getOrderId(), message.getMsgId(), uid,
+                    session.getRequesterId(), request.getContent(), decision.hitWords());
+        }
         return message;
     }
 

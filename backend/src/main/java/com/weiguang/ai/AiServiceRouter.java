@@ -1,5 +1,6 @@
 package com.weiguang.ai;
 
+import com.weiguang.ai.dto.ReviewResult;
 import com.weiguang.ai.dto.ThankLetterDraftResult;
 import com.weiguang.ai.dto.UnderstandHelpResult;
 import com.weiguang.ai.impl.MockAiService;
@@ -36,6 +37,11 @@ public class AiServiceRouter implements AiService {
     @Override
     public UnderstandHelpResult understandHelp(String text) {
         return delegate().understandHelp(text);
+    }
+
+    @Override
+    public ReviewResult reviewChat(String text, String direction) {
+        return delegate().reviewChat(text, direction);
     }
 
     @Override

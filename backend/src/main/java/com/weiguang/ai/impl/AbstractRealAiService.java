@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.weiguang.ai.AiSanitizer;
 import com.weiguang.ai.AiService;
+import com.weiguang.ai.dto.ReviewResult;
 import com.weiguang.ai.dto.ThankLetterDraftResult;
 import com.weiguang.ai.dto.UnderstandHelpResult;
 import com.weiguang.common.constants.HelpTagConstants;
@@ -30,6 +31,8 @@ public abstract class AbstractRealAiService implements AiService {
     private static final int TAG_MAX = 3;
     private static final Set<String> ORDER_TYPES = Set.of("HOME_VISIT", "ACCOMPANY", "REMOTE");
     private static final Set<String> URGENCY_LEVELS = Set.of("NOT_URGENT", "NORMAL", "URGENT");
+    private static final Set<String> RISK_LEVELS = Set.of("NONE", "WARN", "HIGH");
+    private static final int SUGGESTION_MAX_LENGTH = 100;
     /** 能力三合规校验词（详设 §5.4）：命中即视为不合格输出，改用兜底模板 */
     private static final List<String> LETTER_FORBIDDEN_WORDS = List.of("转账", "代付", "银行卡", "验证码");
 
@@ -46,6 +49,13 @@ public abstract class AbstractRealAiService implements AiService {
     private static final String LETTER_SYSTEM = "你是社区邻里互助助手。以受助者口吻写一封简短感谢信初稿："
             + "真诚、口语、不油腻；不提钱、不做承诺、不涉及隐私、不诱导代操作。"
             + "只输出严格 JSON，不输出多余文字：{\"letterDraft\":\"...\"}";
+
+    /** 能力二系统提示（详设 §5.3 Prompt 要点） */
+    private static final String REVIEW_SYSTEM = "你是社区邻里互助平台的善意守护助手。"
+            + "判断发送方是否在索要对方的验证码/银行卡/密码/转账/汇款/扫码付款/身份证号/社保卡等敏感信息，或诱导对方转账付款。"
+            + "正常陪同去银行、教对方自己操作不算高危。"
+            + "只输出严格 JSON，不输出多余文字："
+            + "{\"riskLevel\":\"NONE|WARN|HIGH\",\"hitWords\":[\"...\"],\"suggestion\":\"...\"}";
 
     protected final AiSanitizer sanitizer;
     protected final MockAiService mockFallback;
@@ -139,6 +149,45 @@ public abstract class AbstractRealAiService implements AiService {
             bizMetrics.aiDegraded();
             logMetadata("draftThankLetter", model, start, true, null, e);
             return fallbackLetter(safeTitle, helperName, true);
+        }
+    }
+
+    @Override
+    public ReviewResult reviewChat(String text, String direction) {
+        String model = configService.get("ai.model.review", "qwen3.7-plus");
+        long start = System.currentTimeMillis();
+        String safeText = sanitizer.sanitize(text);
+        try {
+            String userPrompt = "direction=" + direction + "\n消息内容：" + safeText;
+            ModelCallResult call = callWithRetry(REVIEW_SYSTEM, userPrompt, model);
+            JsonNode node = parseJson(call.text);
+            String riskLevel = node.path("riskLevel").asText("");
+            if (!RISK_LEVELS.contains(riskLevel)) {
+                throw new IllegalStateException("riskLevel 非法：" + riskLevel);
+            }
+            ReviewResult result = new ReviewResult();
+            result.setRiskLevel(riskLevel);
+            List<String> hitWords = new ArrayList<>();
+            JsonNode hitNode = node.path("hitWords");
+            if (hitNode.isArray()) {
+                for (JsonNode item : hitNode) {
+                    String word = item.asText("").trim();
+                    if (!word.isEmpty()) {
+                        hitWords.add(word);
+                    }
+                }
+            }
+            result.setHitWords(hitWords);
+            result.setSuggestion(truncate(node.path("suggestion").asText("").trim(), SUGGESTION_MAX_LENGTH));
+            result.setDegraded(false);
+            logMetadata("reviewChat", model, start, false, call, null);
+            return result;
+        } catch (Exception e) {
+            ReviewResult fallback = mockFallback.reviewChat(text, direction);
+            fallback.setDegraded(true);
+            bizMetrics.aiDegraded();
+            logMetadata("reviewChat", model, start, true, null, e);
+            return fallback;
         }
     }
 

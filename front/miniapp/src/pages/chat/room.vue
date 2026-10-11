@@ -27,9 +27,10 @@
         :class="{ 'wg-msg-mine': isMine(msg) }"
       >
         <view v-if="msg.messageType === 'SYSTEM'" class="wg-msg-system">{{ msg.content }}</view>
-        <view v-else class="wg-msg-bubble" :class="{ 'wg-msg-bubble-mine': isMine(msg) }">
+        <view v-else class="wg-msg-bubble" :class="{ 'wg-msg-bubble-mine': isMine(msg), 'wg-msg-bubble-warn': msg.riskFlag === 'HIGHLIGHT', 'wg-msg-bubble-strong': msg.riskFlag === 'STRONG' }">
           <image v-if="msg.messageType === 'IMAGE'" :src="fileUrl(msg.content)" mode="widthFix" class="wg-msg-image" />
           <text v-else>{{ msg.content }}</text>
+          <text v-if="msg.riskFlag === 'HIGHLIGHT'" class="wg-msg-note">涉及敏感内容，请多留个心眼</text>
           <text v-if="msg.pending" class="wg-msg-note">发送中…</text>
           <text v-else-if="msg.failed" class="wg-msg-note">没发出去，再试试</text>
         </view>
@@ -62,6 +63,10 @@ import { wsClient } from '@/utils/ws'
 import { uploadImage } from '@/utils/upload'
 import { BASE_URL, MESSAGES } from '@/utils/constants'
 
+/* 防诈（详设 §5.3 写死；与后端 FraudPipeline.ALERT_MESSAGE / WsEnvelope.CODE_FRAUD_ALERT 一致） */
+const FRAUD_ALERT_TEXT = '为了您的安全，请不要把验证码、银行卡、密码等信息告诉任何人。真正的邻居不会向您索要这些。'
+const WS_CODE_FRAUD_ALERT = 49001
+
 export default {
   data() {
     return {
@@ -75,6 +80,8 @@ export default {
       wsConnected: false,
       loadFailed: false,
       scrollTarget: '',
+      /** 已弹过强提示的消息 id（本页会话内去重） */
+      fraudAlerted: [],
       loadingText: MESSAGES.LOADING,
       forbiddenText: MESSAGES.FORBIDDEN
     }
@@ -140,6 +147,7 @@ export default {
           riskFlag: item.riskFlag,
           createdAt: item.createdAt
         }))
+        this.messages.filter((m) => m.riskFlag === 'STRONG').forEach((m) => this.alertFraud(m.msgId))
         this.scrollToBottom()
       } catch (e) {
         console.error('[微光] 消息加载失败', e)
@@ -170,12 +178,31 @@ export default {
         readSession(this.session.sessionId).catch(() => {})
       }
     },
+    /** 防诈强提示弹窗（详设 §5.3 / P08）：复核确认高危的 SYSTEM 推送与历史 STRONG 消息共用 */
+    alertFraud(msgId, text) {
+      const key = msgId || 'unknown'
+      if (this.fraudAlerted.indexOf(key) >= 0) {
+        return
+      }
+      this.fraudAlerted.push(key)
+      uni.showModal({
+        title: '温馨提示',
+        content: text || FRAUD_ALERT_TEXT,
+        showCancel: false,
+        confirmText: '我知道了'
+      })
+    },
     onWsMessage(envelope) {
       if (!envelope || !this.session) {
         return
       }
       if (envelope.type === 'SYSTEM') {
         const payload = envelope.payload || {}
+        if (payload.code === WS_CODE_FRAUD_ALERT) {
+          // 防诈强提示（复核确认高危）：弹窗而非 toast
+          this.alertFraud(payload.msgId, payload.message)
+          return
+        }
         if (envelope.clientMsgId) {
           this.markFailed(envelope.clientMsgId)
         }
@@ -207,6 +234,9 @@ export default {
           return
         }
         this.messages.push(item)
+        if (item.riskFlag === 'STRONG') {
+          this.alertFraud(item.msgId)
+        }
         if (payload.senderId !== this.myUid) {
           this.markRead()
         }
@@ -352,6 +382,16 @@ export default {
 .wg-msg-bubble-mine {
   background-color: var(--wg-primary);
   color: #ffffff;
+}
+
+/* 防诈分级（详设 §5.3 / P08）：HIGHLIGHT 高亮、STRONG 强提示 */
+.wg-msg-bubble-warn {
+  background-color: #fff7e0;
+}
+
+.wg-msg-bubble-strong {
+  background-color: #fdeceb;
+  border: 2px solid var(--wg-danger);
 }
 
 .wg-msg-image {
