@@ -73,6 +73,15 @@
         <text class="wg-label">查看</text>
       </view>
     </view>
+
+    <!-- 微光邀请弹窗（自绘：写死按钮"暂时还不行"5 字超出 showModal 的 4 字限制） -->
+    <view v-if="inviteVisible" class="wg-invite-mask">
+      <view class="wg-invite-box">
+        <text class="wg-invite-text">{{ inviteText }}</text>
+        <view class="wg-btn wg-invite-btn" @click="answerInvite('WILLING')">我愿意</view>
+        <view class="wg-btn wg-btn-plain wg-invite-btn" @click="answerInvite('LATER')">暂时还不行</view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -96,6 +105,8 @@ export default {
       pointBalance: 0,
       thanks: [],
       light: null,
+      inviteVisible: false,
+      inviteText: '',
       emptyText: MESSAGES.EMPTY
     }
   },
@@ -164,19 +175,14 @@ export default {
         uni.showModal({ title: '光已传递', content: this.light.badgeDesc, showCancel: false, confirmText: '知道了' })
       }
     },
-    /** 微光邀请弹窗：auto=true 为结算后再触发文案；否则为首次邀请文案；两种选择均应答 U5 */
+    /** 微光邀请弹窗（自绘：写死按钮"暂时还不行"5 字超出 showModal 的 4 字限制）；
+     * auto=true 为结算后再触发文案，否则为首次邀请文案；两种选择均应答 U5 */
     showInvite(auto) {
-      uni.showModal({
-        title: '微光邀请',
-        content: auto ? INVITE_TEXT_RETRIGGER : INVITE_TEXT_FIRST,
-        confirmText: '我愿意',
-        cancelText: '暂时还不行',
-        success: (res) => {
-          this.answerInvite(res.confirm ? 'WILLING' : 'LATER')
-        }
-      })
+      this.inviteText = auto ? INVITE_TEXT_RETRIGGER : INVITE_TEXT_FIRST
+      this.inviteVisible = true
     },
     async answerInvite(choice) {
+      this.inviteVisible = false
       try {
         await this.userStore.answerLightInvite(choice)
         await this.loadLight()
@@ -217,5 +223,38 @@ export default {
   margin-top: 10px;
   color: #b06a00;
   font-size: var(--wg-font-base);
+}
+
+/* 微光邀请弹窗（自绘） */
+.wg-invite-mask {
+  position: fixed;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.wg-invite-box {
+  width: 78%;
+  background-color: #ffffff;
+  border-radius: var(--wg-radius);
+  padding: var(--wg-gap);
+}
+
+.wg-invite-text {
+  display: block;
+  font-size: var(--wg-font-lg);
+  line-height: 1.6;
+  margin-bottom: var(--wg-gap);
+  color: var(--wg-text);
+}
+
+.wg-invite-btn {
+  margin-top: 12px;
 }
 </style>
