@@ -5,6 +5,11 @@
     </view>
 
     <template v-else>
+      <!-- 全部已读：置于列表顶部（需求方反馈：原在列表底部，长列表需滚动才够到） -->
+      <view v-if="hasUnread" class="wg-notify-bar">
+        <view class="wg-notify-readall" @click="readAll">{{ readAllText }}</view>
+      </view>
+
       <view v-if="list.length === 0" class="wg-card">
         <text>{{ emptyText }}</text>
       </view>
@@ -17,8 +22,6 @@
         <view class="wg-notify-content">{{ item.content }}</view>
         <view class="wg-label" style="margin-top: 6px">{{ item.createdAt }}</view>
       </view>
-
-      <view v-if="hasUnread" class="wg-btn" @click="readAll">{{ readAllText }}</view>
     </template>
   </view>
 </template>
@@ -143,6 +146,23 @@ export default {
 .wg-notify-content {
   margin-top: 6px;
   color: var(--wg-text);
+  font-size: var(--wg-font-base);
+}
+
+.wg-notify-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--wg-space);
+}
+
+.wg-notify-readall {
+  min-height: var(--wg-btn-min-height);
+  line-height: var(--wg-btn-min-height);
+  padding: 0 20px;
+  border-radius: var(--wg-radius);
+  background-color: #ffffff;
+  border: 1px solid #e6ded2;
+  color: #b06a00;
   font-size: var(--wg-font-base);
 }
 </style>
