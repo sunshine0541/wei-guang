@@ -214,6 +214,26 @@ export default {
         uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
       }
     },
+    /**
+     * 释放类动作成功后的去向：释放后本单已没有接单者（重派中），刷新房间会取不到数据（20003），
+     * 故提示后返回上一页（列表/详情），避免停在房间显示"暂时不能看"。
+     */
+    async releaseAction(promise, okText) {
+      try {
+        await promise
+        uni.showToast({ title: okText, icon: 'none' })
+        setTimeout(() => {
+          uni.navigateBack({
+            fail: () => {
+              uni.reLaunch({ url: '/pages/index/index' })
+            }
+          })
+        }, 1200)
+      } catch (e) {
+        console.error('[微光] 释放失败', e)
+        uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
+      }
+    },
     doStart() {
       this.action(startOrder(this.orderId), '已告诉对方您开始帮忙啦。')
     },
@@ -223,14 +243,14 @@ export default {
         content: QUIT_CONFIRM,
         success: (res) => {
           if (res.confirm) {
-            this.action(releaseOrder(this.orderId, { reasonType: 'HELPER_QUIT', reasonText: '主动放弃' }), '已为您重新寻找邻居')
+            this.releaseAction(releaseOrder(this.orderId, { reasonType: 'HELPER_QUIT', reasonText: '主动放弃' }), '已为您重新寻找邻居')
           }
         }
       })
     },
     doHelpless() {
       this.askReason('实在帮不上', HELPLESS_PROMPT, (reason) => {
-        this.action(releaseOrder(this.orderId, { reasonType: 'HELPLESS', reasonText: reason }), '已为您重新寻找邻居')
+        this.releaseAction(releaseOrder(this.orderId, { reasonType: 'HELPLESS', reasonText: reason }), '已为您重新寻找邻居')
       })
     },
     doLost() {
@@ -239,7 +259,7 @@ export default {
         content: LOST_CONFIRM,
         success: (res) => {
           if (res.confirm) {
-            this.action(releaseOrder(this.orderId, { reasonType: 'HELPER_LOST', reasonText: '中途退出' }), '已为您重新寻找邻居')
+            this.releaseAction(releaseOrder(this.orderId, { reasonType: 'HELPER_LOST', reasonText: '中途退出' }), '已为您重新寻找邻居')
           }
         }
       })
