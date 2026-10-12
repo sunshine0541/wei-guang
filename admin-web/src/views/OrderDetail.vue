@@ -3,7 +3,10 @@
     <el-card>
       <template #header>
         <div class="head">
-          <span>求助 #{{ order.id }} · {{ order.title }}</span>
+          <div class="left">
+            <el-button link type="primary" @click="goBack">← 返回订单列表</el-button>
+            <span>求助 #{{ order.id }} · {{ order.title }}</span>
+          </div>
           <el-tag :type="statusTag(order.status)">{{ ORDER_STATUS_LABELS[order.status] || order.status }}</el-tag>
         </div>
       </template>
@@ -92,12 +95,13 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { cancelArbitrate, getOrderDetail } from '../api/admin'
 import { ORDER_STATUS_LABELS, ORDER_TYPE_LABELS, TIMELINE_LABELS, OPERATOR_ROLE_LABELS } from '../utils/labels'
 
 const route = useRoute()
+const router = useRouter()
 const order = ref(null)
 const chatVisible = ref(false)
 const arbitrating = ref(false)
@@ -157,6 +161,10 @@ async function doArbitrate(decision) {
 onMounted(async () => {
   order.value = await getOrderDetail(route.params.id)
 })
+
+function goBack() {
+  router.push('/orders')
+}
 </script>
 
 <style scoped>
@@ -164,6 +172,12 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .mt {

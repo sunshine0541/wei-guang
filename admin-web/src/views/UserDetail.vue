@@ -3,7 +3,10 @@
     <el-card>
       <template #header>
         <div class="head">
-          <span>用户 #{{ user.id }} · {{ user.nickname || '（未设昵称）' }}</span>
+          <div class="left">
+            <el-button link type="primary" @click="goBack">← 返回用户管理</el-button>
+            <span>用户 #{{ user.id }} · {{ user.nickname || '（未设昵称）' }}</span>
+          </div>
           <div>
             <el-tag :type="user.status === 'NORMAL' ? 'success' : user.status === 'BANNED' ? 'danger' : 'info'">
               {{ USER_STATUS_LABELS[user.status] || user.status }}
@@ -101,12 +104,13 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { banUser, creditAdjust, getUserDetail, unbanUser } from '../api/admin'
 import { CREDIT_REASON_LABELS, USER_STATUS_LABELS } from '../utils/labels'
 
 const route = useRoute()
+const router = useRouter()
 const user = ref(null)
 const adjustVisible = ref(false)
 const adjusting = ref(false)
@@ -114,6 +118,10 @@ const adjustForm = reactive({ delta: 0, remark: '' })
 
 async function load() {
   user.value = await getUserDetail(route.params.id)
+}
+
+function goBack() {
+  router.push('/users')
 }
 
 async function doBan(toBan) {
@@ -170,6 +178,12 @@ onMounted(load)
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .mt {
