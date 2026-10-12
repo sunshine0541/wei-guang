@@ -1,17 +1,20 @@
 import { defineStore } from 'pinia'
-import { loginByCode, logout as logoutApi } from '@/api/auth'
+import { loginAccount as loginAccountApi, registerAccount as registerAccountApi, logout as logoutApi } from '@/api/auth'
 import { getProfile, privacyAgree, setMode, setMotion, lightInvite } from '@/api/user'
-import { clearToken, setToken } from '@/api/request'
+import { clearToken, getToken, setToken } from '@/api/request'
 
 const DEFAULT_RETENTION_DAYS = 180
 const DEFAULT_ELDER_AGE_THRESHOLD = 60
 
 /**
- * 用户态（详设 §1.3 store/user：档案、模式、动效）。
+ * 用户态（详设 §1.3 store/user；登录方式见 D31：账密主导）：
+ * bootstrap = 有凭证 → 拉档案；无凭证 → needLogin=true（由页面跳登录页）。
  * rootClass 供各页根节点绑定：.mode-elder / .motion-off（详设 §1.3 适老主题）。
  */
 export const useUserStore = defineStore('user', {
   state: () => ({
+    /** 无凭证待登录（首页等页面据此跳登录页） */
+    needLogin: false,
     isNewUser: false,
     hasPrivacyAgreed: false,
     nickname: '',
@@ -22,9 +25,9 @@ export const useUserStore = defineStore('user', {
     creditScore: 0,
     lightState: 'UNLIT',
     lightPassed: 0,
-    /** 隐私说明与注销文案的天数插值（sys_config compliance.retention_days，随 A1 下发） */
+    /** 隐私说明与注销文案的天数插值（sys_config compliance.retention_days） */
     retentionDays: DEFAULT_RETENTION_DAYS,
-    /** 年长模式年龄阈值（sys_config elder.age_threshold，随 A1 下发） */
+    /** 年长模式年龄阈值（sys_config elder.age_threshold） */
     elderAgeThreshold: DEFAULT_ELDER_AGE_THRESHOLD
   }),
 
@@ -37,22 +40,40 @@ export const useUserStore = defineStore('user', {
   },
 
   actions: {
-    /** 启动链路：静默登录 → 落 token → 拉档案 */
+    /** 启动链路：有 token → 拉档案；无 token → 标记待登录 */
     async bootstrap() {
-      const code = await new Promise((resolve, reject) => {
-        uni.login({ provider: 'weixin', success: (res) => resolve(res.code), fail: reject })
-      })
-      const loginResult = await loginByCode(code)
-      setToken(loginResult.token)
-      this.isNewUser = loginResult.isNewUser === true
-      this.hasPrivacyAgreed = loginResult.needPrivacyAgree !== true
-      if (loginResult.config) {
-        this.retentionDays = loginResult.config.retentionDays || DEFAULT_RETENTION_DAYS
-        this.elderAgeThreshold = loginResult.config.elderAgeThreshold || DEFAULT_ELDER_AGE_THRESHOLD
+      if (!getToken()) {
+        this.needLogin = true
+        return
       }
-      this.applyProfile(loginResult.profile)
-      this.creditScore = loginResult.creditScore || 0
       await this.loadProfile()
+      this.needLogin = false
+    },
+
+    /** 账号登录（登录页调用） */
+    async loginAccount(username, password) {
+      const result = await loginAccountApi({ username, password })
+      this.applyLoginResult(result)
+    },
+
+    /** 账号注册（登录页调用） */
+    async registerAccount(username, password) {
+      const result = await registerAccountApi({ username, password })
+      this.applyLoginResult(result)
+    },
+
+    /** 登录/注册共用的落地处理 */
+    applyLoginResult(result) {
+      setToken(result.token)
+      this.needLogin = false
+      this.isNewUser = result.isNewUser === true
+      this.hasPrivacyAgreed = result.needPrivacyAgree !== true
+      if (result.config) {
+        this.retentionDays = result.config.retentionDays || DEFAULT_RETENTION_DAYS
+        this.elderAgeThreshold = result.config.elderAgeThreshold || DEFAULT_ELDER_AGE_THRESHOLD
+      }
+      this.applyProfile(result.profile)
+      this.creditScore = result.creditScore || 0
     },
 
     async loadProfile() {
@@ -62,6 +83,8 @@ export const useUserStore = defineStore('user', {
       this.creditScore = profile.creditScore || 0
       this.lightState = profile.lightState || 'UNLIT'
       this.lightPassed = profile.lightPassed || 0
+      this.retentionDays = profile.retentionDays || DEFAULT_RETENTION_DAYS
+      this.elderAgeThreshold = profile.elderAgeThreshold || DEFAULT_ELDER_AGE_THRESHOLD
     },
 
     applyProfile(profile) {

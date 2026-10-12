@@ -3,8 +3,11 @@ package com.weiguang.modules.auth.controller;
 import com.weiguang.common.annotation.RateLimit;
 import com.weiguang.common.result.Result;
 import com.weiguang.infra.interceptor.AuthContext;
+import com.weiguang.modules.auth.dto.LoginRequest;
+import com.weiguang.modules.auth.dto.RegisterRequest;
 import com.weiguang.modules.auth.dto.WxLoginRequest;
 import com.weiguang.modules.auth.dto.WxLoginVO;
+import com.weiguang.modules.auth.service.AccountAuthService;
 import com.weiguang.modules.auth.service.WxAuthService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 鉴权接口（详设 §3.2 A1/A2）。
+ * 鉴权接口（详设 §3.2 A1/A2；账密注册/登录见 D31）。
  */
 @Slf4j
 @RestController
@@ -22,16 +25,32 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final WxAuthService wxAuthService;
+    private final AccountAuthService accountAuthService;
 
-    public AuthController(WxAuthService wxAuthService) {
+    public AuthController(WxAuthService wxAuthService, AccountAuthService accountAuthService) {
         this.wxAuthService = wxAuthService;
+        this.accountAuthService = accountAuthService;
     }
 
-    /** A1 微信静默登录（限流 5 次/分） */
+    /** A1 微信静默登录（限流 5 次/分；D31 后保留可回退） */
     @PostMapping("/wx-login")
     @RateLimit(prefix = "rate:login:", limitKey = "rate.login_per_minute")
     public Result<WxLoginVO> wxLogin(@Valid @RequestBody WxLoginRequest request) {
         return Result.ok(wxAuthService.wxLogin(request.getCode()));
+    }
+
+    /** 账号注册（D31，限流复用登录键） */
+    @PostMapping("/register")
+    @RateLimit(prefix = "rate:login:", limitKey = "rate.login_per_minute")
+    public Result<WxLoginVO> register(@Valid @RequestBody RegisterRequest request) {
+        return Result.ok(accountAuthService.register(request));
+    }
+
+    /** 账号密码登录（D31，限流复用登录键） */
+    @PostMapping("/login")
+    @RateLimit(prefix = "rate:login:", limitKey = "rate.login_per_minute")
+    public Result<WxLoginVO> login(@Valid @RequestBody LoginRequest request) {
+        return Result.ok(accountAuthService.login(request));
     }
 
     /** A2 退出登录：无状态 JWT，仅前端清 token，服务端记录日志 */

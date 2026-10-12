@@ -36,7 +36,9 @@ DROP TABLE IF EXISTS `order_view`;
 -- 2.2 user（账号主体）
 CREATE TABLE `user` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
-  `openid` VARCHAR(64) NOT NULL COMMENT '微信 openid；注销时改写为 deleted_<user_id>',
+  `openid` VARCHAR(64) NULL DEFAULT NULL COMMENT '微信 openid（可空：账密注册不写）；注销时若非空改写为 deleted_<user_id>',
+  `username` VARCHAR(32) NULL DEFAULT NULL COMMENT '登录账号名（账密登录）',
+  `password_hash` VARCHAR(100) NULL DEFAULT NULL COMMENT 'BCrypt 密码散列',
   `ui_mode` VARCHAR(16) NOT NULL DEFAULT 'NORMAL' COMMENT 'NORMAL 普通 / ELDER 年长',
   `motion_enabled` TINYINT NOT NULL DEFAULT 1 COMMENT '动效开关',
   `credit_score` INT NOT NULL DEFAULT 100 COMMENT '微光值，下限 0',
@@ -58,7 +60,8 @@ CREATE TABLE `user` (
   `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_user_openid` (`openid`)
+  UNIQUE KEY `uk_user_openid` (`openid`),
+  UNIQUE KEY `uk_user_username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='账号主体';
 
 -- 2.3 user_profile（画像）

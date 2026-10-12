@@ -150,6 +150,11 @@ export default {
       this.loading = true
       try {
         await this.userStore.bootstrap()
+        if (this.userStore.needLogin) {
+          // D31 账密登录：无凭证 → 登录页
+          uni.reLaunch({ url: '/pages/login/index' })
+          return
+        }
         if (!this.userStore.hasPrivacyAgreed) {
           uni.redirectTo({ url: '/pages/guide/privacy' })
           return

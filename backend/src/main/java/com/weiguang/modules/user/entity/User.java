@@ -19,8 +19,14 @@ public class User {
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    /** 微信 openid；注销时改写为 deleted_<user_id> */
+    /** 微信 openid；注销时改写为 deleted_<user_id>（账密注册可为空） */
     private String openid;
+
+    /** 登录账号名（账密登录） */
+    private String username;
+
+    /** BCrypt 密码散列 */
+    private String passwordHash;
 
     /** NORMAL 普通 / ELDER 年长 */
     private String uiMode;

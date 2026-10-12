@@ -1,7 +1,5 @@
 import { BASE_URL, MESSAGES, STORAGE_KEYS } from '@/utils/constants'
 
-let reloginPromise = null
-
 export function getToken() {
   return uni.getStorageSync(STORAGE_KEYS.TOKEN) || ''
 }
@@ -76,11 +74,13 @@ export function request(options, retried = false) {
           return
         }
         const needRelogin = body.code === 20001 || body.code === 20002
-        if (needRelogin && !retried && options.url !== '/api/auth/wx-login') {
-          silentRelogin()
-            .then(() => request(options, true))
-            .then(resolve)
-            .catch(reject)
+        if (needRelogin && !retried) {
+          // D31 账密登录主导：凭证过期/已注销 → 清凭证回登录页，不再静默重登
+          clearToken()
+          if (options.url !== '/api/auth/login' && options.url !== '/api/auth/register') {
+            uni.reLaunch({ url: '/pages/login/index' })
+          }
+          reject(body)
           return
         }
         if (body.code === 20004) {
@@ -100,44 +100,4 @@ export function request(options, retried = false) {
       }
     })
   })
-}
-
-/** 静默重登：wx.login 取 code → /api/auth/wx-login → 落 token */
-export function silentRelogin() {
-  if (!reloginPromise) {
-    reloginPromise = new Promise((resolve, reject) => {
-      uni.login({
-        provider: 'weixin',
-        success: (loginRes) => {
-          uni.request({
-            url: BASE_URL + '/api/auth/wx-login',
-            method: 'POST',
-            data: { code: loginRes.code },
-            header: { 'Content-Type': 'application/json' },
-            success: (res) => {
-              const body = res.data
-              if (body && body.code === 0) {
-                setToken(body.data.token)
-                resolve(body.data)
-              } else {
-                clearToken()
-                reject(body)
-              }
-            },
-            fail: () => {
-              clearToken()
-              reject(new Error('relogin fail'))
-            }
-          })
-        },
-        fail: () => {
-          clearToken()
-          reject(new Error('uni.login fail'))
-        }
-      })
-    }).finally(() => {
-      reloginPromise = null
-    })
-  }
-  return reloginPromise
 }

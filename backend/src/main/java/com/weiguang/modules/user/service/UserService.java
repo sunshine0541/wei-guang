@@ -171,14 +171,20 @@ public class UserService {
         }
     }
 
-    /** U6 注销账号：openid 改写、画像匿名化、地址簿物理删除、status=CANCELLED（历史订单/账本保留） */
+    /** U6 注销账号：登录标识改写（openid/username 非空各自改写，D31）、画像匿名化、地址簿物理删除、status=CANCELLED（历史订单/账本保留） */
     @Transactional
     public void cancelAccount(Long uid) {
-        requireUser(uid);
-        userMapper.update(null, Wrappers.<User>lambdaUpdate()
+        User user = requireUser(uid);
+        var update = Wrappers.<User>lambdaUpdate()
                 .eq(User::getId, uid)
-                .set(User::getOpenid, "deleted_" + uid)
-                .set(User::getStatus, STATUS_CANCELLED));
+                .set(User::getStatus, STATUS_CANCELLED);
+        if (user.getOpenid() != null) {
+            update.set(User::getOpenid, "deleted_" + uid);
+        }
+        if (user.getUsername() != null) {
+            update.set(User::getUsername, "deleted_" + uid);
+        }
+        userMapper.update(null, update);
         userProfileMapper.update(null, Wrappers.<UserProfile>lambdaUpdate()
                 .eq(UserProfile::getUserId, uid)
                 .set(UserProfile::getNickname, ProfileConstants.CANCELLED_NICKNAME)
@@ -273,6 +279,8 @@ public class UserService {
         vo.setLightState(user.getLightState());
         vo.setLightPassed(user.getLightPassed());
         vo.setHasPrivacyAgreed(configService.get("privacy.policy_version", "v1.0").equals(user.getPrivacyVersion()));
+        vo.setRetentionDays(configService.getInt("compliance.retention_days", 180));
+        vo.setElderAgeThreshold(configService.getInt("elder.age_threshold", 60));
         return vo;
     }
 }

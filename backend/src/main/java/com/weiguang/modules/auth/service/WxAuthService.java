@@ -5,26 +5,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.weiguang.common.error.ErrorCode;
 import com.weiguang.common.exception.BizException;
 import com.weiguang.modules.auth.dto.WxLoginVO;
-import com.weiguang.modules.system.service.ConfigService;
-import com.weiguang.modules.light.service.LightEventRecorder;
 import com.weiguang.modules.user.entity.User;
-import com.weiguang.modules.user.entity.UserProfile;
 import com.weiguang.modules.user.mapper.UserMapper;
-import com.weiguang.modules.user.mapper.UserProfileMapper;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
 
 /**
- * A1 微信静默登录（详设 §3.3）：
- * code2session → openid 建号/识别 → 签发 JWT。
- * 微信接口失败返回 50002 + 温柔文案；建号 + 建 profile 同事务。
+ * A1 微信静默登录（详设 §3.3）：code2session → openid 建号/识别 → 签发 JWT。
+ * D31 后前端不再调用（账密登录主导），接口保留可随时回退；出参由 AuthVoAssembler 统一组装。
+ * 微信接口失败返回 50002 + 温柔文案；建号在 UserRegistrar 内同事务完成。
  */
 @Slf4j
 @Service
@@ -33,31 +28,22 @@ public class WxAuthService {
     private static final String WX_ERROR_MESSAGE = "网络打了个盹，请再试一次";
 
     private final UserMapper userMapper;
-    private final UserProfileMapper userProfileMapper;
-    private final JwtService jwtService;
-    private final ConfigService configService;
-    private final TransactionTemplate transactionTemplate;
-    private final LightEventRecorder lightEventRecorder;
+    private final UserRegistrar userRegistrar;
+    private final AuthVoAssembler authVoAssembler;
     private final ObjectMapper objectMapper;
     private final RestClient restClient;
     private final String appId;
     private final String appSecret;
 
     public WxAuthService(UserMapper userMapper,
-                         UserProfileMapper userProfileMapper,
-                         JwtService jwtService,
-                         ConfigService configService,
-                         TransactionTemplate transactionTemplate,
-                         LightEventRecorder lightEventRecorder,
+                         UserRegistrar userRegistrar,
+                         AuthVoAssembler authVoAssembler,
                          ObjectMapper objectMapper,
                          @Value("${WECHAT_APPID:}") String appId,
                          @Value("${WECHAT_APP_SECRET:}") String appSecret) {
         this.userMapper = userMapper;
-        this.userProfileMapper = userProfileMapper;
-        this.jwtService = jwtService;
-        this.configService = configService;
-        this.transactionTemplate = transactionTemplate;
-        this.lightEventRecorder = lightEventRecorder;
+        this.userRegistrar = userRegistrar;
+        this.authVoAssembler = authVoAssembler;
         this.objectMapper = objectMapper;
         this.appId = appId;
         this.appSecret = appSecret;
@@ -70,52 +56,12 @@ public class WxAuthService {
 
     public WxLoginVO wxLogin(String code) {
         String openid = code2session(code);
-
         User user = userMapper.selectOne(Wrappers.<User>lambdaQuery().eq(User::getOpenid, openid));
         boolean isNewUser = user == null;
         if (isNewUser) {
-            user = transactionTemplate.execute(status -> register(openid));
+            user = userRegistrar.register(openid, null, null);
         }
-
-        UserProfile profile = userProfileMapper.selectOne(
-                Wrappers.<UserProfile>lambdaQuery().eq(UserProfile::getUserId, user.getId()));
-
-        WxLoginVO vo = new WxLoginVO();
-        vo.setToken(jwtService.issue(user.getId(), JwtService.IDENTITY_USER));
-        vo.setNewUser(isNewUser);
-        vo.setNeedPrivacyAgree(!configService.get("privacy.policy_version", "v1.0").equals(user.getPrivacyVersion()));
-        vo.setCreditScore(user.getCreditScore());
-
-        WxLoginVO.Profile profileVO = new WxLoginVO.Profile();
-        profileVO.setNickname(profile == null ? null : profile.getNickname());
-        profileVO.setAvatarUrl(profile == null ? null : profile.getAvatarUrl());
-        profileVO.setUiMode(user.getUiMode());
-        profileVO.setMotionEnabled(user.getMotionEnabled());
-        vo.setProfile(profileVO);
-
-        WxLoginVO.RuntimeConfig config = new WxLoginVO.RuntimeConfig();
-        config.setRetentionDays(configService.getInt("compliance.retention_days", 180));
-        config.setElderAgeThreshold(configService.getInt("elder.age_threshold", 60));
-        vo.setConfig(config);
-        return vo;
-    }
-
-    /** 建号 + 建空画像（同事务；已注销记录不复用，其 openid 已被改写） */
-    private User register(String openid) {
-        User user = new User();
-        user.setOpenid(openid);
-        user.setUiMode("NORMAL");
-        user.setLightState("UNLIT");
-        user.setCreditScore(configService.getInt("credit.init", 100));
-        userMapper.insert(user);
-        // 光语映射（详设 §4.2）：建号 → UNLIT + 事件
-        lightEventRecorder.record(LightEventRecorder.TYPE_STATE_CHANGE, user.getId(), null, "UNLIT", null, null);
-
-        UserProfile profile = new UserProfile();
-        profile.setUserId(user.getId());
-        userProfileMapper.insert(profile);
-        log.info("新用户建号完成 uid={}", user.getId());
-        return user;
+        return authVoAssembler.assemble(user, isNewUser);
     }
 
     private String code2session(String code) {

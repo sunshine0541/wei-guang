@@ -17,7 +17,9 @@ public class SecurityConfig implements WebMvcConfigurer {
 
     /** 用户端白名单（免登录） */
     public static final String[] USER_WHITELIST = {
-            "/api/auth/wx-login"
+            "/api/auth/wx-login",
+            "/api/auth/register",
+            "/api/auth/login"
     };
 
     /** 管理端白名单（免登录） */
