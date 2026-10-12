@@ -177,6 +177,16 @@ export default {
       } catch (e) {
         console.error('[微光] 订单房间加载失败', e)
         this.order = null
+        if (e && e.code === 20003) {
+          // 已非参与方（如已释放/被取消后从旧入口进入）：稍后自动返回，不停留在错误页
+          setTimeout(() => {
+            uni.navigateBack({
+              fail: () => {
+                uni.reLaunch({ url: '/pages/index/index' })
+              }
+            })
+          }, 1500)
+        }
       } finally {
         this.loading = false
       }
