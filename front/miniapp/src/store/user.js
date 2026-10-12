@@ -85,6 +85,9 @@ export const useUserStore = defineStore('user', {
       this.lightPassed = profile.lightPassed || 0
       this.retentionDays = profile.retentionDays || DEFAULT_RETENTION_DAYS
       this.elderAgeThreshold = profile.elderAgeThreshold || DEFAULT_ELDER_AGE_THRESHOLD
+      // isNewUser 只是"注册/登录瞬间"的标记：能拉到档案说明账号已落地，
+      // 清掉它，避免引导完成后进首页又被弹回引导第一步（T17 修正5）
+      this.isNewUser = false
     },
 
     applyProfile(profile) {

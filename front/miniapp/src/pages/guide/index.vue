@@ -122,9 +122,30 @@ export default {
       this.next()
     },
     async saveProfile() {
-      const payload = { nickname: this.nickname }
+      const nickname = this.nickname.trim()
+      if (nickname.length > 20) {
+        uni.showToast({ title: '称呼最多 20 个字', icon: 'none' })
+        return
+      }
+      let age = null
       if (this.ageText !== '') {
-        payload.age = Number(this.ageText)
+        age = Number(this.ageText)
+        if (!Number.isInteger(age) || age < 0 || age > 150) {
+          uni.showToast({ title: '年龄请填 0-150 之间的数字', icon: 'none' })
+          return
+        }
+      }
+      if (this.careTip.length > 100) {
+        uni.showToast({ title: '小习惯最多 100 个字', icon: 'none' })
+        return
+      }
+      if (!this.addressArea.trim() && (this.addressLabel.trim() || this.addressDetail.trim())) {
+        uni.showToast({ title: '地址的"小区/区域"填一下才能保存', icon: 'none' })
+        return
+      }
+      const payload = { nickname }
+      if (age !== null) {
+        payload.age = age
       }
       if (this.hobbies.length > 0) {
         payload.hobbies = this.hobbies
@@ -139,16 +160,16 @@ export default {
         payload.emergencyContactPhone = this.emergencyPhone
       }
       await updateProfile(payload)
-      if (this.addressArea) {
+      if (this.addressArea.trim()) {
         await createAddress({
-          label: this.addressLabel || '家',
-          areaText: this.addressArea,
-          detailText: this.addressDetail || null,
+          label: this.addressLabel.trim() || '家',
+          areaText: this.addressArea.trim(),
+          detailText: this.addressDetail.trim() || null,
           isDefault: 1
         })
       }
       await this.userStore.loadProfile()
-      if (Number(this.ageText) >= this.userStore.elderAgeThreshold && !this.userStore.isElder) {
+      if (age !== null && age >= this.userStore.elderAgeThreshold && !this.userStore.isElder) {
         this.step = 2
         return
       }
