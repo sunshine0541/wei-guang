@@ -13,6 +13,12 @@
       <template v-if="mode === 'REGISTER'">
         <view class="wg-label" style="margin-top: 12px">再输一遍密码</view>
         <input class="wg-input" password :value="password2" placeholder="两次要一样哦" @input="password2 = $event.detail.value" />
+        <!-- 隐私说明勾选（市面惯例：注册前先阅读并同意） -->
+        <view class="wg-agree-row" @click="privacyAgreed = !privacyAgreed">
+          <view class="wg-agree-box" :class="{ 'wg-agree-box-on': privacyAgreed }">{{ privacyAgreed ? '✓' : '' }}</view>
+          <text class="wg-agree-text">我已阅读并同意</text>
+          <text class="wg-agree-link" @click.stop="openPrivacy">《隐私说明》</text>
+        </view>
       </template>
       <view class="wg-btn" style="margin-top: 16px" @click="submit">{{ mode === 'LOGIN' ? '登录' : '注册' }}</view>
       <view class="wg-btn wg-btn-plain" style="margin-top: 10px" @click="toggleMode">
@@ -41,6 +47,7 @@ export default {
       username: '',
       password: '',
       password2: '',
+      privacyAgreed: false,
       submitting: false
     }
   },
@@ -54,6 +61,10 @@ export default {
       this.mode = this.mode === 'LOGIN' ? 'REGISTER' : 'LOGIN'
       this.password = ''
       this.password2 = ''
+    },
+    /** 查看隐私说明全文（只读模式，可返回继续注册） */
+    openPrivacy() {
+      uni.navigateTo({ url: '/pages/guide/privacy?view=1' })
     },
     async submit() {
       if (this.submitting) {
@@ -77,12 +88,16 @@ export default {
         uni.showToast({ title: '两次密码不一样，再看看', icon: 'none' })
         return
       }
+      if (this.mode === 'REGISTER' && !this.privacyAgreed) {
+        uni.showToast({ title: '请先勾选同意《隐私说明》', icon: 'none' })
+        return
+      }
       this.submitting = true
       try {
         if (this.mode === 'LOGIN') {
           await this.userStore.loginAccount(username, password)
         } else {
-          await this.userStore.registerAccount(username, password)
+          await this.userStore.registerAccount(username, password, this.privacyAgreed)
         }
         this.goNext()
       } catch (e) {
@@ -112,5 +127,45 @@ export default {
   flex-direction: column;
   align-items: center;
   padding: var(--wg-gap) var(--wg-space);
+}
+
+.wg-agree-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.wg-agree-box {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 2px solid #e6ded2;
+  margin-right: 8px;
+  text-align: center;
+  line-height: 22px;
+  color: #ffffff;
+  font-size: var(--wg-font-sm);
+  background-color: #ffffff;
+}
+
+.wg-agree-box-on {
+  background-color: var(--wg-primary);
+  border-color: var(--wg-primary);
+}
+
+.wg-agree-text {
+  font-size: var(--wg-font-base);
+}
+
+.wg-agree-link {
+  color: #b06a00;
+  font-size: var(--wg-font-base);
+}
+
+.mode-elder .wg-agree-box {
+  width: 28px;
+  height: 28px;
+  line-height: 28px;
 }
 </style>

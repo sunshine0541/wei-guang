@@ -56,9 +56,13 @@ export const useUserStore = defineStore('user', {
       this.applyLoginResult(result)
     },
 
-    /** 账号注册（登录页调用） */
-    async registerAccount(username, password) {
-      const result = await registerAccountApi({ username, password })
+    /** 账号注册（登录页调用；privacyAgreed=注册页勾选隐私说明，服务端落 A3） */
+    async registerAccount(username, password, privacyAgreed) {
+      const result = await registerAccountApi({
+        username,
+        password,
+        privacyAgreed: privacyAgreed === true
+      })
       this.applyLoginResult(result)
     },
 

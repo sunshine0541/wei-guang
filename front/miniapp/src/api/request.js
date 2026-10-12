@@ -42,11 +42,11 @@ function cleanParams(data, method) {
 }
 
 /**
- * 统一请求封装（详设 T05）：
+ * 统一请求封装：
  * - 自动带 token
- * - 20001/20002 时静默 wx.login 重登后重放一次（详设 §3.1 已注销/凭证过期处理）
+ * - 20001/20002 → 清凭证回登录页（D31 账密登录主导；登录/注册接口自身除外）
  * - 统一 toast 温柔文案
- * options.silent=true 时不弹 toast（用于登录等由页面自行提示的调用）
+ * options.silent=true 时不弹 toast（用于登录/注册等由页面自行提示的调用）
  */
 export function request(options, retried = false) {
   return new Promise((resolve, reject) => {

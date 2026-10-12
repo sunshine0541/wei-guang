@@ -159,10 +159,6 @@ export default {
           uni.redirectTo({ url: '/pages/guide/privacy' })
           return
         }
-        if (this.userStore.isNewUser) {
-          uni.redirectTo({ url: '/pages/guide/index' })
-          return
-        }
         await this.loadOrders()
         this.loadHomeSummary()
         this.checkEntryTip()
