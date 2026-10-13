@@ -67,7 +67,7 @@ npm run dev:mp-weixin        # 产物：dist/dev/mp-weixin
 
 - **编译模式：普通编译；启动页面：`pages/index/index`；无启动参数**
 - 右上角「详情 → 本地设置」勾选 **「不校验合法域名、web-view（业务域名）、TLS 版本以及 HTTPS 证书」**
-- 后端地址在 `front/miniapp/src/utils/constants.js` 的 `BASE_URL` / `WS_URL`（默认 `http://localhost:8080`）
+- 后端地址取自构建期环境变量 `VITE_API_HOST`（模板 `front/miniapp/.env.example`）：未配置时默认 `http://localhost:8080`（仅开发者工具模拟器可用）；真机 / 换网络见「常见问题」
 
 ### 5. 管理后台
 
@@ -128,7 +128,7 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 
 - **开发者工具报"找不到 app.json"**：先执行 `npm run dev:mp-weixin` 生成 `dist/dev/mp-weixin` 后再导入该目录。
 - **换账号演示**：小程序内「设置 → 退出登录」后用另一手机号账号登录（无需 openid，任意账号可切）。
-- **真机预览**：手机与电脑同一局域网；把 `front/miniapp/src/utils/constants.js` 的 `BASE_URL`/`WS_URL` 改为电脑局域网 IP（如 `http://192.168.x.x:8080`），开发者工具开启「开发版调试」，仍勾选"不校验合法域名"。
+- **真机预览 / 换网络**：手机与电脑同一局域网；复制 `front/miniapp/.env.example` 为 `front/miniapp/.env.local`，把 `VITE_API_HOST` 改为电脑局域网 IP（如 `172.16.78.127:8080`），再重新编译（`npm run dev:mp-weixin`）；开发者工具开启「开发版调试」，仍勾选"不校验合法域名"。**换 Wi-Fi / 换电脑后只改 `.env.local` 这一行**（该文件已被 `.gitignore` 忽略，不入库；`constants.js` 保持中性默认值）。
 - **重置数据**：执行 `sql/reset.sql`（等价于清空业务数据 + 重灌演示数据），随后所有账号请重新登录。
 - **待响应上限**：同一用户最多 2 条待响应（`order.pending_limit`），超限 30003。
 - **登录限流**：连续错密码超过 5 次/分钟返回 30005，等一分钟后重试。

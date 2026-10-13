@@ -1,7 +1,11 @@
 /* 微光 · 全局常量（前端常量，不入 sys_config）
-   真机预览时把 BASE_URL / WS_URL 换成后端所在局域网的 IP（详见 README） */
-export const BASE_URL = 'http://localhost:8080'
-export const WS_URL = 'ws://localhost:8080/ws'
+   后端地址取自构建期环境变量 VITE_API_HOST（模板见 front/miniapp/.env.example）：
+   未配置时默认 localhost:8080（仅开发者工具模拟器可用）；
+   真机预览/调试：复制 .env.example 为 .env.local 并填入本机局域网 IP，重新编译即可；
+   换 Wi-Fi / 换电脑后只改 .env.local 那一行（该文件不入库，详见 README） */
+const API_HOST = import.meta.env.VITE_API_HOST || 'localhost:8080'
+export const BASE_URL = `http://${API_HOST}`
+export const WS_URL = `ws://${API_HOST}/ws`
 
 export const STORAGE_KEYS = {
   TOKEN: 'wg_token',
