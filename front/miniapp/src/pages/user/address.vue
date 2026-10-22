@@ -1,18 +1,16 @@
 <template>
-  <view class="wg-page" :class="userStore.rootClass">
+  <view class="wg-page wg-address-page" :class="userStore.rootClass">
     <view v-if="loading" class="wg-card">
       <text>正在为您准备，请稍等</text>
     </view>
 
     <template v-else>
-      <view v-if="addresses.length === 0" class="wg-card">
-        <text>还没有常用地址，添加一个"家"吧</text>
-      </view>
+      <view v-if="addresses.length === 0" class="wg-empty">还没有常用地址，添加一个"家"吧</view>
 
       <view v-for="item in addresses" :key="item.id" class="wg-card">
         <view class="wg-card-head">
           <text class="wg-title">{{ item.label }}</text>
-          <text v-if="item.isDefault === 1" class="wg-tag">默认</text>
+          <text v-if="item.isDefault === 1" class="wg-tag" style="margin: 0">默认</text>
         </view>
         <view class="wg-label">{{ item.areaText }}</view>
         <view v-if="item.detailText" class="wg-label">{{ item.detailText }}</view>
@@ -38,6 +36,12 @@
         <input class="wg-input" placeholder="如：阳光小区" :value="formArea" @input="formArea = $event.detail.value" />
         <view class="wg-label" style="margin-top: 10px">楼栋门牌（选填）</view>
         <input class="wg-input" placeholder="上门类确认开始后才会给对方看" :value="formDetail" @input="formDetail = $event.detail.value" />
+        <!-- B：新增/编辑时一步设为默认 -->
+        <view class="wg-tags" style="margin-top: 12px">
+          <view class="wg-chip" :class="{ 'wg-chip-active': formIsDefault }" @click="formIsDefault = !formIsDefault">
+            {{ formIsDefault ? '已设为默认地址' : '设为默认地址' }}
+          </view>
+        </view>
         <view class="wg-btn" style="margin-top: var(--wg-gap)" @click="submitForm">保存</view>
         <view class="wg-btn wg-btn-plain" style="margin-top: 10px" @click="formVisible = false">再想想</view>
       </view>
@@ -47,7 +51,7 @@
     <view v-if="pendingDelete" class="wg-dialog-mask">
       <view class="wg-dialog-box">
         <text class="wg-dialog-text">确定要删除「{{ pendingDelete.label }}」这个地址吗？</text>
-        <view class="wg-btn wg-delete-btn" @click="doDelete">删除</view>
+        <view class="wg-btn wg-btn-danger" @click="doDelete">删除</view>
         <view class="wg-btn wg-btn-plain" style="margin-top: 10px" @click="pendingDelete = null">再想想</view>
       </view>
     </view>
@@ -75,6 +79,7 @@ export default {
       formLabel: '',
       formArea: '',
       formDetail: '',
+      formIsDefault: false,
       pendingDelete: null
     }
   },
@@ -105,6 +110,8 @@ export default {
       this.formLabel = ''
       this.formArea = ''
       this.formDetail = ''
+      // 第一条地址默认就是默认地址
+      this.formIsDefault = this.addresses.length === 0
       this.formVisible = true
     },
     openEdit(item) {
@@ -112,6 +119,7 @@ export default {
       this.formLabel = item.label || ''
       this.formArea = item.areaText || ''
       this.formDetail = item.detailText || ''
+      this.formIsDefault = item.isDefault === 1
       this.formVisible = true
     },
     async submitForm() {
@@ -124,7 +132,7 @@ export default {
         label: this.formLabel.trim() || '家',
         areaText: area,
         detailText: this.formDetail.trim() || null,
-        isDefault: this.editing ? this.editing.isDefault : 0
+        isDefault: this.formIsDefault ? 1 : 0
       }
       try {
         if (this.editing) {
@@ -164,7 +172,7 @@ export default {
 </script>
 
 <style lang="scss">
-.wg-page {
+.wg-address-page {
   padding-bottom: 40px;
 }
 
@@ -182,9 +190,5 @@ export default {
 
 .wg-addr-btn:last-child {
   margin-right: 0;
-}
-
-.wg-delete-btn {
-  background-color: var(--wg-danger);
 }
 </style>

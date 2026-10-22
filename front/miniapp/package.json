@@ -5,7 +5,11 @@
   "description": "微光——社区互助服务系统 · 微信小程序端（uni-app + Vue3 + uView Plus + Pinia）",
   "scripts": {
     "dev:mp-weixin": "uni -p mp-weixin",
-    "build:mp-weixin": "uni build -p mp-weixin"
+    "build:mp-weixin": "uni build -p mp-weixin",
+    "host": "node scripts/detect-lan-host.mjs",
+    "host:dry": "node scripts/detect-lan-host.mjs --dry",
+    "predev:mp-weixin": "node scripts/detect-lan-host.mjs",
+    "prebuild:mp-weixin": "node scripts/detect-lan-host.mjs"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-alpha-5020720260921001",

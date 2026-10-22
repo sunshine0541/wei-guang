@@ -15,6 +15,8 @@ public class AppealVO {
     /** 关联求助标题（反馈为 null）——P17 列表需展示"针对哪件事"（见《实现偏差清单》D20） */
     private String orderTitle;
     private String reason;
+    /** 凭证图片相对地址（可为空） */
+    private String evidenceUrl;
     private String status;
     private String conclusion;
     private java.time.LocalDateTime createdAt;

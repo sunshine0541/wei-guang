@@ -9,13 +9,14 @@
   },
   "pages": [
     {
-      "path": "pages/login/index",
+      "path": "pages/index/index",
       "style": {
-        "navigationBarTitleText": "微光"
+        "navigationBarTitleText": "微光",
+        "navigationStyle": "custom"
       }
     },
     {
-      "path": "pages/index/index",
+      "path": "pages/login/index",
       "style": {
         "navigationBarTitleText": "微光"
       }
@@ -24,6 +25,18 @@
       "path": "pages/order/publish",
       "style": {
         "navigationBarTitleText": "发布求助"
+      }
+    },
+    {
+      "path": "pages/order/publish-free",
+      "style": {
+        "navigationBarTitleText": "说说您的需要"
+      }
+    },
+    {
+      "path": "pages/order/publish-form",
+      "style": {
+        "navigationBarTitleText": "填写求助"
       }
     },
     {
@@ -120,6 +133,12 @@
       "path": "pages/user/notify",
       "style": {
         "navigationBarTitleText": "通知中心"
+      }
+    },
+    {
+      "path": "pages/user/thanks",
+      "style": {
+        "navigationBarTitleText": "我收到的感谢"
       }
     },
     {

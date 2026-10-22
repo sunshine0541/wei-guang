@@ -39,11 +39,12 @@ public abstract class AbstractRealAiService implements AiService {
     /** 能力一系统提示（详设 §5.2 Prompt 要点） */
     private static final String UNDERSTAND_SYSTEM = "你是社区邻里互助助手。"
             + "从用户一句话描述中提取：求助类型（HOME_VISIT 上门 / ACCOMPANY 陪同外出 / REMOTE 远程）、"
-            + "标签（只能从词表选：跑腿代买、维修、家务、陪伴、散步、手机教学、网上办事、宠物花草、聊天、其他，最多 3 个）、"
+            + "标签（只能从词表选：跑腿、维修、家务、陪伴、散步、教学、网上办事、宠物花草、聊天、其他，最多 3 个）、"
+            + "若词表都不合适，可在 extraTag 给出一个不超过 10 字的自定义标签（否则给空字符串）、"
             + "紧急度建议（NOT_URGENT 不急 / NORMAL 一般 / URGENT 急）、不超过 20 字的规范标题。"
             + "涉生命安全/医疗/法律等超出邻里互助范围的内容，urgencySuggest 给 URGENT 并在 reason 中提示\"建议直接拨打 120/110\"。"
             + "只输出严格 JSON，不输出多余文字："
-            + "{\"orderType\":\"...\",\"tags\":[\"...\"],\"urgencySuggest\":\"...\",\"title\":\"...\",\"confidence\":0.0-1.0,\"reason\":\"...\"}";
+            + "{\"orderType\":\"...\",\"tags\":[\"...\"],\"extraTag\":\"...\",\"urgencySuggest\":\"...\",\"title\":\"...\",\"confidence\":0.0-1.0,\"reason\":\"...\"}";
 
     /** 能力三系统提示（详设 §5.4 Prompt 要点） */
     private static final String LETTER_SYSTEM = "你是社区邻里互助助手。以受助者口吻写一封简短感谢信初稿："

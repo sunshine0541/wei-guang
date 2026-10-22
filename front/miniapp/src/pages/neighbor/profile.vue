@@ -6,32 +6,37 @@
 
     <template v-else-if="profile">
       <view class="wg-card wg-neighbor-head">
-        <image v-if="profile.avatarUrl" class="wg-avatar" :src="fileUrl(profile.avatarUrl)" mode="aspectFill" />
+        <image v-if="profile.avatarUrl" class="wg-neighbor-avatar" :src="fileUrl(profile.avatarUrl)" mode="aspectFill" />
         <text class="wg-title">{{ profile.nickname || '邻居' }}</text>
         <text v-if="profile.signature" class="wg-label">{{ profile.signature }}</text>
       </view>
 
       <view class="wg-card">
         <view class="wg-card-head">
-          <text>收到的评价</text>
-          <text class="wg-strong">{{ avgText }}</text>
+          <text class="wg-label">收到的评价</text>
+          <view class="wg-neighbor-avg">
+            <u-icon name="star-fill" :size="16" />
+            <text class="wg-bignum wg-neighbor-avg-text">{{ avgText }}</text>
+          </view>
         </view>
       </view>
 
-      <view v-if="evaluations.length === 0" class="wg-card">
-        <text class="wg-label">{{ emptyText }}</text>
-      </view>
-      <view v-for="(item, index) in evaluations" :key="index" class="wg-card">
-        <view class="wg-card-head">
-          <text class="wg-stars-line">{{ '★'.repeat(item.stars) }}</text>
-          <text class="wg-label">{{ item.requesterNickname || '邻居' }} · {{ item.createdAt }}</text>
+      <view v-if="evaluations.length === 0" class="wg-empty">{{ emptyText }}</view>
+      <view v-else class="wg-rows">
+        <view v-for="(item, index) in evaluations" :key="index" class="wg-row wg-neighbor-item">
+          <view class="wg-neighbor-item-head">
+            <view class="wg-neighbor-stars">
+              <u-icon v-for="n in item.stars" :key="n" name="star-fill" :size="14" />
+            </view>
+            <text class="wg-label">{{ item.requesterNickname || '邻居' }} · {{ item.createdAt }}</text>
+          </view>
+          <text v-if="item.advice" class="wg-neighbor-advice">{{ item.advice }}</text>
         </view>
-        <text v-if="item.advice">{{ item.advice }}</text>
       </view>
 
       <view class="wg-card">
-        <text>我收到的感谢</text>
-        <view v-if="profile.thanks.length === 0" class="wg-label" style="margin-top: 8px">{{ emptyText }}</view>
+        <text class="wg-subtitle">我收到的感谢</text>
+        <view v-if="profile.thanks.length === 0" class="wg-empty" style="margin-top: 8px">{{ emptyText }}</view>
         <view v-for="item in profile.thanks" :key="item.letterId" class="wg-thanks-item">
           <view class="wg-label">{{ item.senderNickname || '邻居' }} · {{ item.title }}</view>
           <text>{{ item.content }}</text>
@@ -39,9 +44,7 @@
       </view>
     </template>
 
-    <view v-else class="wg-card">
-      <text>这个页面暂时不能看哦</text>
-    </view>
+    <view v-else class="wg-empty">这个页面暂时不能看哦</view>
   </view>
 </template>
 
@@ -106,25 +109,53 @@ export default {
   align-items: center;
 }
 
-.wg-avatar {
+.wg-neighbor-avatar {
   width: 88px;
   height: 88px;
   border-radius: 50%;
   margin-bottom: 8px;
-  background-color: #eee5d8;
+  background-color: var(--sg-sand);
 }
 
-.wg-strong {
-  color: #b06a00;
-  font-size: var(--wg-font-lg, 20px);
+.wg-neighbor-avg {
+  display: flex;
+  align-items: center;
 }
 
-.wg-stars-line {
-  color: #f5a623;
+.wg-neighbor-avg-text {
+  margin-left: 6px;
+}
+
+/* 评价列表项：复用 wg-row 容器，纵向排布 */
+.wg-rows .wg-neighbor-item {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.wg-neighbor-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.wg-neighbor-stars {
+  display: flex;
+  color: var(--sg-sand-d);
+}
+
+.wg-neighbor-advice {
+  font-size: var(--wg-font-base);
+  line-height: 1.6;
 }
 
 .wg-thanks-item {
   padding: 10px 0;
-  border-bottom: 1px solid #f0e9dd;
+  border-bottom: 1px solid var(--wg-line);
+}
+
+.wg-thanks-item:last-child {
+  border-bottom: none;
 }
 </style>

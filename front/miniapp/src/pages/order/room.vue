@@ -7,7 +7,7 @@
     <template v-else-if="order">
       <view class="wg-card">
         <view class="wg-card-head">
-          <text class="wg-title">{{ order.title }}</text>
+          <text class="wg-subtitle">{{ order.title }}</text>
           <text v-if="order.urgentFlag === 1" class="wg-urgent">急</text>
         </view>
         <view class="wg-label" style="margin-top: 6px">{{ typeLabel(order.orderType) }} · {{ statusLabel }}</view>
@@ -25,8 +25,11 @@
       <view class="wg-card">
         <view class="wg-label">进展</view>
         <view v-if="timeline.length === 0" class="wg-label" style="margin-top: 6px">还没有记录</view>
-        <view v-for="(item, index) in timeline" :key="index" class="wg-label" style="margin-top: 6px">
-          {{ timelineLabel(item) }}<template v-if="item.remark"> · {{ item.remark }}</template>
+        <view v-for="(item, index) in timeline" :key="index" class="wg-room-tl-row">
+          <u-icon name="clock" :size="14" />
+          <view class="wg-label wg-room-tl-text">
+            {{ timelineLabel(item) }}<template v-if="item.remark"> · {{ item.remark }}</template>
+          </view>
         </view>
       </view>
 
@@ -36,12 +39,12 @@
 
       <view v-if="isHelper && order.status === 'ACCEPTED'" class="wg-card">
         <view class="wg-btn" @click="doStart">开始帮忙</view>
-        <view class="wg-btn wg-btn-plain" style="margin-top: 8px" @click="doQuit">放弃这次帮忙</view>
+        <view class="wg-btn wg-btn-danger" style="margin-top: 8px" @click="doQuit">放弃这次帮忙</view>
       </view>
 
       <view v-if="isHelper && order.status === 'IN_SERVICE'" class="wg-card">
         <view class="wg-btn wg-btn-plain" @click="doHelpless">实在帮不上</view>
-        <view class="wg-btn wg-btn-plain" style="margin-top: 8px" @click="doLost">中途退出</view>
+        <view class="wg-btn wg-btn-danger" style="margin-top: 8px" @click="doLost">中途退出</view>
       </view>
 
       <view v-if="order.status === 'IN_SERVICE'" class="wg-card">
@@ -67,7 +70,9 @@
       </view>
 
       <view v-if="isSettled" class="wg-card">
-        <view class="wg-btn wg-btn-plain" @click="goEvaluate">评价 / 悄悄话</view>
+        <!-- B：评价与悄悄话拆成两个按钮，同进 P10，分别锚点定位 -->
+        <view v-if="isRequester" class="wg-btn wg-btn-plain" @click="goEvaluate">去评价</view>
+        <view class="wg-btn wg-btn-plain" :style="isRequester ? 'margin-top: 8px' : ''" @click="goWhisper">写悄悄话</view>
         <view class="wg-btn wg-btn-plain" style="margin-top: 8px" @click="goStory">看看这次的故事卡</view>
       </view>
 
@@ -112,7 +117,9 @@ export default {
       orderId: null,
       order: null,
       session: null,
-      timeline: []
+      timeline: [],
+      /** A4：首次进入由 onLoad 完成加载，之后每次 onShow（从确认/评价等页返回）再刷新 */
+      entered: false
     }
   },
   computed: {
@@ -162,6 +169,14 @@ export default {
     this.orderId = options.id
     this.load()
   },
+  onShow() {
+    // A4：从「确认完成」（redirectTo 评价页后返回）等页面回到本页时重新拉取状态，
+    // 否则状态陈旧会一直显示"去确认"，与确认页来回形成死循环
+    if (this.entered) {
+      this.load()
+    }
+    this.entered = true
+  },
   methods: {
     typeLabel(type) {
       return ORDER_TYPE_LABELS[type] || type
@@ -190,9 +205,15 @@ export default {
       } finally {
         this.loading = false
       }
-      try {
-        this.session = await getSession(this.orderId)
-      } catch (e) {
+      // A3：仅在「可聊天」状态才拉会话；PENDING/已结束等状态本就没有会话，
+      // 之前无条件拉取会被后端以 40002 拒绝并弹「当前状态不允许该操作」，属误报。
+      if (this.canChat) {
+        try {
+          this.session = await getSession(this.orderId)
+        } catch (e) {
+          this.session = null
+        }
+      } else {
         this.session = null
       }
     },
@@ -305,7 +326,10 @@ export default {
       uni.navigateTo({ url: `/pages/order/confirm?id=${this.orderId}` })
     },
     goEvaluate() {
-      uni.navigateTo({ url: `/pages/settle/evaluate?id=${this.orderId}` })
+      uni.navigateTo({ url: `/pages/settle/evaluate?id=${this.orderId}&focus=evaluate` })
+    },
+    goWhisper() {
+      uni.navigateTo({ url: `/pages/settle/evaluate?id=${this.orderId}&focus=whisper` })
     },
     goStory() {
       uni.navigateTo({ url: `/pages/settle/story?id=${this.orderId}` })
@@ -324,11 +348,15 @@ export default {
 </script>
 
 <style lang="scss">
-.wg-urgent {
-  color: #ffffff;
-  background-color: var(--wg-danger);
-  border-radius: 6px;
-  padding: 2px 8px;
-  font-size: var(--wg-font-sm);
+/* 进展时间线：时钟图标 + 说明文案 */
+.wg-room-tl-row {
+  display: flex;
+  align-items: flex-start;
+  margin-top: 6px;
+}
+
+.wg-room-tl-text {
+  flex: 1;
+  margin-left: 6px;
 }
 </style>

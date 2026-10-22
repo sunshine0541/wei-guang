@@ -57,9 +57,9 @@ public class ChatController {
         return Result.ok(chatService.read(AuthContext.requireUid(), id));
     }
 
-    /** C5 快捷短语（固定 5 条） */
+    /** C5 快捷短语（按角色 HELPER/REQUESTER 返回两套，默认求助者） */
     @GetMapping("/api/quick-phrases")
-    public Result<List<String>> quickPhrases() {
-        return Result.ok(chatService.quickPhrases());
+    public Result<List<String>> quickPhrases(@RequestParam(required = false) String role) {
+        return Result.ok(chatService.quickPhrases(role));
     }
 }

@@ -17,12 +17,18 @@ export const useUserStore = defineStore('user', {
     needLogin: false,
     isNewUser: false,
     hasPrivacyAgreed: false,
+    /** 本人用户 id（U1 下发；用于「我收到的评价」复用 U12 邻居评价接口） */
+    userId: null,
     nickname: '',
     avatarUrl: '',
     age: null,
     uiMode: 'NORMAL',
     motionEnabled: 1,
     creditScore: 0,
+    /** 接上门/陪同类的微光值门槛（U1 下发，sys_config credit.threshold） */
+    creditThreshold: 0,
+    /** 是否处于接单冷却期（U1 下发） */
+    coolingDown: false,
     lightState: 'UNLIT',
     lightPassed: 0,
     /** 隐私说明与注销文案的天数插值（sys_config compliance.retention_days） */
@@ -98,9 +104,16 @@ export const useUserStore = defineStore('user', {
       if (!profile) {
         return
       }
+      this.userId = profile.userId === undefined ? null : profile.userId
       this.nickname = profile.nickname || ''
       this.avatarUrl = profile.avatarUrl || ''
       this.age = profile.age === undefined ? null : profile.age
+      if (profile.creditThreshold !== undefined) {
+        this.creditThreshold = profile.creditThreshold
+      }
+      if (profile.coolingDown !== undefined) {
+        this.coolingDown = profile.coolingDown === true
+      }
       this.uiMode = profile.uiMode || 'NORMAL'
       this.motionEnabled = profile.motionEnabled === 0 ? 0 : 1
     },

@@ -19,6 +19,8 @@ public class SessionVO {
     private Integer myUnread;
     /** 当前登录用户 ID（前端据此区分"我的消息/对方消息"） */
     private Long myUserId;
+    /** B：当前用户在本单中的角色 REQUESTER/HELPER（快捷短语按角色取） */
+    private String myRole;
     /** 陪同类=集合点；上门类=小区/区域（接单后可见） */
     private String addressArea;
     /** 仅上门类且确认开始后解锁，服务结束即收回 */

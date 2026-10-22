@@ -65,6 +65,7 @@ public class AppealService {
     private static final String TYPE_FEEDBACK = "FEEDBACK";
     private static final String STATUS_PENDING = "PENDING";
     private static final String STATUS_RESOLVED = "RESOLVED";
+    private static final String STATUS_WITHDRAWN = "WITHDRAWN";
     private static final String RESULT_TO_COMPLETED = "TO_COMPLETED";
     private static final String RESULT_TO_CANCELLED = "TO_CANCELLED";
     private static final int REASON_MAX = 200;
@@ -168,6 +169,11 @@ public class AppealService {
         appeal.setInitiatorId(uid);
         appeal.setType(TYPE_POST_ORDER);
         appeal.setReason(reason);
+        // B：凭证图片（可选，前端先走 /api/upload/image）
+        if (request.getEvidenceUrl() != null && !request.getEvidenceUrl().isBlank()) {
+            String evidence = request.getEvidenceUrl().trim();
+            appeal.setEvidenceUrl(evidence.length() > 255 ? evidence.substring(0, 255) : evidence);
+        }
         appeal.setStatus(STATUS_PENDING);
         appeal.setCreatedAt(now);
         appealMapper.insert(appeal);
@@ -206,6 +212,27 @@ public class AppealService {
         appeal.setCreatedAt(LocalDateTime.now());
         appealMapper.insert(appeal);
         return appeal.getId();
+    }
+
+    /** B：撤回本人处理中的申诉或反馈（不删除记录，状态置 WITHDRAWN） */
+    @Transactional
+    public void withdraw(Long uid, Long appealId) {
+        Appeal appeal = appealId == null ? null : appealMapper.selectById(appealId);
+        if (appeal == null || !uid.equals(appeal.getInitiatorId())) {
+            throw new BizException(ErrorCode.FORBIDDEN);
+        }
+        if (!STATUS_PENDING.equals(appeal.getStatus())) {
+            throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
+        }
+        int rows = appealMapper.update(null, Wrappers.<Appeal>lambdaUpdate()
+                .eq(Appeal::getId, appealId)
+                .eq(Appeal::getInitiatorId, uid)
+                .eq(Appeal::getStatus, STATUS_PENDING)
+                .set(Appeal::getStatus, STATUS_WITHDRAWN)
+                .set(Appeal::getResolvedAt, LocalDateTime.now()));
+        if (rows == 0) {
+            throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
+        }
     }
 
     /** F3 我的申诉/反馈列表（tab=APPEAL|FEEDBACK） */
@@ -621,6 +648,7 @@ public class AppealService {
         vo.setType(appeal.getType());
         vo.setOrderId(appeal.getOrderId());
         vo.setReason(appeal.getReason());
+        vo.setEvidenceUrl(appeal.getEvidenceUrl());
         vo.setStatus(appeal.getStatus());
         vo.setConclusion(appeal.getConclusion());
         vo.setCreatedAt(appeal.getCreatedAt());

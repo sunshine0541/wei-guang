@@ -1,50 +1,103 @@
-/* 微光 · 适老主题（详设 §1.3、§6.1）
-   根节点 class：.mode-elder（年长模式）/ .motion-off（动效关闭）
-   CSS 变量统一字号/间距/主色；年长模式字号 1.25 倍、按钮最小高 56px、动效关闭 */
+/* 微光 · 静光主题（莫兰迪纯色块）
+   =====================================================================
+   设计基调：色块即层级 —— 不用阴影/厚描边，靠色块明度与色相分区。
+   两模式：普通模式（默认）/ 年长模式（根节点 class .mode-elder）
+   · 普通：同色家族上做拼贴、多彩、编辑式排版、柔性单投影、微动效（可关）
+   · 年长：零阴影、纯色块、字号 1.25×、按钮 ≥56px、单列、去装饰、动效关
+
+   兼容约定：变量名沿用 --wg-*（各页面 scoped 样式已引用），仅替换取值，
+   并新增少量 token 与组件类。新增组件类一律以 wg- 前缀，避免裸样式。
+   ===================================================================== */
+
 page {
-  --wg-font-sm: 13px;
-  --wg-font-base: 16px;
-  --wg-font-lg: 20px;
-  --wg-font-title: 24px;
-  --wg-space: 12px;
-  --wg-gap: 16px;
-  --wg-radius: 12px;
-  --wg-primary: #f5a623;
-  --wg-primary-light: #fff3df;
-  --wg-bg: #fff8ee;
-  --wg-text: #2f2a24;
-  --wg-text-weak: #8a8177;
-  --wg-danger: #d9534f;
-  --wg-btn-min-height: 44px;
+  /* ---- 5 色家族（浅底 + 深字，两两成对） ---- */
+  --sg-sage: #d9e2d6;  --sg-sage-d: #4f6b4a;   /* 鼠尾草绿 · 主色/助人 */
+  --sg-mist: #dbe3e7;  --sg-mist-d: #4e6b78;   /* 雾蓝 · 已接单 */
+  --sg-clay: #ead9d3;  --sg-clay-d: #8a5f52;   /* 陶粉 · 照护/详情 */
+  --sg-sand: #ede3d0;  --sg-sand-d: #8a7648;   /* 沙黄 · 待响应 */
+  --sg-lilac: #e4deec; --sg-lilac-d: #63568c;  /* 藕荷 · 申诉/远程 */
+
+  /* ---- 字号阶梯（普通模式） ---- */
+  --wg-font-sm: 12px;
+  --wg-font-base: 15px;
+  --wg-font-lg: 19px;
+  --wg-font-title: 22px;
+
+  /* ---- 间距 / 圆角 ---- */
+  --wg-space: 10px;   /* 块内/块间距 */
+  --wg-gap: 12px;     /* 页面外边距 */
+  --wg-radius: 20px;
+  --wg-radius-sm: 12px;
+
+  /* ---- 颜色 ---- */
+  --wg-primary: #7e9982;
+  --wg-primary-light: #e4ebe1;
+  --wg-primary-deep: #4f6b4a;
+  --wg-bg: #f2f1ed;
+  --wg-surface: #ffffff;
+  --wg-surface3: #eae8e2;
+  --wg-text: #34342f;
+  --wg-text-weak: #8c8a82;
+  --wg-line: #e6e4de;
+  --wg-danger: #b5716a;
+  --wg-danger-light: #ead9d3;
+
+  /* ---- 投影 / 按钮 ---- */
+  --wg-shadow: 0 10px 22px rgba(70, 70, 58, 0.07);
+  --wg-shadow-none: none;
+  --wg-btn-min-height: 50px;
+  --wg-border: 1px solid var(--wg-line);
 
   background-color: var(--wg-bg);
   color: var(--wg-text);
   font-size: var(--wg-font-base);
 }
 
+/* 年长模式：字号 1.25×、按钮 ≥56px、零阴影、纯色块 + 2px 描边、层级 ≤3、动效关 */
 .mode-elder {
-  --wg-font-sm: 16px;
-  --wg-font-base: 20px;
-  --wg-font-lg: 25px;
-  --wg-font-title: 30px;
-  --wg-space: 16px;
-  --wg-gap: 20px;
-  --wg-btn-min-height: 56px;
-
+  --wg-font-sm: 15px;
+  --wg-font-base: 19px;
+  --wg-font-lg: 24px;
+  --wg-font-title: 28px;
+  --wg-space: 12px;
+  --wg-gap: 16px;
+  --wg-radius: 14px;
+  --wg-radius-sm: 12px;
+  --wg-primary: #7e9481;
+  --wg-primary-light: #e6ede3;
+  --wg-primary-deep: #4a6150;
+  --wg-bg: #f1f0ec;
+  --wg-surface3: #e7e5de;
+  --wg-text: #33332f;
+  --wg-text-weak: #83817a;
+  --wg-line: #dedad0;
+  --wg-danger: #a9615a;
+  --wg-danger-light: #e6d6d1;
+  --wg-shadow: none;
+  --wg-btn-min-height: 58px;
+  --wg-border: 2px solid var(--wg-line);
   font-size: var(--wg-font-base);
 }
 
-/* 动效关闭：全部动效降级为纯文字（小程序不支持 * 选择器，逐类降级） */
+/* 动效关闭：全部动效降级为静态（小程序不支持 * 选择器，逐类降级） */
 .motion-off,
 .motion-off view,
 .motion-off text,
 .motion-off button,
 .motion-off image,
-.motion-off input {
+.motion-off input,
+.motion-off scroll-view {
   transition: none !important;
   animation: none !important;
 }
 
+/* 统一微动效（普通模式；年长与关闭态自动静默） */
+@keyframes wg-fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================ 布局 ============================ */
 .wg-page {
   min-height: 100vh;
   box-sizing: border-box;
@@ -54,42 +107,372 @@ page {
   font-size: var(--wg-font-base);
 }
 
+/* 有底部导航的页面：给内容留出导航栏高度 + 安全区 */
+.wg-page-tab {
+  padding-bottom: calc(64px + env(safe-area-inset-bottom));
+}
+
+.mode-elder .wg-page-tab {
+  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+}
+
+/* ============================ 文字 ============================ */
 .wg-title {
   font-size: var(--wg-font-title);
-  font-weight: 600;
+  font-weight: 800;
+  line-height: 1.35;
   margin-bottom: var(--wg-space);
 }
 
-.wg-card {
-  background-color: #ffffff;
-  border-radius: var(--wg-radius);
-  padding: var(--wg-space);
-  margin-bottom: var(--wg-gap);
-  font-size: var(--wg-font-base);
+.wg-subtitle {
+  font-size: var(--wg-font-lg);
+  font-weight: 800;
+  line-height: 1.4;
 }
 
 .wg-label {
   color: var(--wg-text-weak);
   font-size: var(--wg-font-sm);
+  line-height: 1.5;
 }
 
+.wg-strong {
+  color: var(--wg-primary-deep);
+  font-size: var(--wg-font-lg);
+  font-weight: 800;
+}
+
+/* 编辑式大数字（普通模式） */
+.wg-bignum {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--wg-primary-deep);
+}
+
+.mode-elder .wg-bignum {
+  font-size: 30px;
+}
+
+/* ============================ 卡片 ============================ */
+.wg-card {
+  background-color: var(--wg-surface);
+  border-radius: var(--wg-radius);
+  padding: var(--wg-space);
+  margin-bottom: var(--wg-gap);
+  font-size: var(--wg-font-base);
+  box-shadow: var(--wg-shadow);
+  border: var(--wg-border);
+}
+
+/* 二级卡片（米色底，无投影，用于分组/说明） */
+.wg-card-soft {
+  background-color: var(--wg-surface3);
+  box-shadow: none;
+}
+
+/* 彩色块面卡（三级）：传入内联背景与文字色即可 */
+.wg-card-tint {
+  box-shadow: none;
+  border: none;
+}
+
+.wg-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 双角色 hero 的两个色块（普通：并排；年长：纵向） */
+.wg-tile {
+  border-radius: var(--wg-radius);
+  padding: var(--wg-space);
+  min-height: 108px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.wg-tile-title {
+  font-size: var(--wg-font-base);
+  font-weight: 800;
+  margin-top: 4px;
+}
+
+.wg-tile-sub {
+  font-size: var(--wg-font-sm);
+  opacity: 0.85;
+  margin-top: 3px;
+  line-height: 1.5;
+}
+
+.mode-elder .wg-tile {
+  min-height: auto;
+  padding: 14px;
+}
+
+.mode-elder .wg-tile-title {
+  font-size: var(--wg-font-lg);
+}
+
+.mode-elder .wg-tile-sub {
+  font-size: var(--wg-font-sm);
+}
+
+.wg-hero {
+  display: flex;
+  margin-bottom: var(--wg-gap);
+}
+
+.wg-hero > .wg-tile {
+  flex: 1;
+  margin-right: 10px;
+}
+
+.wg-hero > .wg-tile:last-child {
+  margin-right: 0;
+}
+
+.mode-elder .wg-hero {
+  flex-direction: column;
+}
+
+.mode-elder .wg-hero > .wg-tile {
+  margin-right: 0;
+  margin-bottom: 12px;
+}
+
+.mode-elder .wg-hero > .wg-tile:last-child {
+  margin-bottom: 0;
+}
+
+/* ============================ 按钮 ============================ */
 .wg-btn {
   min-height: var(--wg-btn-min-height);
-  line-height: var(--wg-btn-min-height);
   border-radius: var(--wg-radius);
   font-size: var(--wg-font-base);
+  font-weight: 800;
   text-align: center;
   background-color: var(--wg-primary);
   color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 18px rgba(126, 153, 130, 0.28);
+}
+
+.mode-elder .wg-btn {
+  box-shadow: none;
 }
 
 .wg-btn-plain {
-  background-color: #ffffff;
+  background-color: var(--wg-surface);
   color: var(--wg-text);
-  border: 1px solid #e6ded2;
+  border: var(--wg-border);
+  box-shadow: none;
 }
 
-/* 未读红点（P03 横幅 / P13 通知中心入口 / P16 列表共用，T12） */
+/* 置灰（不可用）：仍可点，点后给原因（对应 P04 门槛恢复置灰体验） */
+.wg-btn-disabled {
+  background-color: var(--wg-surface3);
+  color: #9c9a92;
+  box-shadow: none;
+  border: var(--wg-border);
+}
+
+.wg-btn-danger {
+  background-color: var(--wg-danger);
+  box-shadow: none;
+}
+
+.wg-btn-ghost {
+  background-color: transparent;
+  color: var(--wg-text-weak);
+  box-shadow: none;
+  border: none;
+  min-height: 44px;
+  font-weight: 600;
+}
+
+/* ============================ 胶囊 / 标签 ============================ */
+.wg-chip {
+  padding: 6px 14px;
+  margin: 0 8px 8px 0;
+  border-radius: 999px;
+  background-color: var(--wg-surface);
+  border: var(--wg-border);
+  font-size: var(--wg-font-sm);
+}
+
+.wg-chip-active {
+  background-color: var(--wg-primary-light);
+  border-color: var(--wg-primary);
+  color: var(--wg-primary-deep);
+  font-weight: 700;
+}
+
+.wg-tags {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 6px 0;
+}
+
+.wg-tag {
+  padding: 3px 10px;
+  margin: 0 8px 8px 0;
+  border-radius: 999px;
+  background-color: var(--wg-primary-light);
+  color: var(--wg-primary-deep);
+  font-size: var(--wg-font-sm);
+}
+
+/* B：自定义标签（仅展示，用淡紫家族色与受控标签区分） */
+.wg-tag-extra {
+  background-color: #e4deec;
+  color: #63568c;
+}
+
+.wg-tag-mine {
+  background-color: var(--wg-surface3);
+  color: var(--wg-text-weak);
+}
+
+/* 急标：不用纯红，改陶粉底 + 深字（不刺眼） */
+.wg-urgent {
+  color: var(--sg-clay-d);
+  background-color: var(--sg-clay);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: var(--wg-font-sm);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* ============================ 分段控件（替代并排大按钮） ============================ */
+.wg-seg {
+  display: flex;
+  background-color: var(--wg-surface3);
+  border-radius: var(--wg-radius-sm);
+  padding: 3px;
+  margin-bottom: var(--wg-gap);
+}
+
+.wg-seg-item {
+  flex: 1;
+  text-align: center;
+  font-size: var(--wg-font-sm);
+  padding: 8px 0;
+  color: var(--wg-text-weak);
+  border-radius: 10px;
+}
+
+.wg-seg-item-active {
+  background-color: var(--wg-surface);
+  color: var(--wg-primary-deep);
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(90, 90, 78, 0.08);
+}
+
+.mode-elder .wg-seg-item {
+  font-size: var(--wg-font-base);
+  padding: 11px 0;
+}
+
+/* 兼容旧的三 Tab 类（P06 等页用到，等价于分段控件） */
+.wg-tabs {
+  display: flex;
+  background-color: var(--wg-surface3);
+  border-radius: var(--wg-radius-sm);
+  padding: 3px;
+  margin-bottom: var(--wg-gap);
+}
+
+.wg-tab {
+  flex: 1;
+  text-align: center;
+  padding: 8px 0;
+  border-radius: 10px;
+  background-color: transparent;
+  margin-right: 0;
+  font-size: var(--wg-font-sm);
+  color: var(--wg-text-weak);
+}
+
+.mode-elder .wg-tab {
+  font-size: var(--wg-font-base);
+  padding: 11px 0;
+}
+
+.wg-tab-active {
+  background-color: var(--wg-surface);
+  color: var(--wg-primary-deep);
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(90, 90, 78, 0.08);
+}
+
+/* ============================ 行列表（个人中心分栏 / 设置项） ============================ */
+.wg-rows {
+  background-color: var(--wg-surface);
+  border-radius: var(--wg-radius);
+  border: var(--wg-border);
+  box-shadow: var(--wg-shadow);
+  overflow: hidden;
+  margin-bottom: var(--wg-gap);
+}
+
+.wg-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--wg-space) 12px;
+  font-size: var(--wg-font-base);
+  border-bottom: 1px solid var(--wg-line);
+}
+
+.wg-row:last-child {
+  border-bottom: none;
+}
+
+.wg-row-label {
+  color: var(--wg-text-weak);
+  font-size: var(--wg-font-sm);
+}
+
+/* 分栏小标题 */
+.wg-section-title {
+  font-size: var(--wg-font-sm);
+  color: var(--wg-text-weak);
+  font-weight: 700;
+  margin: 12px 0 8px;
+}
+
+/* ============================ 表单 ============================ */
+.wg-input {
+  min-height: var(--wg-btn-min-height);
+  border: var(--wg-border);
+  border-radius: var(--wg-radius-sm);
+  padding: 0 12px;
+  margin-top: 8px;
+  background-color: var(--wg-surface);
+  font-size: var(--wg-font-base);
+  display: flex;
+  align-items: center;
+}
+
+.wg-textarea {
+  width: 100%;
+  min-height: 120px;
+  box-sizing: border-box;
+  border: var(--wg-border);
+  border-radius: var(--wg-radius-sm);
+  padding: 10px 12px;
+  margin-top: 8px;
+  background-color: var(--wg-surface);
+  font-size: var(--wg-font-base);
+}
+
+/* ============================ 徽标 / 圆点 / 提示 ============================ */
 .wg-dot {
   width: 8px;
   height: 8px;
@@ -102,112 +485,69 @@ page {
   color: var(--wg-danger);
 }
 
-/* 标签胶囊（全局兜底）：此前仅 index 页内定义，聊天/发布/详情页取不到样式，
-   导致快捷短语与标签挤在一起；T16 再做适老精修 */
-.wg-chip {
-  padding: 6px 12px;
-  margin: 0 8px 8px 0;
+/* 光语「灯盏」：去掉外圈光晕（静光不用阴影），仅保留色块圆 */
+.wg-lamp {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--wg-primary-light);
+  color: var(--wg-primary-deep);
+}
+
+/* 页内提示条（替代长文案 toast，保证完整可读） */
+.wg-notice {
+  display: flex;
+  align-items: center;
+  background-color: var(--wg-primary-light);
   border-radius: var(--wg-radius);
-  background-color: #ffffff;
-  border: 1px solid #e6ded2;
-  font-size: var(--wg-font-sm);
+  padding: 10px 12px;
+  margin-bottom: var(--wg-gap);
+  font-size: var(--wg-font-base);
+  color: var(--wg-primary-deep);
+  line-height: 1.5;
 }
 
-.wg-chip-active {
-  background-color: var(--wg-primary-light);
-  border-color: var(--wg-primary);
+.wg-notice-warn {
+  background-color: var(--sg-sand);
+  color: var(--sg-sand-d);
 }
 
-.wg-tags {
+/* ============================ 空态 / 骨架屏 ============================ */
+.wg-empty {
+  background-color: var(--wg-surface);
+  border: var(--wg-border);
+  border-radius: var(--wg-radius);
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--wg-text-weak);
+  font-size: var(--wg-font-base);
+  line-height: 1.6;
+}
+
+.wg-skel {
   display: flex;
-  flex-wrap: wrap;
-  margin: 6px 0;
+  flex-direction: column;
 }
 
-.wg-tag {
-  padding: 2px 10px;
-  margin: 0 8px 8px 0;
-  border-radius: 10px;
-  background-color: var(--wg-primary-light);
-  font-size: var(--wg-font-sm);
+.wg-skel-line {
+  height: 12px;
+  border-radius: 6px;
+  background-color: var(--wg-surface3);
+  margin-bottom: 8px;
 }
 
-.wg-tag-mine {
-  background-color: #e8e8e8;
-}
-
-/* 顶部 Tab（全局兜底）：此前仅 index 页内定义，P06 我的求助等页取不到样式 */
-.wg-tabs {
-  display: flex;
+.wg-skel-block {
+  height: 56px;
+  border-radius: var(--wg-radius-sm);
+  background-color: var(--wg-surface3);
   margin-bottom: var(--wg-space);
 }
 
-.wg-tab {
-  flex: 1;
-  text-align: center;
-  padding: 12px 0;
-  border-radius: var(--wg-radius);
-  background-color: #ffffff;
-  margin-right: 8px;
-  font-size: var(--wg-font-base);
-}
-
-.wg-tab:last-child {
-  margin-right: 0;
-}
-
-.wg-tab-active {
-  background-color: var(--wg-primary-light);
-  color: #b06a00;
-  font-weight: 600;
-}
-
-/* 基础表单与卡片元件（全局兜底）：此前 .wg-input/.wg-textarea 只在 guide 页、
-   .wg-card-head/.wg-urgent 只在部分页定义，其余页面取不到样式。T16 再做适老精修 */
-.wg-input {
-  min-height: var(--wg-btn-min-height);
-  border: 1px solid #e6ded2;
-  border-radius: var(--wg-radius);
-  padding: 0 12px;
-  margin-top: 8px;
-  background-color: #ffffff;
-  font-size: var(--wg-font-base);
-}
-
-.wg-textarea {
-  width: 100%;
-  min-height: 120px;
-  box-sizing: border-box;
-  border: 1px solid #e6ded2;
-  border-radius: var(--wg-radius);
-  padding: 10px 12px;
-  margin-top: 8px;
-  background-color: #ffffff;
-  font-size: var(--wg-font-base);
-}
-
-.wg-card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.wg-urgent {
-  color: #ffffff;
-  background-color: var(--wg-danger);
-  border-radius: 6px;
-  padding: 2px 8px;
-  font-size: var(--wg-font-sm);
-}
-
-/* 数值强调（全局兜底）：此前在个人中心/账本/邻居页各自重复定义 */
-.wg-strong {
-  color: #b06a00;
-  font-size: var(--wg-font-lg, 20px);
-}
-
-/* 自绘遮罩弹窗（全局兜底，T16）：uni.showModal 按钮文案限 4 字，
-   且适老场景需要大字弹窗，统一走自绘（P03 首次进入紧急提示、P13 微光邀请） */
+/* ============================ 自绘遮罩弹窗（adaptation：showModal 限 4 字） ============================ */
 .wg-dialog-mask {
   position: fixed;
   left: 0;
@@ -223,9 +563,10 @@ page {
 
 .wg-dialog-box {
   width: 78%;
-  background-color: #ffffff;
+  background-color: var(--wg-surface);
   border-radius: var(--wg-radius);
   padding: var(--wg-gap);
+  border: var(--wg-border);
 }
 
 .wg-dialog-text {

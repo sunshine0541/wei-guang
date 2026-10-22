@@ -1,13 +1,24 @@
 <template>
-  <view class="wg-page" :class="userStore.rootClass">
+  <view class="wg-page wg-profile-page" :class="userStore.rootClass">
     <view v-if="loading" class="wg-card">
       <text>正在为您准备，请稍等</text>
     </view>
 
     <template v-else>
-      <!-- 分组 1：称呼与年龄 -->
+      <!-- 分组 1：头像、称呼与年龄 -->
       <view class="wg-card">
-        <view class="wg-label">称呼</view>
+        <!-- B：点头像更换头像（open-type=chooseAvatar），换完随“保存”一并落库 -->
+        <view class="wg-avatar-row">
+          <button class="wg-avatar-btn" open-type="chooseAvatar" @chooseavatar="onChooseAvatar">
+            <image v-if="avatarPreview" class="wg-profile-avatar" :src="avatarPreview" mode="aspectFill" />
+            <view v-else class="wg-profile-avatar wg-profile-avatar-empty">换头像</view>
+          </button>
+          <view class="wg-avatar-tip">
+            <text class="wg-avatar-tip-main">换头像</text>
+            <text class="wg-label">点头像选一张新照片</text>
+          </view>
+        </view>
+        <view class="wg-label" style="margin-top: 12px">称呼</view>
         <input class="wg-input" :value="nickname" @input="nickname = $event.detail.value" />
         <view class="wg-label" style="margin-top: 12px">年龄</view>
         <input class="wg-input" type="number" :value="ageText" @input="ageText = $event.detail.value" />
@@ -15,14 +26,17 @@
 
       <!-- 分组 2：住址（选填；常用地址在地址簿中集中管理） -->
       <view class="wg-card">
-        <view class="wg-label">住址（选填，用于上门/陪同类求助）</view>
+        <view class="wg-label">住址（选填，用于上门/外出类求助）</view>
         <view v-if="defaultAddress" class="wg-label" style="margin-top: 8px">
           当前默认：{{ defaultAddress.label }} · {{ defaultAddress.areaText }}{{ defaultAddress.detailText ? ' · ' + defaultAddress.detailText : '' }}
         </view>
         <input class="wg-input" placeholder="标签，如：家（填写小区后保存即新增地址）" :value="addressLabel" @input="addressLabel = $event.detail.value" />
         <input class="wg-input" placeholder="小区/区域" :value="addressArea" @input="addressArea = $event.detail.value" />
         <input class="wg-input" placeholder="楼栋门牌（选填）" :value="addressDetail" @input="addressDetail = $event.detail.value" />
-        <view class="wg-link-row" @click="goAddress">管理常用地址</view>
+        <view class="wg-profile-link" @click="goAddress">
+          <u-icon name="map" :size="16" />
+          <text class="wg-profile-link-text">管理常用地址</text>
+        </view>
       </view>
 
       <!-- 分组 3：喜欢做的事 -->
@@ -32,8 +46,8 @@
           <view
             v-for="hobby in hobbyOptions"
             :key="hobby"
-            class="wg-tag"
-            :class="{ 'wg-tag-active': hobbies.indexOf(hobby) >= 0 }"
+            class="wg-chip"
+            :class="{ 'wg-chip-active': hobbies.indexOf(hobby) >= 0 }"
             @click="toggleHobby(hobby)"
           >
             {{ hobby }}
@@ -55,6 +69,11 @@
         <view class="wg-label">紧急联系人（选填）</view>
         <input class="wg-input" placeholder="姓名" :value="emergencyName" @input="emergencyName = $event.detail.value" />
         <input class="wg-input" placeholder="电话" :value="emergencyPhone" @input="emergencyPhone = $event.detail.value" />
+        <!-- B：从手机通讯录选紧急联系人（紧贴紧急联系人字段；不支持则提示手输） -->
+        <view class="wg-profile-link" @click="pickContact">
+          <u-icon name="phone-fill" :size="16" />
+          <text class="wg-profile-link-text">从手机通讯录选</text>
+        </view>
         <view class="wg-label" style="margin-top: 12px">手机号（选填）</view>
         <input class="wg-input" type="number" :value="phone" @input="phone = $event.detail.value" />
       </view>
@@ -71,7 +90,8 @@
 import { useUserStore } from '@/store/user'
 import { getProfile, updateProfile } from '@/api/user'
 import { listAddresses, createAddress } from '@/api/address'
-import { HOBBY_OPTIONS } from '@/utils/constants'
+import { uploadImage } from '@/utils/upload'
+import { BASE_URL, HOBBY_OPTIONS } from '@/utils/constants'
 
 /**
  * P14 画像编辑（详设 §6.2）：字段同 P02 第 3 步 + 手机号（选填、不校验）。
@@ -92,20 +112,67 @@ export default {
       careTip: '',
       emergencyName: '',
       emergencyPhone: '',
-      phone: ''
+      phone: '',
+      /** B：头像（可能是服务端相对地址，也可能是刚选的本地临时路径） */
+      avatarUrl: '',
+      /** B：有未保存修改时拦截返回 */
+      dirty: false,
+      /** B：回填阶段不触发 dirty */
+      hydrating: false
     }
   },
   computed: {
     userStore() {
       return useUserStore()
+    },
+    /** B：头像预览（本地临时路径直接用；服务端返回的是 /files 相对地址，需拼 BASE_URL） */
+    avatarPreview() {
+      if (!this.avatarUrl) {
+        return ''
+      }
+      if (/^(wxfile:|https?:\/\/tmp|blob:|https?:)/.test(this.avatarUrl)) {
+        return this.avatarUrl
+      }
+      return BASE_URL + this.avatarUrl
+    },
+    /** B：所有可编辑字段的快照，任一变化即标记为"未保存" */
+    formSnapshot() {
+      return [
+        this.nickname,
+        this.ageText,
+        this.addressLabel,
+        this.addressArea,
+        this.addressDetail,
+        this.hobbies.join(','),
+        this.careTip,
+        this.emergencyName,
+        this.emergencyPhone,
+        this.phone,
+        this.avatarUrl
+      ].join('|')
+    }
+  },
+  watch: {
+    formSnapshot() {
+      this.markDirty()
     }
   },
   onLoad() {
     this.load()
   },
+  onShow() {
+    // 从地址簿返回时刷新"当前默认地址"；首次进入由 load() 负责，避免覆盖正在编辑的内容
+    if (!this.loading && !this.hydrating) {
+      this.refreshDefaultAddress()
+    }
+  },
+  onUnload() {
+    this.disableLeaveAlert()
+  },
   methods: {
     async load() {
       this.loading = true
+      this.hydrating = true
       try {
         const profile = await getProfile()
         this.nickname = profile.nickname || ''
@@ -115,6 +182,7 @@ export default {
         this.emergencyName = profile.emergencyContactName || ''
         this.emergencyPhone = profile.emergencyContactPhone || ''
         this.phone = profile.phone || ''
+        this.avatarUrl = profile.avatarUrl || ''
       } catch (e) {
         console.error('[微光] 画像加载失败', e)
       } finally {
@@ -126,6 +194,62 @@ export default {
       } catch (e) {
         console.error('[微光] 地址加载失败', e)
       }
+      // 回填完成后再解锁 dirty 监听
+      this.$nextTick(() => {
+        this.hydrating = false
+      })
+    },
+    /** 只刷新默认地址摘要，不动其他正在编辑的字段 */
+    async refreshDefaultAddress() {
+      try {
+        const addresses = await listAddresses()
+        this.defaultAddress = addresses.find((item) => item.isDefault === 1) || addresses[0] || null
+      } catch (e) {
+        console.error('[微光] 地址加载失败', e)
+      }
+    },
+    /** B：选择新头像（本地临时路径，随“保存”上传并落库） */
+    onChooseAvatar(event) {
+      const url = event && event.detail ? event.detail.avatarUrl : ''
+      if (url) {
+        this.avatarUrl = url
+      }
+    },
+    /** B：标记有未保存修改，并开启返回拦截（微信原生能力，失败静默） */
+    markDirty() {
+      if (this.hydrating || this.dirty) {
+        return
+      }
+      this.dirty = true
+      if (typeof wx !== 'undefined' && typeof wx.enableAlertBeforeUnload === 'function') {
+        wx.enableAlertBeforeUnload({ message: '资料还没保存，离开会丢掉这次的修改' })
+      }
+    },
+    disableLeaveAlert() {
+      if (typeof wx !== 'undefined' && typeof wx.disableAlertBeforeUnload === 'function') {
+        wx.disableAlertBeforeUnload()
+      }
+    },
+    /** B：从手机通讯录选紧急联系人；基础库不支持时退化为手动填写 */
+    pickContact() {
+      if (typeof wx === 'undefined' || typeof wx.chooseContact !== 'function') {
+        uni.showToast({ title: '当前微信不支持读取通讯录，手动填一下吧', icon: 'none' })
+        return
+      }
+      wx.chooseContact({
+        success: (res) => {
+          if (res && res.displayName) {
+            this.emergencyName = res.displayName
+          }
+          if (res && res.phoneNumber) {
+            this.emergencyPhone = res.phoneNumber
+          }
+        },
+        fail: (err) => {
+          console.error('[微光] 通讯录选择失败', err)
+          uni.showToast({ title: '没读到通讯录，手动填一下吧', icon: 'none' })
+        }
+      })
     },
     toggleHobby(hobby) {
       const index = this.hobbies.indexOf(hobby)
@@ -171,6 +295,18 @@ export default {
       payload.emergencyContactName = this.emergencyName
       payload.emergencyContactPhone = this.emergencyPhone
       payload.phone = this.phone
+      // 头像：本地临时路径先上传成 /files 相对地址
+      if (this.avatarUrl && this.avatarUrl !== (this.userStore.avatarUrl || '')) {
+        try {
+          if (/^(wxfile:|https?:\/\/tmp|blob:)/.test(this.avatarUrl)) {
+            payload.avatarUrl = await uploadImage(this.avatarUrl)
+          } else {
+            payload.avatarUrl = this.avatarUrl
+          }
+        } catch (e) {
+          console.error('[微光] 头像上传失败', e)
+        }
+      }
       try {
         await updateProfile(payload)
         if (this.addressArea.trim()) {
@@ -182,6 +318,9 @@ export default {
           })
         }
         await this.userStore.loadProfile()
+        // 已保存：解除返回拦截，避免保存后仍弹“未保存”
+        this.dirty = false
+        this.disableLeaveAlert()
         uni.showToast({ title: '已保存', icon: 'success' })
         setTimeout(() => {
           uni.navigateBack()
@@ -195,34 +334,71 @@ export default {
 </script>
 
 <style lang="scss">
-.wg-page {
+/* 为底部固定保存栏留出空间 */
+.wg-profile-page {
   padding-bottom: 110px;
 }
 
-.wg-tags {
+/* B：头像与换头像提示 */
+.wg-avatar-row {
   display: flex;
-  flex-wrap: wrap;
-  margin-top: 8px;
+  align-items: center;
 }
 
-.wg-tag {
-  padding: 8px 14px;
-  margin: 0 8px 8px 0;
-  border-radius: var(--wg-radius);
-  border: 1px solid #e6ded2;
-  background-color: #ffffff;
+.wg-avatar-btn {
+  padding: 0;
+  margin: 0;
+  width: 56px;
+  height: 56px;
+  line-height: normal;
+  border-radius: 28px;
+  overflow: hidden;
+  background-color: transparent;
+}
+
+.wg-avatar-btn::after {
+  border: none;
+}
+
+.wg-profile-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 28px;
+  background-color: var(--wg-surface);
+}
+
+.wg-profile-avatar-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--wg-line);
+  color: var(--wg-text-weak);
+  font-size: var(--wg-font-sm);
+  box-sizing: border-box;
+}
+
+.wg-avatar-tip {
+  display: flex;
+  flex-direction: column;
+  margin-left: 12px;
+}
+
+.wg-avatar-tip-main {
   font-size: var(--wg-font-base);
+  font-weight: 800;
+  color: var(--wg-primary-deep);
 }
 
-.wg-tag-active {
-  background-color: var(--wg-primary-light);
-  border-color: var(--wg-primary);
-}
-
-.wg-link-row {
+.wg-profile-link {
+  display: flex;
+  align-items: center;
   margin-top: 12px;
-  color: #b06a00;
+  color: var(--wg-primary-deep);
   font-size: var(--wg-font-base);
+}
+
+.wg-profile-link-text {
+  margin-left: 6px;
 }
 
 /* 保存按钮底部固定（详设 §6.2 P14 适老差异：单列分组、保存按钮底部固定加大） */
@@ -233,7 +409,7 @@ export default {
   bottom: 0;
   padding: 10px var(--wg-gap) calc(10px + env(safe-area-inset-bottom));
   background-color: var(--wg-bg);
-  border-top: 1px solid #f0e9dd;
+  border-top: 1px solid var(--wg-line);
 }
 
 .mode-elder .wg-save-bar {

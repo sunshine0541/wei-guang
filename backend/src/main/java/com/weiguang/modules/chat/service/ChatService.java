@@ -116,6 +116,7 @@ public class ChatService {
                 ? (session.getHelperUnread() == null ? 0 : session.getHelperUnread())
                 : (session.getRequesterUnread() == null ? 0 : session.getRequesterUnread()));
         vo.setMyUserId(uid);
+        vo.setMyRole(isHelper ? "HELPER" : "REQUESTER");
 
         boolean remote = OrderType.REMOTE.name().equals(order.getOrderType());
         if (isHelper && !remote) {
@@ -196,12 +197,21 @@ public class ChatService {
         chatSessionMapper.update(null, Wrappers.<ChatSession>lambdaUpdate()
                 .eq(ChatSession::getId, sessionId)
                 .set(isHelper ? ChatSession::getHelperUnread : ChatSession::getRequesterUnread, 0));
+        // B：同步把该会话的聊天通知置为已读，避免"消息看完了、通知中心还挂着"
+        notifyService.readChatNotifications(uid, session.getOrderId());
         return new ReadVO(cleared);
     }
 
-    /** C5 快捷短语（固定 5 条） */
-    public List<String> quickPhrases() {
-        return QuickPhraseConstants.QUICK_PHRASES;
+    /** C5 快捷短语（按角色两套，固定 5 条） */
+    public List<String> quickPhrases(String role) {
+        return QuickPhraseConstants.of(role);
+    }
+
+    /** B：转发"对方正在输入"给会话另一方（仅在线，不落库） */
+    public void notifyTyping(Long uid, Long sessionId) {
+        ChatSession session = requireParticipant(uid, sessionId);
+        Long peerId = uid.equals(session.getRequesterId()) ? session.getHelperId() : session.getRequesterId();
+        wsSessionRegistry.push(peerId, WsEnvelope.typing(sessionId));
     }
 
     private MessageVO persist(ChatSession session, Long uid, SendMessageRequest request, String riskFlag) {
@@ -222,13 +232,12 @@ public class ChatService {
         return toVO(message);
     }
 
-    /** 事务外：WS 推送（在线）；对方离线则落 NEW_MESSAGE 通知；发送方同路径回执 */
+    /** 事务外：WS 推送（在线）+ 落 NEW_MESSAGE 聚合通知（B：不再区分在线/离线） */
     private void pushAfterSend(ChatSession session, Long uid, MessageVO message, String clientMsgId) {
         Long peerId = uid.equals(session.getRequesterId()) ? session.getHelperId() : session.getRequesterId();
         Object envelope = WsEnvelope.chatMessage(session.getId(), message, null);
-        if (!wsSessionRegistry.push(peerId, envelope)) {
-            notifyService.newMessage(peerId, nicknameOf(uid), session.getOrderId());
-        }
+        wsSessionRegistry.push(peerId, envelope);
+        notifyService.newMessage(peerId, nicknameOf(uid), session.getOrderId());
         wsSessionRegistry.push(uid, WsEnvelope.chatMessage(session.getId(), message, clientMsgId));
     }
 

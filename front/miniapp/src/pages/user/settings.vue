@@ -3,48 +3,55 @@
     <!-- 模式切换（U3，切换同时重置动效为该模式默认值） -->
     <view class="wg-card">
       <view class="wg-label">显示模式</view>
-      <view class="wg-mode-row">
+      <view class="wg-seg" style="margin-top: 10px">
         <view
-          class="wg-btn wg-mode-btn"
-          :class="{ 'wg-btn-plain': !userStore.isElder }"
+          class="wg-seg-item"
+          :class="{ 'wg-seg-item-active': !userStore.isElder }"
           @click="chooseMode('NORMAL')"
         >
           普通模式
         </view>
         <view
-          class="wg-btn wg-mode-btn"
-          :class="{ 'wg-btn-plain': userStore.isElder }"
+          class="wg-seg-item"
+          :class="{ 'wg-seg-item-active': userStore.isElder }"
           @click="chooseMode('ELDER')"
         >
           大字模式
         </view>
       </view>
-      <view class="wg-label" style="margin-top: 10px">
-        大字模式：字更大、按钮更大，动效会默认关闭，可随时在下方重新打开。
-      </view>
+      <view class="wg-label">大字模式：字更大、按钮更大，动效会默认关闭，可随时在下方重新打开。</view>
     </view>
 
     <!-- 动效开关（U4，独立生效） -->
     <view class="wg-card">
       <view class="wg-card-head">
         <text>页面动效</text>
-        <switch :key="switchKey" :checked="userStore.motionEnabled === 1" color="#f5a623" @change="onMotionChange" />
+        <switch :key="switchKey" :checked="userStore.motionEnabled === 1" color="#7e9982" @change="onMotionChange" />
       </view>
       <view class="wg-label">关闭后，页面里的动画会停下来，更安静。</view>
     </view>
 
     <!-- 隐私说明查看（含版本号） -->
-    <view class="wg-card" @click="goPrivacy">
-      <view class="wg-card-head">
-        <text>隐私说明</text>
-        <text class="wg-label">版本 {{ policyVersion }}</text>
+    <view class="wg-rows">
+      <view class="wg-row" @click="goPrivacy">
+        <view class="wg-set-row-lead">
+          <u-icon name="info-circle" :size="16" />
+          <text class="wg-set-row-text">隐私说明</text>
+        </view>
+        <text class="wg-row-label">版本 {{ policyVersion }}</text>
       </view>
     </view>
 
-    <view class="wg-btn wg-btn-plain" style="margin-top: 20px" @click="onLogout">退出登录</view>
+    <view class="wg-btn wg-btn-plain wg-set-logout" @click="onLogout">
+      <u-icon name="arrow-left" :size="16" />
+      <text class="wg-set-logout-text">退出登录</text>
+    </view>
 
     <!-- 注销账号（适老差异：置底并弱化配色，详设 §6.2 P18） -->
-    <view class="wg-cancel" @click="onCancelAccount">注销账号</view>
+    <view class="wg-btn wg-btn-ghost wg-set-cancel" @click="onCancelAccount">
+      <u-icon name="warning" :size="16" />
+      <text class="wg-set-cancel-text">注销账号</text>
+    </view>
   </view>
 </template>
 
@@ -146,30 +153,32 @@ export default {
 </script>
 
 <style lang="scss">
-.wg-mode-row {
+/* 隐私说明行：图标 + 文案 */
+.wg-set-row-lead {
   display: flex;
-  margin-top: 10px;
+  align-items: center;
 }
 
-.wg-mode-btn {
-  flex: 1;
-  margin-right: 10px;
+.wg-set-row-text {
+  margin-left: 8px;
 }
 
-.wg-mode-btn:last-child {
-  margin-right: 0;
+/* 按钮内图标与文字间距 */
+.wg-set-logout {
+  margin-top: 20px;
+}
+
+.wg-set-logout-text,
+.wg-set-cancel-text {
+  margin-left: 6px;
 }
 
 /* 注销入口：置底弱化配色（适老差异） */
-.wg-cancel {
+.wg-set-cancel {
   margin: 48px 0 16px;
-  padding: 14px 0;
-  text-align: center;
-  color: var(--wg-text-weak);
-  font-size: var(--wg-font-base);
 }
 
-.mode-elder .wg-cancel {
+.mode-elder .wg-set-cancel {
   margin-top: 72px;
 }
 </style>

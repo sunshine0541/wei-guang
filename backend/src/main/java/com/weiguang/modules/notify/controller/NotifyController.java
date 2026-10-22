@@ -7,6 +7,7 @@ import com.weiguang.modules.notify.dto.BannerVO;
 import com.weiguang.modules.notify.dto.NotificationVO;
 import com.weiguang.modules.notify.dto.ReadAllVO;
 import com.weiguang.modules.notify.service.NotifyService;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -51,5 +52,12 @@ public class NotifyController {
     @PostMapping("/notifications/read-all")
     public Result<ReadAllVO> readAll() {
         return Result.ok(notifyService.readAll(AuthContext.requireUid()));
+    }
+
+    /** B：删除本人通知 */
+    @DeleteMapping("/notifications/{id}")
+    public Result<Void> remove(@PathVariable Long id) {
+        notifyService.remove(AuthContext.requireUid(), id);
+        return Result.ok();
     }
 }

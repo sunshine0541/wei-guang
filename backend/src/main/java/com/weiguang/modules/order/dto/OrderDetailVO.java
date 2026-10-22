@@ -15,10 +15,18 @@ public class OrderDetailVO {
     private String title;
     private String orderType;
     private List<String> tags;
+    /** B：自定义标签（仅展示，不入推荐） */
+    private String extraTag;
     private Integer urgentFlag;
     private String description;
     private String timeExpect;
     private LocalDateTime createdAt;
+    /** 开始服务时间（确认页展示「本次用时」用） */
+    private LocalDateTime startedAt;
+    /** 完成时间（COMPLETED 后有值） */
+    private LocalDateTime completedAt;
+    /** 受助者给助人者的评价星级（仅接单者且已完成时有值，无评价为 null） */
+    private Integer helperStars;
     private Integer viewCount;
     /** 订单状态（详设未枚举 O4 响应字段；P04 据此渲染"我愿意帮助"等状态动作，见《实现偏差清单》D07） */
     private String status;

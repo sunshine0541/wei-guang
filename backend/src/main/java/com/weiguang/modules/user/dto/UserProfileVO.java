@@ -10,6 +10,8 @@ import java.util.List;
 @Data
 public class UserProfileVO {
 
+    /** 本人用户 id（前端「我收到的评价」需知自身 id 才能复用 U12 邻居评价接口） */
+    private Long userId;
     private String nickname;
     private String avatarUrl;
     private Integer age;
@@ -23,6 +25,10 @@ public class UserProfileVO {
     private String uiMode;
     private Integer motionEnabled;
     private Integer creditScore;
+    /** 接上门/陪同类的微光值门槛（sys_config credit.threshold）；供 P04 门槛前置置灰 */
+    private Integer creditThreshold;
+    /** 是否处于接单冷却期（user.cooldown_until 未过）；供 P04 门槛前置置灰 */
+    private Boolean coolingDown;
     private String lightState;
     private Integer lightPassed;
     private Boolean hasPrivacyAgreed;

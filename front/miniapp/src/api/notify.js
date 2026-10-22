@@ -19,3 +19,8 @@ export function readNotification(id) {
 export function readAllNotifications() {
   return request({ url: '/api/notifications/read-all', method: 'POST' })
 }
+
+/** B：删除单条通知 */
+export function deleteNotification(id) {
+  return request({ url: `/api/notifications/${id}`, method: 'DELETE' })
+}

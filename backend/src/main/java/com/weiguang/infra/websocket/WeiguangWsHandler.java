@@ -59,6 +59,10 @@ public class WeiguangWsHandler extends TextWebSocketHandler {
             }
             if (WsEnvelope.TYPE_CHAT_MESSAGE.equals(type)) {
                 handleChat((Long) uid, session, root);
+                return;
+            }
+            if (WsEnvelope.TYPE_TYPING.equals(type)) {
+                chatService.notifyTyping((Long) uid, root.path("payload").path("sessionId").asLong());
             }
         } catch (Exception e) {
             log.warn("WS 帧处理失败：{}", e.getMessage());

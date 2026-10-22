@@ -1,31 +1,66 @@
 <template>
-  <view class="wg-page" :class="userStore.rootClass">
-    <view v-if="loading" class="wg-card">
-      <text>正在为您准备，请稍等</text>
+  <view class="wg-page wg-page-tab" :class="userStore.rootClass">
+    <!-- 自定义头部（pages.json navigationStyle: custom）：问候 + 光语状态 -->
+    <view class="wg-home-head" :style="{ paddingTop: statusBarHeight + 'px' }">
+      <text class="wg-home-hi">{{ greeting }}，{{ userStore.nickname || '邻居' }}</text>
+      <text v-if="lightName" class="wg-home-sub">{{ lightName }}</text>
+    </view>
+
+    <!-- 加载：骨架屏 + 原句（§6.1 加载文案不改） -->
+    <view v-if="loading" class="wg-skel">
+      <view class="wg-skel-line" style="width: 56%"></view>
+      <view class="wg-skel-block"></view>
+      <view class="wg-skel-block"></view>
+      <text class="wg-label" style="margin-top: 6px">正在为您准备，请稍等</text>
+      <!-- B：加载超过 8 秒仍未完成时给出重试入口 -->
+      <view v-if="retryVisible" class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="bootstrap">重新加载</view>
+    </view>
+
+    <view v-else-if="loadFailed" class="wg-card">
+      <view class="wg-label">刚才没加载出来，稍等一下再试试吧</view>
+      <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="bootstrap">重新加载</view>
     </view>
 
     <template v-else>
-      <view class="wg-home-head">
-        <text class="wg-title">微光</text>
-        <text class="wg-link" @click="goMine">我的</text>
+      <!-- 双角色 hero（A）：求助 / 助人 两个等重入口 -->
+      <view class="wg-hero">
+        <view class="wg-tile" style="background-color: #d9e2d6; color: #4f6b4a" @click="goPublish">
+          <u-icon name="heart-fill" :size="heroIconSize" />
+          <view>
+            <view class="wg-tile-title">我需要帮助</view>
+            <view class="wg-tile-sub">发一件小事，邻居来搭把手</view>
+          </view>
+        </view>
+        <view class="wg-tile" style="background-color: #dbe3e7; color: #4e6b78" @click="goHelpList">
+          <u-icon name="man-add-fill" :size="heroIconSize" />
+          <view>
+            <view class="wg-tile-title">我可以帮忙</view>
+            <view class="wg-tile-sub">看看附近谁需要帮助</view>
+          </view>
+        </view>
       </view>
 
-      <!-- 顶部通知横幅（详设 §6.2 P03：N2 最近 1 条未读+聚合） -->
-      <view v-if="notifyStore.hasUnread" class="wg-banner" @click="openBanner">
+      <!-- 我的互助概览（双角色口径） -->
+      <view class="wg-label" style="margin-bottom: 10px">
+        我发布的进行中 {{ doingCount }} 件 · 我接取的求助 {{ helpingCount }} 单
+      </view>
+
+      <!-- 顶部通知横幅（§6.2 P03：N2 最近 1 条未读 + 聚合） -->
+      <view v-if="notifyStore.hasUnread" class="wg-notice" @click="openBanner">
         <view class="wg-dot" />
-        <text class="wg-banner-text">{{ notifyStore.bannerText }}</text>
+        <text class="wg-notice-text">{{ notifyStore.bannerText }}</text>
+        <!-- B：右侧箭头明示横幅可点 -->
+        <u-icon name="arrow-right" :size="16" />
       </view>
 
-      <!-- 紧急电话卡片（详设 §6.1 紧急提示三处常驻之③） -->
+      <!-- 紧急电话卡片（§6.1 紧急提示三处常驻之③） -->
       <EmergencyCard />
 
-      <!-- Tab：全部求助 / 为你推荐（年长模式精简为单列表，详设 §6.2 P03 适老差异） -->
-      <view v-if="!userStore.isElder" class="wg-tabs">
-        <view class="wg-tab" :class="{ 'wg-tab-active': tab === 'all' }" @click="switchTab('all')">全部求助</view>
-        <view class="wg-tab" :class="{ 'wg-tab-active': tab === 'recommend' }" @click="switchTab('recommend')">为你推荐</view>
+      <!-- 求助列表（主体）：Tab + 筛选（年长模式：隐藏 Tab 与筛选，默认落「为你推荐」） -->
+      <view v-if="!userStore.isElder" class="wg-seg">
+        <view class="wg-seg-item" :class="{ 'wg-seg-item-active': tab === 'all' }" @click="switchTab('all')">全部求助</view>
+        <view class="wg-seg-item" :class="{ 'wg-seg-item-active': tab === 'recommend' }" @click="switchTab('recommend')">为你推荐</view>
       </view>
-
-      <!-- 筛选：类型 3 选 + 只看急（年长模式隐藏，详设 §6.2 P03 适老差异） -->
       <view v-if="!userStore.isElder" class="wg-filter">
         <view
           v-for="item in typeFilters"
@@ -39,20 +74,26 @@
         <view class="wg-chip" :class="{ 'wg-chip-active': urgentOnly }" @click="toggleUrgent">只看急</view>
       </view>
 
-      <!-- 求助卡片列表 -->
-      <view v-if="orders.length === 0" class="wg-card">
-        <text>{{ tab === 'recommend' ? '还没有和您方向匹配的求助，去"全部求助"看看吧' : '这里还静悄悄的，去看看别的邻居吧' }}</text>
+      <view id="wgOrderList" class="wg-section-title">
+        {{ userStore.isElder ? '为你推荐' : '附近邻居需要帮忙' }}
       </view>
+      <view v-if="orders.length === 0" class="wg-empty">{{ emptyText }}</view>
       <view v-for="order in orders" :key="order.id" class="wg-card" @click="openDetail(order.id)">
         <view class="wg-card-head">
-          <text class="wg-title">{{ order.title }}</text>
+          <text class="wg-subtitle">{{ order.title }}</text>
           <text v-if="order.urgentFlag === 1" class="wg-urgent">急</text>
         </view>
         <view class="wg-label">
           {{ typeLabel(order.orderType) }} · {{ timeLabel(order.timeExpect) }} · {{ order.createdAt }}
         </view>
+        <!-- B：同区域距离粗算（暂不接地图，仅比对默认地址的小区/区域） -->
+        <view v-if="order.addressArea" class="wg-label">
+          地点：{{ order.addressArea }}
+          <text v-if="nearbyText(order)" class="wg-nearby"> · {{ nearbyText(order) }}</text>
+        </view>
         <view class="wg-tags">
           <text v-for="tag in order.tags" :key="tag" class="wg-tag">{{ tag }}</text>
+          <text v-if="order.extraTag" class="wg-tag wg-tag-extra">{{ order.extraTag }}</text>
           <text v-if="order.mine" class="wg-tag wg-tag-mine">这是我发的</text>
         </view>
         <view class="wg-card-foot">
@@ -68,13 +109,23 @@
 
       <view class="wg-btn" @click="goPublish">我要发布求助</view>
 
-      <!-- 荣耀榜：助人之星 TOP10（H1 / 详设 §6.2 P03） -->
-      <view v-if="honorList.length > 0" class="wg-card">
-        <view class="wg-card-head">
-          <text>助人之星</text>
-          <text class="wg-label">近 30 天</text>
+      <!-- 社区区：荣耀榜 + 善意回流（均已授权合并为一张卡，默认收起两行） -->
+      <view class="wg-rows">
+        <view class="wg-row" @click="toggleCommunity">
+          <text>助人之星 · 近 30 天</text>
+          <text class="wg-row-label">{{ communityOpen ? '收起' : '展开' }} ›</text>
         </view>
-        <view v-for="(item, index) in honorList" :key="index" class="wg-honor-row">
+        <view class="wg-row" @click="toggleCommunity">
+          <text class="wg-row-label">
+            <text class="wg-bignum">{{ lightPassedCount }}</text>
+            <text> 束光 · 社区已有 {{ lightPassedCount }} 束光，从被照亮走向照亮他人</text>
+          </text>
+        </view>
+        <view class="wg-row">
+          <text>今天社区里的新求助</text>
+          <text class="wg-row-label">{{ todayOrderCount }} 件</text>
+        </view>
+        <view v-for="(item, index) in communityOpen ? honorList : []" :key="index" class="wg-row">
           <text class="wg-honor-rank">{{ index + 1 }}</text>
           <image v-if="item.avatarUrl" class="wg-honor-avatar" :src="fileUrl(item.avatarUrl)" mode="aspectFill" />
           <text class="wg-honor-name">{{ item.nickname || '邻居' }}</text>
@@ -82,12 +133,7 @@
         </view>
       </view>
 
-      <!-- 善意回流计数（H1 / 详设 §6.2 P03） -->
-      <view class="wg-card">
-        <text>社区已有 {{ lightPassedCount }} 束光，从被照亮走向照亮他人</text>
-      </view>
-
-      <!-- 首次进入紧急提示弹窗（详设 §6.1 紧急提示三处常驻之①） -->
+      <!-- 首次进入紧急提示弹窗（§6.1 紧急提示三处常驻之①） -->
       <view v-if="entryTipVisible" class="wg-dialog-mask">
         <view class="wg-dialog-box">
           <text class="wg-dialog-text">{{ entryTip }}</text>
@@ -95,21 +141,28 @@
         </view>
       </view>
     </template>
+
+    <!-- 底部导航（自绘 4 项） -->
+    <WgTabBar :active="0" />
   </view>
 </template>
 
 <script>
 import { useUserStore } from '@/store/user'
 import { useNotifyStore } from '@/store/notify'
-import { listOrders } from '@/api/order'
+import { listOrders, listMyOrders } from '@/api/order'
+import { listAddresses } from '@/api/address'
 import { getHomeSummary } from '@/api/home'
-import { ORDER_TYPE_LABELS, TIME_EXPECT_LABELS, EMERGENCY_TIP, STORAGE_KEYS, BASE_URL } from '@/utils/constants'
+import { getLight } from '@/api/user'
+import { ORDER_TYPE_LABELS, TIME_EXPECT_LABELS, EMERGENCY_TIP, STORAGE_KEYS, MESSAGES, BASE_URL } from '@/utils/constants'
 import EmergencyCard from '@/components/EmergencyCard.vue'
+import WgTabBar from '@/components/WgTabBar.vue'
 
 export default {
-  components: { EmergencyCard },
+  components: { EmergencyCard, WgTabBar },
   data() {
     return {
+      statusBarHeight: 0,
       loading: true,
       bootstrapped: false,
       tab: 'all',
@@ -118,14 +171,25 @@ export default {
       orders: [],
       honorList: [],
       lightPassedCount: 0,
+      todayOrderCount: 0,
+      communityOpen: false,
+      doingCount: 0,
+      helpingCount: 0,
+      lightName: '',
       entryTipVisible: false,
       entryTip: EMERGENCY_TIP,
+      /** B：骨架屏超时后的重试入口 */
+      retryVisible: false,
+      loadFailed: false,
+      retryTimer: null,
       typeFilters: [
         { label: '全部类型', value: '' },
         { label: '上门', value: 'HOME_VISIT' },
-        { label: '陪同外出', value: 'ACCOMPANY' },
+        { label: '外出', value: 'ACCOMPANY' },
         { label: '远程', value: 'REMOTE' }
-      ]
+      ],
+      /** B：本人默认地址的小区/区域，用于"同区域=很近"粗算 */
+      myArea: ''
     }
   },
   computed: {
@@ -134,20 +198,61 @@ export default {
     },
     notifyStore() {
       return useNotifyStore()
+    },
+    greeting() {
+      const hour = new Date().getHours()
+      if (hour < 5) return '夜深了'
+      if (hour < 11) return '早上好'
+      if (hour < 13) return '中午好'
+      if (hour < 18) return '下午好'
+      return '晚上好'
+    },
+    heroIconSize() {
+      return this.userStore.isElder ? 28 : 24
+    },
+    emptyText() {
+      // 年长模式默认落「为你推荐」，此时页面无「全部求助」入口，故不再引导去该 Tab
+      if (this.userStore.isElder) {
+        return MESSAGES.EMPTY
+      }
+      return this.tab === 'recommend' ? '还没有和您方向匹配的求助，去"全部求助"看看吧' : MESSAGES.EMPTY
     }
   },
   onLoad() {
+    this.statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 6
     this.bootstrap()
   },
   onShow() {
-    // 回到首页时刷新横幅（如刚在 P16 全部已读 → 横幅消失）
+    // 回到首页时刷新列表与横幅（如从详情返回后「已有 N 位邻居看过」需即时更新）
     if (this.bootstrapped) {
+      this.loadOrders()
+      this.loadMyStat()
+      // 荣耀榜 / 回流计数 / 光语状态也会随完成订单变化，回到首页一并刷新
+      this.loadHomeSummary()
+      this.loadLight()
       this.notifyStore.refresh()
+    }
+    // A2：隐藏左上角「返回首页⌂」（reLaunch 后页面栈只剩本页，微信会自动加该按钮）
+    if (typeof wx !== 'undefined' && typeof wx.hideHomeButton === 'function') {
+      wx.hideHomeButton()
+    }
+  },
+  onUnload() {
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer)
     }
   },
   methods: {
     async bootstrap() {
       this.loading = true
+      this.loadFailed = false
+      this.retryVisible = false
+      if (this.retryTimer) {
+        clearTimeout(this.retryTimer)
+      }
+      this.retryTimer = setTimeout(() => {
+        this.retryVisible = true
+      }, 8000)
       try {
         await this.userStore.bootstrap()
         if (this.userStore.needLogin) {
@@ -161,19 +266,28 @@ export default {
         }
         await this.loadOrders()
         this.loadHomeSummary()
+        this.loadMyStat()
+        this.loadLight()
+        this.loadMyArea()
         this.checkEntryTip()
         this.bootstrapped = true
         this.notifyStore.refresh()
       } catch (e) {
         console.error('[微光] 启动失败', e)
-        uni.showToast({ title: '网络打了个盹，请再试一次，我在这儿等您。', icon: 'none' })
+        this.loadFailed = true
+        uni.showToast({ title: MESSAGES.LOGIN_FAILED, icon: 'none' })
       } finally {
+        if (this.retryTimer) {
+          clearTimeout(this.retryTimer)
+          this.retryTimer = null
+        }
         this.loading = false
       }
     },
     async loadOrders() {
       const result = await listOrders({
-        tab: this.userStore.isElder ? 'all' : this.tab,
+        // 年长模式：Tab 被隐藏，改为默认落「为你推荐」（原实现直接砍掉推荐＝功能损失）
+        tab: this.userStore.isElder ? 'recommend' : this.tab,
         orderType: this.orderType || undefined,
         urgentOnly: this.urgentOnly ? true : undefined
       })
@@ -185,8 +299,48 @@ export default {
         const summary = await getHomeSummary()
         this.honorList = summary.honorTop10 || []
         this.lightPassedCount = summary.lightPassedCount || 0
+        this.todayOrderCount = summary.todayOrderCount || 0
       } catch (e) {
         console.error('[微光] 首页聚合加载失败', e)
+      }
+    },
+    /** B：取本人默认地址的小区/区域（失败静默，仅影响"很近"提示） */
+    async loadMyArea() {
+      try {
+        const addresses = await listAddresses()
+        const def = addresses.find((item) => item.isDefault === 1) || addresses[0]
+        this.myArea = def ? def.areaText || '' : ''
+      } catch (e) {
+        console.error('[微光] 默认地址加载失败', e)
+      }
+    },
+    /** B：同区域即认为很近（不接地图前的粗算口径） */
+    nearbyText(order) {
+      if (!this.myArea || !order || !order.addressArea) {
+        return ''
+      }
+      return this.myArea === order.addressArea ? '与您同区域，很近' : ''
+    },
+    /** 双角色概览：我发布的进行中 / 我接的单（复用 O5，失败静默） */
+    async loadMyStat() {
+      try {
+        const [doing, helping] = await Promise.all([
+          listMyOrders({ tab: 'DOING' }),
+          listMyOrders({ tab: 'HELPING' })
+        ])
+        this.doingCount = (doing.records || []).length
+        this.helpingCount = (helping.records || []).length
+      } catch (e) {
+        console.error('[微光] 互助概览加载失败', e)
+      }
+    },
+    /** U7 光语状态：仅取展示名（头部一行），失败静默 */
+    async loadLight() {
+      try {
+        const light = await getLight()
+        this.lightName = light ? light.lightStateName : ''
+      } catch (e) {
+        console.error('[微光] 光语状态加载失败', e)
       }
     },
     /** 首次进入紧急提示（详设 §6.1 三处常驻之①）：本地标记，只弹一次 */
@@ -205,6 +359,21 @@ export default {
         return ''
       }
       return url.indexOf('http') === 0 ? url : BASE_URL + url
+    },
+    toggleCommunity() {
+      this.communityOpen = !this.communityOpen
+    },
+    /** 「我可以帮忙」→ 滚到求助列表（列表本身即助人落地页） */
+    goHelpList() {
+      const query = uni.createSelectorQuery().in(this)
+      query.select('#wgOrderList').boundingClientRect()
+      query.selectViewport().scrollOffset()
+      query.exec((res) => {
+        if (!res || !res[0]) {
+          return
+        }
+        uni.pageScrollTo({ scrollTop: res[0].top + res[1].scrollTop - 12, duration: 220 })
+      })
     },
     switchTab(tab) {
       if (this.tab === tab) {
@@ -233,9 +402,6 @@ export default {
     goPublish() {
       uni.navigateTo({ url: '/pages/order/publish' })
     },
-    goMine() {
-      uni.navigateTo({ url: '/pages/user/index' })
-    },
     /** 横幅点击：按 jump_type 跳对应页；NONE 或无目标 → 通知中心（见偏差 D21） */
     openBanner() {
       const latest = this.notifyStore.latest
@@ -262,133 +428,47 @@ export default {
 </script>
 
 <style lang="scss">
-.wg-tabs {
-  display: flex;
-  margin-bottom: var(--wg-space);
+/* 自定义头部（无原生导航栏，需自行避开状态栏） */
+.wg-home-head {
+  margin-bottom: var(--wg-gap);
 }
 
-.wg-tab {
+.wg-home-hi {
+  display: block;
+  font-size: var(--wg-font-title);
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.wg-home-sub {
+  display: block;
+  font-size: var(--wg-font-sm);
+  color: var(--wg-primary-deep);
+  margin-top: 4px;
+  font-weight: 700;
+}
+
+.wg-notice-text {
+  margin-left: 8px;
   flex: 1;
-  text-align: center;
-  padding: 12px 0;
-  border-radius: var(--wg-radius);
-  background-color: #ffffff;
-  margin-right: 8px;
   font-size: var(--wg-font-base);
+  line-height: 1.5;
 }
 
-.wg-tab-active {
-  background-color: var(--wg-primary-light);
-  color: #b06a00;
-  font-weight: 600;
+/* B：同区域距离提示 */
+.wg-nearby {
+  color: var(--wg-primary-deep);
+  font-weight: 700;
 }
 
+/* 筛选行（沿用全局 chip 类，仅做排布） */
 .wg-filter {
   display: flex;
   flex-wrap: wrap;
   margin-bottom: var(--wg-space);
 }
 
-.wg-chip {
-  padding: 6px 12px;
-  margin: 0 8px 8px 0;
-  border-radius: var(--wg-radius);
-  background-color: #ffffff;
-  border: 1px solid #e6ded2;
-  font-size: var(--wg-font-sm);
-}
-
-.wg-chip-active {
-  background-color: var(--wg-primary-light);
-  border-color: var(--wg-primary);
-}
-
-.wg-card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.wg-urgent {
-  color: #ffffff;
-  background-color: var(--wg-danger);
-  border-radius: 6px;
-  padding: 2px 8px;
-  font-size: var(--wg-font-sm);
-}
-
-.wg-tags {
-  display: flex;
-  flex-wrap: wrap;
-  margin: 6px 0;
-}
-
-.wg-tag {
-  padding: 2px 10px;
-  margin: 0 8px 8px 0;
-  border-radius: 10px;
-  background-color: var(--wg-primary-light);
-  font-size: var(--wg-font-sm);
-}
-
-.wg-tag-mine {
-  background-color: #e8e8e8;
-}
-
-.wg-home-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.wg-link {
-  color: #b06a00;
-  font-size: var(--wg-font-base);
-}
-
-.wg-banner {
-  display: flex;
-  align-items: center;
-  background-color: var(--wg-primary-light);
-  border-radius: var(--wg-radius);
-  padding: 12px;
-  margin-bottom: var(--wg-space);
-}
-
-.wg-banner-text {
-  margin-left: 8px;
-  font-size: var(--wg-font-base);
-  color: #b06a00;
-}
-
-/* 荣耀榜行（H1） */
-.wg-honor-row {
-  display: flex;
-  align-items: center;
-  padding: 8px 0;
-  border-bottom: 1px solid #f0e9dd;
-}
-
-.wg-honor-rank {
-  width: 26px;
-  color: #b06a00;
-  font-weight: 600;
-}
-
-.wg-honor-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  margin-right: 8px;
-  background-color: #eee5d8;
-}
-
-.wg-honor-name {
-  flex: 1;
-}
-
-/* 卡片底部发布者行（昵称+头像，详设 §6.2 P03） */
+/* 卡片底部发布者行 */
 .wg-card-foot {
   display: flex;
   align-items: center;
@@ -399,11 +479,31 @@ export default {
   height: 28px;
   border-radius: 50%;
   margin-right: 6px;
-  background-color: #eee5d8;
+  background-color: var(--wg-surface3);
 }
 
-/* 适老差异：卡片加大（详设 §6.2 P03） */
+/* 荣耀榜行 */
+.wg-honor-rank {
+  width: 26px;
+  color: var(--wg-primary-deep);
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.wg-honor-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  margin-right: 8px;
+  background-color: var(--wg-surface3);
+}
+
+.wg-honor-name {
+  flex: 1;
+}
+
+/* 年长模式：卡片加大（§6.2 P03 适老差异） */
 .mode-elder .wg-card {
-  padding: calc(var(--wg-space) + 6px);
+  padding: calc(var(--wg-space) + 4px);
 }
 </style>

@@ -9,6 +9,7 @@ import com.weiguang.modules.appeal.dto.AppealVO;
 import com.weiguang.modules.appeal.dto.FeedbackCreateRequest;
 import com.weiguang.modules.appeal.service.AppealService;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -46,5 +47,12 @@ public class AppealController {
                                          @RequestParam(required = false) Long page,
                                          @RequestParam(required = false) Long pageSize) {
         return Result.ok(appealService.mine(AuthContext.requireUid(), tab, page, pageSize));
+    }
+
+    /** B：撤回本人处理中的申诉或反馈 */
+    @PostMapping("/appeals/{id}/withdraw")
+    public Result<Void> withdraw(@PathVariable Long id) {
+        appealService.withdraw(AuthContext.requireUid(), id);
+        return Result.ok(null);
     }
 }

@@ -55,10 +55,37 @@ public class NotifyService {
                 helperNickname + " 愿意帮您\"" + orderTitle + "\"，去打个招呼吧", "ORDER", orderId);
     }
 
-    /** 新消息：{name} 给您发来新消息，去看看吧（jump=SESSION，离线方落库；jump_id 存 orderId 以直达聊天页，见偏差 D21） */
+    /** 新消息：同一会话只保留一条未读聚合通知，每来一条把 message_count +1（B）
+     *  jump=SESSION，jump_id 存 orderId 以直达聊天页（见偏差 D21）；进入聊天室后由 C4 置已读 */
     public void newMessage(Long peerId, String senderNickname, Long orderId) {
-        insert(peerId, TYPE_NEW_MESSAGE, "新消息",
-                senderNickname + " 给您发来新消息，去看看吧", "SESSION", orderId);
+        Notification existing = notificationMapper.selectOne(Wrappers.<Notification>lambdaQuery()
+                .eq(Notification::getUserId, peerId)
+                .eq(Notification::getType, TYPE_NEW_MESSAGE)
+                .eq(Notification::getJumpId, orderId)
+                .eq(Notification::getIsRead, 0)
+                .orderByDesc(Notification::getId)
+                .last("LIMIT 1"));
+        String content = senderNickname + " 给您发来新消息，去看看吧";
+        if (existing != null) {
+            notificationMapper.update(null, Wrappers.<Notification>lambdaUpdate()
+                    .eq(Notification::getId, existing.getId())
+                    .setSql("message_count = message_count + 1")
+                    .set(Notification::getSenderNickname, senderNickname)
+                    .set(Notification::getContent, content)
+                    .set(Notification::getCreatedAt, LocalDateTime.now()));
+            return;
+        }
+        insert(peerId, TYPE_NEW_MESSAGE, "新消息", content, "SESSION", orderId, 1, senderNickname);
+    }
+
+    /** B：进入聊天室时把该会话的聊天通知置为已读（避免"消息已读、通知还挂着"） */
+    public void readChatNotifications(Long uid, Long orderId) {
+        notificationMapper.update(null, Wrappers.<Notification>lambdaUpdate()
+                .eq(Notification::getUserId, uid)
+                .eq(Notification::getType, TYPE_NEW_MESSAGE)
+                .eq(Notification::getJumpId, orderId)
+                .eq(Notification::getIsRead, 0)
+                .set(Notification::getIsRead, 1));
     }
 
     /** 对方标记了完成：{name} 说"{title}"已经完成啦，请您确认一下（详设 §4.4 CONFIRM_REQUEST） */
@@ -199,9 +226,23 @@ public class NotifyService {
         return new ReadAllVO(cleared);
     }
 
+    /** B：删除本人通知（通知为临时收件箱，硬删除，无审计要求） */
+    public void remove(Long uid, Long id) {
+        Notification notification = notificationMapper.selectById(id);
+        if (notification == null || !notification.getUserId().equals(uid)) {
+            throw new BizException(ErrorCode.FORBIDDEN);
+        }
+        notificationMapper.deleteById(id);
+    }
+
     // ---------- 内部：落库 + 提交后异步推送 ----------
 
     private void insert(Long userId, String type, String title, String content, String jumpType, Long jumpId) {
+        insert(userId, type, title, content, jumpType, jumpId, 1, null);
+    }
+
+    private void insert(Long userId, String type, String title, String content, String jumpType, Long jumpId,
+                        Integer messageCount, String senderNickname) {
         Notification notification = new Notification();
         notification.setUserId(userId);
         notification.setType(type);
@@ -210,6 +251,8 @@ public class NotifyService {
         notification.setJumpType(jumpType);
         notification.setJumpId(jumpId);
         notification.setIsRead(0);
+        notification.setMessageCount(messageCount == null ? 1 : messageCount);
+        notification.setSenderNickname(senderNickname);
         notification.setCreatedAt(LocalDateTime.now());
         notificationMapper.insert(notification);
         dispatch(notification);
@@ -242,6 +285,8 @@ public class NotifyService {
         vo.setJumpType(notification.getJumpType());
         vo.setJumpId(notification.getJumpId());
         vo.setIsRead(notification.getIsRead());
+        vo.setMessageCount(notification.getMessageCount() == null ? 1 : notification.getMessageCount());
+        vo.setSenderNickname(notification.getSenderNickname());
         vo.setCreatedAt(notification.getCreatedAt());
         return vo;
     }

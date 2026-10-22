@@ -1,8 +1,15 @@
 <template>
   <view class="wg-page wg-chat-page" :class="userStore.rootClass">
-    <view v-if="!wsConnected" class="wg-connecting">连接中…</view>
+    <view v-if="!wsConnected" class="wg-notice wg-notice-warn">
+      <u-icon name="warning" :size="18" />
+      <text class="wg-chat-connecting">连接中…</text>
+    </view>
 
-    <view v-if="careTip && careTip.careTip" class="wg-card wg-care-tip">
+    <view
+      v-if="careTip && careTip.careTip"
+      class="wg-card wg-card-soft"
+      style="background-color: #ead9d3; color: #8a5f52"
+    >
       <text>称呼：{{ careTip.nickname || '邻居' }}；需要留意：{{ careTip.careTip }}</text>
     </view>
 
@@ -38,19 +45,35 @@
     </scroll-view>
 
     <view v-else class="wg-card">
-      <text>{{ loadFailed ? forbiddenText : loadingText }}</text>
+      <template v-if="loadFailed">
+        <text>{{ forbiddenText }}</text>
+        <!-- A7：20003（无权访问）时给出可理解的原因，不再是干巴巴的错误提示 -->
+        <view class="wg-label" style="margin-top: 6px">常见原因：这次帮助已经结束，或者您暂时不在这次求助里</view>
+        <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="goBack">返回上一页</view>
+      </template>
+      <text v-else>{{ loadingText }}</text>
     </view>
 
     <template v-if="session">
-      <view class="wg-quick">
-        <view v-for="phrase in quickPhrases" :key="phrase" class="wg-chip" @click="sendText(phrase)">
-          {{ phrase }}
+      <!-- B：底部固定区（快捷短语 + 输入）整体加深底色，与可滑动消息区区分 -->
+      <view class="wg-chat-bottom">
+        <scroll-view scroll-x class="wg-quick" :show-scrollbar="false">
+          <view class="wg-quick-inner">
+            <view
+              v-for="phrase in quickPhrases"
+              :key="phrase"
+              class="wg-chip wg-quick-chip"
+              @click="sendText(phrase)"
+            >
+              {{ phrase }}
+            </view>
+          </view>
+        </scroll-view>
+        <view class="wg-input-row">
+          <input class="wg-input" v-model="draft" placeholder="和邻居说点什么" @input="sendTyping" @confirm="sendText(draft)" />
+          <view class="wg-btn wg-btn-plain wg-send-side" @click="pickImage">图片</view>
+          <view class="wg-btn wg-send-side" @click="sendText(draft)">发送</view>
         </view>
-      </view>
-      <view class="wg-input-row">
-        <input class="wg-input" v-model="draft" placeholder="和邻居说点什么" @confirm="sendText(draft)" />
-        <view class="wg-btn wg-btn-plain wg-send-side" @click="pickImage">图片</view>
-        <view class="wg-btn wg-send-side" @click="sendText(draft)">发送</view>
       </view>
     </template>
   </view>
@@ -83,7 +106,10 @@ export default {
       /** 已弹过强提示的消息 id（本页会话内去重） */
       fraudAlerted: [],
       loadingText: MESSAGES.LOADING,
-      forbiddenText: MESSAGES.FORBIDDEN
+      forbiddenText: MESSAGES.FORBIDDEN,
+      /** B："对方正在输入"标题恢复定时器 */
+      typingTimer: null,
+      lastTypingSentAt: 0
     }
   },
   computed: {
@@ -107,6 +133,9 @@ export default {
     if (this.offMessage) {
       this.offMessage()
     }
+    if (this.typingTimer) {
+      clearTimeout(this.typingTimer)
+    }
   },
   methods: {
     async load() {
@@ -121,7 +150,7 @@ export default {
       wsClient.connect()
       this.loadMessages()
       this.markRead()
-      listQuickPhrases()
+      listQuickPhrases(this.session.myRole)
         .then((list) => {
           this.quickPhrases = list || []
         })
@@ -154,6 +183,15 @@ export default {
     },
     isMine(msg) {
       return msg.senderId !== 0 && msg.senderId === this.myUid
+    },
+    /** A7：会话不可用时的去向（能返回就返回，否则回首页） */
+    goBack() {
+      const pages = getCurrentPages()
+      if (pages.length > 1) {
+        uni.navigateBack()
+      } else {
+        uni.reLaunch({ url: '/pages/index/index' })
+      }
     },
     fileUrl(url) {
       if (!url) {
@@ -194,6 +232,20 @@ export default {
     },
     onWsMessage(envelope) {
       if (!envelope || !this.session) {
+        return
+      }
+      // B：对方正在输入——直接把导航标题换成提示，3 秒无新帧恢复
+      if (envelope.type === 'TYPING') {
+        const typingPayload = envelope.payload || {}
+        if (typingPayload.sessionId === this.session.sessionId) {
+          uni.setNavigationBarTitle({ title: '对方正在输入…' })
+          if (this.typingTimer) {
+            clearTimeout(this.typingTimer)
+          }
+          this.typingTimer = setTimeout(() => {
+            uni.setNavigationBarTitle({ title: '聊天' })
+          }, 3000)
+        }
         return
       }
       if (envelope.type === 'SYSTEM') {
@@ -245,6 +297,18 @@ export default {
         }
       }
       this.scrollToBottom()
+    },
+    /** B：输入时节流上报"正在输入"（2 秒最多一次） */
+    sendTyping() {
+      if (!this.session) {
+        return
+      }
+      const now = Date.now()
+      if (now - this.lastTypingSentAt < 2000) {
+        return
+      }
+      this.lastTypingSentAt = now
+      wsClient.send({ type: 'TYPING', payload: { sessionId: this.session.sessionId } })
     },
     newClientMsgId() {
       return 'c' + Date.now() + Math.floor(Math.random() * 100000)
@@ -331,24 +395,23 @@ export default {
 </script>
 
 <style lang="scss">
+/* B：底部固定区整体加深，与可滑动消息区形成区分 */
+.wg-chat-bottom {
+  background-color: #e9e6df;
+  border-radius: 14px 14px 0 0;
+  padding: 10px var(--wg-space) var(--wg-space);
+}
+
 .wg-chat-page {
   display: flex;
   flex-direction: column;
   height: 100vh;
 }
 
-.wg-connecting {
-  padding: 6px 12px;
-  margin-bottom: 8px;
-  text-align: center;
-  color: #b06a00;
-  background-color: var(--wg-primary-light);
-  border-radius: var(--wg-radius);
+.wg-chat-connecting {
+  margin-left: 8px;
+  flex: 1;
   font-size: var(--wg-font-sm);
-}
-
-.wg-care-tip {
-  background-color: var(--wg-primary-light);
 }
 
 .wg-msg-scroll {
@@ -389,7 +452,7 @@ export default {
 
 /* 防诈分级（详设 §5.3 / P08）：用左侧色条标识风险，不改气泡底色与文字色，确保消息清晰可读 */
 .wg-msg-bubble-warn {
-  border-left: 4px solid #e6a23c;
+  border-left: 4px solid var(--sg-sand-d, #8a7648);
 }
 
 .wg-msg-bubble-strong {
@@ -410,15 +473,23 @@ export default {
 }
 
 .wg-quick {
-  display: flex;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
+  white-space: nowrap;
+  margin-bottom: 10px;
+}
+
+.wg-quick-inner {
+  display: inline-flex;
+  align-items: center;
+}
+
+.wg-quick-chip {
+  flex-shrink: 0;
+  margin-right: 8px;
 }
 
 .wg-input-row {
   display: flex;
   align-items: center;
-  padding-bottom: var(--wg-space);
 }
 
 .wg-input-row .wg-input {

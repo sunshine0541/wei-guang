@@ -7,24 +7,31 @@
     <template v-else-if="order">
       <view class="wg-card">
         <view class="wg-card-head">
-          <text class="wg-title">{{ order.title }}</text>
+          <text class="wg-subtitle">{{ order.title }}</text>
           <text v-if="order.urgentFlag === 1" class="wg-urgent">急</text>
         </view>
         <view class="wg-label">{{ typeLabel(order.orderType) }} · {{ timeLabel(order.timeExpect) }} · {{ order.createdAt }}</view>
         <view class="wg-tags">
           <text v-for="tag in order.tags" :key="tag" class="wg-tag">{{ tag }}</text>
+          <text v-if="order.extraTag" class="wg-tag wg-tag-extra">{{ order.extraTag }}</text>
         </view>
-        <text v-if="order.description">{{ order.description }}</text>
       </view>
 
-      <view class="wg-card">
-        <view @click="goNeighbor">发布者：{{ order.requester.nickname || '邻居' }}（点看邻居主页）</view>
-        <view v-if="order.addressArea" style="margin-top: 6px">地址：{{ order.addressArea }}</view>
-        <view v-else-if="order.orderType === 'REMOTE'" class="wg-label" style="margin-top: 6px">
-          远程帮助全程线上完成，不需要地址
+      <!-- 情况说明：陶粉色块卡 -->
+      <view v-if="order.description" class="wg-card wg-card-soft" style="background-color: #ead9d3; color: #8a5f52">
+        <text>{{ order.description }}</text>
+      </view>
+
+      <view class="wg-card wg-detail-info">
+        <view class="wg-detail-link" @click="goNeighbor">
+          <text>发布者：{{ order.requester.nickname || '邻居' }}（点看邻居主页）</text>
+          <!-- B：右侧箭头明示该行可点 -->
+          <u-icon name="arrow-right" :size="14" />
         </view>
-        <view class="wg-label" style="margin-top: 6px">已有 {{ order.viewCount }} 位邻居看过</view>
-        <view v-if="order.viewTip" class="wg-label" style="margin-top: 6px">{{ order.viewTip }}</view>
+        <view v-if="order.addressArea">地址：{{ order.addressArea }}</view>
+        <view v-else-if="order.orderType === 'REMOTE'" class="wg-label">远程帮助全程线上完成，不需要地址</view>
+        <view class="wg-label">已有 {{ order.viewCount }} 位邻居看过</view>
+        <view v-if="order.viewTip" class="wg-label">{{ order.viewTip }}</view>
       </view>
 
       <view v-if="order.mine" class="wg-card">
@@ -33,7 +40,7 @@
 
       <view v-if="canAccept" class="wg-card">
         <!-- 年龄未填：点击跳 P14 画像编辑完善资料（详设 §6.2 P04） -->
-        <view v-if="gateReason" class="wg-btn wg-btn-off" @click="goFixProfile">我愿意帮助</view>
+        <view v-if="gateReason" class="wg-btn wg-btn-disabled" @click="onGateTap">我愿意帮助</view>
         <view v-else class="wg-btn" @click="confirmAccept">我愿意帮助</view>
         <view v-if="gateReason" class="wg-label" style="margin-top: 8px">{{ gateReason }}</view>
       </view>
@@ -51,6 +58,10 @@
       </view>
 
       <view v-if="isSettled" class="wg-card">
+        <!-- C：助人者视角展示受助者给出的星级 -->
+        <view v-if="order.myRole === 'HELPER' && order.helperStars" class="wg-label" style="margin-bottom: 12px">
+          受助者给了你 {{ order.helperStars }} 星
+        </view>
         <view class="wg-btn wg-btn-plain" @click="goEvaluate">评价 / 悄悄话</view>
         <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="goStory">看看这次的故事卡</view>
       </view>
@@ -87,6 +98,8 @@ export default {
     return {
       loading: true,
       orderId: null,
+      /** B：首次进入由 onLoad 加载，之后 onShow 再刷新 */
+      entered: false,
       order: null
     }
   },
@@ -116,19 +129,47 @@ export default {
     isSettled() {
       return this.order && this.order.myRole && this.order.status === 'COMPLETED'
     },
-    /** 年龄未填的置灰文案；微光值不足/冷却中由后端 30006/30002 返回时提示 */
+    /**
+     * 门槛置灰原因（详设 §6.2 P04 原意：三类门槛均「置灰 + 文案」）：
+     * 冷却中 / 微光值不足 / 年龄未填。优先级：冷却 → 微光值 → 年龄。
+     * 文案沿用 ACCEPT_MESSAGES 既有原句（30002/30006/30004），不新写。
+     * 说明：冷却与微光值门槛由 U1 下发 `coolingDown` / `creditThreshold` 支撑（见《实现偏差清单》D08 更新）。
+     */
     gateReason() {
       if (!this.order || this.order.orderType === 'REMOTE') {
         return ''
       }
+      if (this.userStore.coolingDown) {
+        return ACCEPT_MESSAGES[30002]
+      }
+      if ((this.userStore.creditScore || 0) < (this.userStore.creditThreshold || 0)) {
+        return ACCEPT_MESSAGES[30006]
+      }
       return this.userStore.age === null || this.userStore.age === undefined
         ? ACCEPT_MESSAGES[30004]
         : ''
+    },
+    /** 仅「年龄未填」可点击去完善资料；冷却/微光值不足按详设只置灰、不做动作 */
+    gateFixable() {
+      if (!this.order || this.order.orderType === 'REMOTE' || !this.gateReason) {
+        return false
+      }
+      if (this.userStore.coolingDown) {
+        return false
+      }
+      return (this.userStore.creditScore || 0) >= (this.userStore.creditThreshold || 0)
     }
   },
   onLoad(options) {
     this.orderId = options.id
     this.load()
+  },
+  onShow() {
+    // B：从聊天/房间返回时刷新状态与浏览数，避免仍显示过期的"我愿意帮助"
+    if (this.entered) {
+      this.load()
+    }
+    this.entered = true
   },
   methods: {
     typeLabel(type) {
@@ -227,29 +268,31 @@ export default {
     },
     goFixProfile() {
       uni.navigateTo({ url: '/pages/user/profile' })
+    },
+    /** 置灰按钮点击：仅年龄未填时去完善资料；其余情况按 P04 原意只置灰 + 展示原因 */
+    onGateTap() {
+      if (this.gateFixable) {
+        this.goFixProfile()
+      }
     }
   }
 }
 </script>
 
 <style lang="scss">
-.wg-card-head {
+/* 发布者 / 地址 / 浏览计数：分级信息卡的行距 */
+.wg-detail-info > view {
+  margin-top: 6px;
+}
+
+.wg-detail-info > view:first-child {
+  margin-top: 0;
+}
+
+/* B：发布者可点行的箭头排布 */
+.wg-detail-link {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.wg-urgent {
-  color: #ffffff;
-  background-color: var(--wg-danger);
-  border-radius: 6px;
-  padding: 2px 8px;
-  font-size: var(--wg-font-sm);
-}
-
-/* 门槛不足：按钮置灰（详设 §6.2 P04） */
-.wg-btn-off {
-  background-color: #ded7cb;
-  color: #ffffff;
 }
 </style>

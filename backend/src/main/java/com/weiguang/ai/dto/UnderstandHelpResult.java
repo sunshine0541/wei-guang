@@ -16,6 +16,9 @@ public class UnderstandHelpResult {
     /** 受控标签词表子集，≤3 个 */
     private List<String> tags;
 
+    /** 受控词表都不合适时的自定义标签（≤10 字，仅展示、不入推荐；可选） */
+    private String extraTag;
+
     /** NOT_URGENT / NORMAL / URGENT */
     private String urgencySuggest;
 

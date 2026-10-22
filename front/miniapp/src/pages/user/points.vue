@@ -1,21 +1,17 @@
 <template>
   <view class="wg-page" :class="userStore.rootClass">
-    <view class="wg-card">
-      <view class="wg-card-head">
-        <text>当前积分</text>
-        <text class="wg-strong">{{ balance }}</text>
-      </view>
+    <view class="wg-card wg-points-top">
+      <view class="wg-label">当前积分</view>
+      <view class="wg-bignum">{{ balance }}</view>
     </view>
 
-    <view v-if="records.length === 0" class="wg-card">
-      <text>{{ emptyText }}</text>
-    </view>
+    <view v-if="records.length === 0" class="wg-empty">{{ emptyText }}</view>
     <view v-for="(item, index) in records" :key="index" class="wg-card">
       <view class="wg-card-head">
-        <text>{{ reasonLabel(item.reasonCode) }}</text>
+        <text class="wg-tag" style="margin: 0">{{ reasonLabel(item.reasonCode) }}</text>
         <text class="wg-plus">+{{ item.delta }}</text>
       </view>
-      <view class="wg-label">{{ item.createdAt }} · 余额 {{ item.balanceAfter }}</view>
+      <view class="wg-label" style="margin-top: 6px">{{ item.createdAt }} · 余额 {{ item.balanceAfter }}</view>
     </view>
   </view>
 </template>
@@ -59,9 +55,10 @@ export default {
 </script>
 
 <style lang="scss">
-.wg-strong {
-  color: #b06a00;
-  font-size: var(--wg-font-lg, 20px);
+.wg-points-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .wg-plus {

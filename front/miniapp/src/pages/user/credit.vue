@@ -1,23 +1,36 @@
 <template>
   <view class="wg-page" :class="userStore.rootClass">
-    <view class="wg-card">
-      <view class="wg-card-head">
-        <text>当前微光值</text>
-        <text class="wg-strong">{{ balance }}</text>
+    <view class="wg-card wg-credit-top">
+      <view class="wg-label">当前微光值</view>
+      <view class="wg-bignum">{{ balance }}</view>
+    </view>
+
+    <!-- 微光值说明（本次授权新增，文案取详设 §6.4 光语口径原句） -->
+    <view class="wg-card wg-card-soft">
+      <view class="wg-subtitle">关于微光值</view>
+      <view class="wg-credit-line">
+        <u-icon name="star-fill" :size="16" />
+        <text class="wg-credit-line-text">您的光正亮着，也在照亮别人。</text>
+      </view>
+      <view class="wg-credit-line">
+        <u-icon name="clock" :size="16" />
+        <text class="wg-credit-line-text">您的光在小憩，养足精神再出发。</text>
+      </view>
+      <view class="wg-credit-line">
+        <u-icon name="checkmark-circle-fill" :size="16" />
+        <text class="wg-credit-line-text">您曾被照亮，如今也照亮了别人——光已传递。</text>
       </view>
     </view>
 
-    <view v-if="records.length === 0" class="wg-card">
-      <text>{{ emptyText }}</text>
-    </view>
+    <view v-if="records.length === 0" class="wg-empty">{{ emptyText }}</view>
     <view v-for="(item, index) in records" :key="index" class="wg-card">
       <view class="wg-card-head">
-        <text>{{ reasonLabel(item.reasonCode) }}</text>
+        <text class="wg-tag" style="margin: 0">{{ reasonLabel(item.reasonCode) }}</text>
         <text :class="item.delta >= 0 ? 'wg-plus' : 'wg-minus'">
           {{ item.delta >= 0 ? '+' + item.delta : item.delta }}
         </text>
       </view>
-      <view class="wg-label">
+      <view class="wg-label" style="margin-top: 6px">
         {{ item.createdAt }} · 余额 {{ item.balanceAfter }}
         <template v-if="item.remark"> · {{ item.remark }}</template>
       </view>
@@ -64,9 +77,23 @@ export default {
 </script>
 
 <style lang="scss">
-.wg-strong {
-  color: #b06a00;
-  font-size: var(--wg-font-lg, 20px);
+.wg-credit-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 说明卡内每行：图标 + 光语句 */
+.wg-credit-line {
+  display: flex;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.wg-credit-line-text {
+  margin-left: 8px;
+  font-size: var(--wg-font-base);
+  line-height: 1.5;
 }
 
 .wg-plus {

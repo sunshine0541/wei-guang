@@ -263,6 +263,7 @@ public class UserService {
 
     private UserProfileVO toVO(User user, UserProfile profile) {
         UserProfileVO vo = new UserProfileVO();
+        vo.setUserId(user.getId());
         vo.setNickname(profile == null ? null : profile.getNickname());
         vo.setAvatarUrl(profile == null ? null : profile.getAvatarUrl());
         vo.setAge(profile == null ? null : profile.getAge());
@@ -276,6 +277,9 @@ public class UserService {
         vo.setUiMode(user.getUiMode());
         vo.setMotionEnabled(user.getMotionEnabled());
         vo.setCreditScore(user.getCreditScore());
+        vo.setCreditThreshold(configService.getInt("credit.threshold", 60));
+        vo.setCoolingDown(user.getCooldownUntil() != null
+                && user.getCooldownUntil().isAfter(java.time.LocalDateTime.now()));
         vo.setLightState(user.getLightState());
         vo.setLightPassed(user.getLightPassed());
         vo.setHasPrivacyAgreed(configService.get("privacy.policy_version", "v1.0").equals(user.getPrivacyVersion()));

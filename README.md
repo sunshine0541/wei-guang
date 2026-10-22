@@ -128,7 +128,8 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 
 - **开发者工具报"找不到 app.json"**：先执行 `npm run dev:mp-weixin` 生成 `dist/dev/mp-weixin` 后再导入该目录。
 - **换账号演示**：小程序内「设置 → 退出登录」后用另一手机号账号登录（无需 openid，任意账号可切）。
-- **真机预览 / 换网络**：手机与电脑同一局域网；复制 `front/miniapp/.env.example` 为 `front/miniapp/.env.local`，把 `VITE_API_HOST` 改为电脑局域网 IP（如 `172.16.78.127:8080`），再重新编译（`npm run dev:mp-weixin`）；开发者工具开启「开发版调试」，仍勾选"不校验合法域名"。**换 Wi-Fi / 换电脑后只改 `.env.local` 这一行**（该文件已被 `.gitignore` 忽略，不入库；`constants.js` 保持中性默认值）。
+- **后端地址（自动探测）**：`VITE_API_HOST` 是**编译期**注入的，IP 会随网络变化。已内置探测脚本 `front/miniapp/scripts/detect-lan-host.mjs`，并挂为 `predev:mp-weixin` / `prebuild:mp-weixin` **前置钩子**——每次 `npm run dev:mp-weixin` / `build:mp-weixin` 会**自动探测本机局域网 IPv4 并重写 `.env.local`**（自动排除 WSL / Hyper-V / VPN 等虚拟网卡，按 192.168 > 172.16–31 > 10 优先级取用）。想先看探测结果不写文件：`npm run host:dry`。
+- **真机预览 / 换网络**：手机与电脑同一局域网；`npm run dev:mp-weixin` 会自动写入电脑局域网 IP，无需手改。若需固定地址（例如模拟器只想走 `localhost`）：`$env:WGU_HOST='localhost:8080'; npm run dev:mp-weixin`（PowerShell）即可覆盖自动探测。开发者工具开启「开发版调试」，并勾选「不校验合法域名」；防火墙需放行 8080。
 - **重置数据**：执行 `sql/reset.sql`（等价于清空业务数据 + 重灌演示数据），随后所有账号请重新登录。
 - **待响应上限**：同一用户最多 2 条待响应（`order.pending_limit`），超限 30003。
 - **登录限流**：连续错密码超过 5 次/分钟返回 30005，等一分钟后重试。

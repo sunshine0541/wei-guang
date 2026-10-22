@@ -12,9 +12,10 @@ import java.util.Set;
  */
 public final class HelpTagConstants {
 
-    /** 受控标签词表（10 项），help_directions 与求助单 tags 均取此表子集 */
+    /** 受控标签词表（10 项），help_directions 与求助单 tags 均取此表子集
+     *  （B：跑腿代买→跑腿、手机教学→教学，避免经济纠纷与范围过窄） */
     public static final List<String> TAGS = List.of(
-            "跑腿代买", "维修", "家务", "陪伴", "散步", "手机教学", "网上办事", "宠物花草", "聊天", "其他");
+            "跑腿", "维修", "家务", "陪伴", "散步", "教学", "网上办事", "宠物花草", "聊天", "其他");
 
     /** 喜欢做的事选项（8 项，确认项 10） */
     public static final List<String> HOBBY_OPTIONS = List.of(
@@ -28,7 +29,7 @@ public final class HelpTagConstants {
             "散步", List.of("散步", "陪伴"),
             "做饭", List.of("家务"),
             "看书", List.of("聊天"),
-            "手机使用", List.of("手机教学", "网上办事"),
+            "手机使用", List.of("教学", "网上办事"),
             "手工维修", List.of("维修"));
 
     private HelpTagConstants() {

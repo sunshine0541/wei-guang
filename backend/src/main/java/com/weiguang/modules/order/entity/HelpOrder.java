@@ -54,6 +54,8 @@ public class HelpOrder {
 
     /** JSON 数组，受控词表，<=3 个 */
     private String tags;
+    /** 自定义标签（仅展示，不入推荐） */
+    private String extraTag;
 
     /** ASAP/TODAY/TOMORROW/THIS_WEEK/ANY */
     private String timeExpect;

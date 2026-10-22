@@ -134,11 +134,11 @@ ON DUPLICATE KEY UPDATE
 
 -- ---------- 2. help_template 8 个（详设 8.4） ----------
 INSERT INTO `help_template` (`id`, `name`, `icon`, `cover_desc`, `default_type`, `title`, `sort`, `enabled`) VALUES
-(1, '代买跑腿',   '🛒', '买菜、取药、取快递等跑腿小事',     'HOME_VISIT', '帮我买点东西',       1, 1),
+(1, '跑腿',   '🛒', '买菜、取药、取快递等跑腿小事',     'HOME_VISIT', '帮我买点东西',       1, 1),
 (2, '小修小补',   '💡', '灯泡、水龙头、小家电的小修小补',   'HOME_VISIT', '家里有个小东西坏了', 2, 1),
 (3, '家务搭把手', '🏠', '打扫、晾晒、搬挪等家务搭把手',     'HOME_VISIT', '想请人搭把手做家务', 3, 1),
 (4, '陪伴同行',   '🌿', '散步、就医、办事的陪伴同行',       'ACCOMPANY',  '想找个人陪我走一趟', 4, 1),
-(5, '手机教学',   '📱', '教您用手机：微信、视频、扫码',     'REMOTE',     '教我用手机',         5, 1),
+(5, '教学',   '📱', '教您用手机：微信、视频、扫码',     'REMOTE',     '教我用手机',         5, 1),
 (6, '网上办事',   '💳', '线上缴费、挂号、办事的教学与指导', 'REMOTE',     '教我在网上办点事',   6, 1),
 (7, '花草宠物',   '🌱', '浇花、喂猫狗等花草宠物照看',       'HOME_VISIT', '帮我照看一下花草宠物', 7, 1),
 (8, '其他小事',   '✍️', '说不清类型的小事，由您来定',       'REMOTE',     '有件小事想请邻居帮忙', 8, 1)
@@ -203,12 +203,12 @@ INSERT INTO `user_profile`
    `emergency_contact_name`, `emergency_contact_phone`, `phone`) VALUES
 (1, '李秀英', NULL, 68,   '爱晒太阳、喜欢热闹', '["聊天","散步","养花"]', '腿脚不便，需要扶一下', '["聊天","陪伴","散步","宠物花草"]', '李强', '13905518372', '13867429153'),
 (2, '王德明', NULL, NULL, NULL,                 NULL,                     NULL,                    NULL,                                 NULL,   NULL,          '13957068214'),
-(3, '陈志远', NULL, 32,   '爱跑腿、爱修小物件', NULL,                     NULL,                    '["手机教学","维修"]',                NULL,   NULL,          '15867132409'),
+(3, '陈志远', NULL, 32,   '爱跑腿、爱修小物件', NULL,                     NULL,                    '["教学","维修"]',                NULL,   NULL,          '15867132409'),
 (4, '赵晓琳', NULL, 24,   '喜欢唠嗑，随叫随到', NULL,                     NULL,                    '["聊天"]',                           NULL,   NULL,          '18652970318'),
 (5, '张桂花', NULL, 71,   '闲不住，爱逛早市',   '["散步","做饭"]',        NULL,                    NULL,                                 NULL,   NULL,          '13385649271'),
 (6, '刘建军', NULL, 45,   '会点水电小活，帮得上就搭把手', NULL,           NULL,                    '["维修","家务"]',                    NULL,   NULL,          '13745286109'),
 (7, '周慧珍', NULL, 66,   '爱干净，喜欢花草',   '["养花"]',               NULL,                    NULL,                                 NULL,   NULL,          '15162384756'),
-(8, '吴国强', NULL, 52,   '楼上楼下的活都能搭把手', NULL,                 NULL,                    '["维修","跑腿代买"]',                NULL,   NULL,          '18245037619'),
+(8, '吴国强', NULL, 52,   '楼上楼下的活都能搭把手', NULL,                 NULL,                    '["维修","跑腿"]',                NULL,   NULL,          '18245037619'),
 (9, '孙丽华', NULL, 74,   '看着孙女长大最开心', '["聊天","看书"]',        NULL,                    NULL,                                 NULL,   NULL,          '13072849563');
 
 INSERT INTO `address_book` (`user_id`, `label`, `area_text`, `detail_text`, `is_default`) VALUES
@@ -234,7 +234,7 @@ INSERT INTO `help_order`
      '梧桐苑小区 7 号楼', '2 单元 603', '["维修"]', 'ASAP', 'PENDING', NULL, 1, 0, 1, 2,
      NOW() + INTERVAL 5 HOUR, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NOW() - INTERVAL 1 HOUR),
 (2,  1, NULL, 'TEMPLATE', 'REMOTE',     0, 1, 1, '教我用手机发照片', '想学怎么用微信发照片、跟闺女视频，一步步教我就行。',
-     NULL, NULL, '["手机教学"]', 'ANY', 'PENDING', NULL, 1, 0, 1, 2,
+     NULL, NULL, '["教学"]', 'ANY', 'PENDING', NULL, 1, 0, 1, 2,
      NOW() + INTERVAL 20 HOUR, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NOW() - INTERVAL 4 HOUR),
 (3,  2, NULL, 'TEMPLATE', 'ACCOMPANY',  0, 3, 3, '想找个人陪我走一趟', '想去河边公园散步，一个人走不远，想请邻居陪我走一段。',
      '幸福里小区门口', NULL, '["散步"]', 'TODAY', 'PENDING', NULL, 1, 0, 0, 1,
@@ -243,7 +243,7 @@ INSERT INTO `help_order`
      '梧桐苑小区 7 号楼', '2 单元 603', '["家务"]', 'TODAY', 'ACCEPTED', NULL, 1, 0, 1, 0,
      NOW() - INTERVAL 6 HOUR, NOW() - INTERVAL 30 MINUTE, NOW() + INTERVAL 90 MINUTE, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NOW() - INTERVAL 30 HOUR),
 (5,  1, 4,    'FREE',     'REMOTE',     0, 1, 1, '教我用手机打视频', '想学会和在外地的儿子视频通话，麻烦教教我。',
-     NULL, NULL, '["手机教学"]', 'ANY', 'IN_SERVICE', NULL, 1, 0, 1, 0,
+     NULL, NULL, '["教学"]', 'ANY', 'IN_SERVICE', NULL, 1, 0, 1, 0,
      NOW() + INTERVAL 22 HOUR, NOW() - INTERVAL 90 MINUTE, NOW() + INTERVAL 30 MINUTE, NOW() - INTERVAL 72 MINUTE, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NOW() - INTERVAL 2 HOUR),
 (6,  1, 3,    'TEMPLATE', 'HOME_VISIT', 0, 2, 2, '卫生间的灯不亮了', '卫生间的灯不亮了，想请邻居帮忙换个灯泡。',
      '梧桐苑小区 7 号楼', '2 单元 603', '["维修"]', 'TODAY', 'PENDING_CONFIRM', NULL, 1, 0, 1, 0,
@@ -265,7 +265,7 @@ INSERT INTO `help_order`
      NULL, NULL, '["网上办事"]', 'ANY', 'EXPIRED', NULL, 1, 0, 1, 0,
      NOW() - INTERVAL 2 DAY, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NOW() - INTERVAL 3 DAY),
 (11, 1, NULL, 'FREE',     'HOME_VISIT', 0, 2, 2, '帮我把米面搬上楼', '买了两袋大米和一袋面，在楼下车里，想请邻居帮忙搬上楼。',
-     '梧桐苑小区 7 号楼', '2 单元 603', '["跑腿代买","家务"]', 'ASAP', 'PENDING', NULL, 2, 1, 1, 2,
+     '梧桐苑小区 7 号楼', '2 单元 603', '["跑腿","家务"]', 'ASAP', 'PENDING', NULL, 2, 1, 1, 2,
      NOW() + INTERVAL 4 HOUR, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, NOW() - INTERVAL 22 HOUR),
 (12, 1, 3,    'FREE',     'HOME_VISIT', 0, 2, 2, '厨房水龙头有点松', '厨房水龙头有些松动，想请邻居帮忙拧紧一下。',
      '梧桐苑小区 7 号楼', '2 单元 603', '["维修"]', 'TODAY', 'APPEALING', 'PENDING_CONFIRM', 1, 0, 1, 0,
@@ -283,7 +283,7 @@ INSERT INTO `help_order`
      '桂花苑小区门口', NULL, '["散步"]', 'TODAY', 'PENDING', NULL, 1, 0, 1, 1,
      NOW() + INTERVAL 4 HOUR, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NOW() - INTERVAL 20 HOUR),
 (16, 7, NULL, 'TEMPLATE', 'REMOTE',     0, 1, 1, '教我用手机买菜', '听说手机上买菜能送到家，想请邻居教教我。',
-     NULL, NULL, '["手机教学"]', 'ANY', 'PENDING', NULL, 1, 0, 1, 0,
+     NULL, NULL, '["教学"]', 'ANY', 'PENDING', NULL, 1, 0, 1, 0,
      NOW() + INTERVAL 19 HOUR, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NOW() - INTERVAL 5 HOUR),
 (17, 9, NULL, 'FREE',     'HOME_VISIT', 0, 2, 2, '厨房下水有点堵', '厨房水槽下水变慢了，想请邻居帮忙看看。',
      '丽景华庭 9 号楼', '3 单元 502', '["维修"]', 'TODAY', 'PENDING', NULL, 1, 0, 1, 1,
@@ -299,7 +299,7 @@ INSERT INTO `help_order`
      NOW() + INTERVAL 18 HOUR, NOW() - INTERVAL 5 HOUR - INTERVAL 30 MINUTE, NOW() - INTERVAL 3 HOUR - INTERVAL 30 MINUTE, NOW() - INTERVAL 5 HOUR,
      'HELPER', NOW() + INTERVAL 23 HOUR, NULL, NULL, NULL, NULL, NULL, 0, NOW() - INTERVAL 6 HOUR),
 (21, 5, 6,    'TEMPLATE', 'REMOTE',     0, 1, 1, '教我用手机拍照', '想学用手机给孙女拍照，再发给老姐妹看看。',
-     NULL, NULL, '["手机教学"]', 'THIS_WEEK', 'COMPLETED', NULL, 1, 0, 1, 0,
+     NULL, NULL, '["教学"]', 'THIS_WEEK', 'COMPLETED', NULL, 1, 0, 1, 0,
      NOW() - INTERVAL 24 DAY, NOW() - INTERVAL 24 DAY - INTERVAL 19 HOUR, NOW() - INTERVAL 24 DAY - INTERVAL 17 HOUR, NOW() - INTERVAL 24 DAY - INTERVAL 18 HOUR,
      'HELPER', NOW() - INTERVAL 23 DAY - INTERVAL 7 HOUR, NOW() - INTERVAL 24 DAY, NULL, NULL, NULL, NOW() - INTERVAL 17 DAY, 0, NOW() - INTERVAL 25 DAY),
 (22, 9, 6,    'FREE',     'HOME_VISIT', 0, 2, 2, '灯泡闪了好几天', '客厅灯一闪一闪的，想请邻居帮忙换一下。',
@@ -307,7 +307,7 @@ INSERT INTO `help_order`
      NOW() - INTERVAL 16 DAY, NOW() - INTERVAL 16 DAY - INTERVAL 19 HOUR, NOW() - INTERVAL 16 DAY - INTERVAL 17 HOUR, NOW() - INTERVAL 16 DAY - INTERVAL 18 HOUR,
      'HELPER', NOW() - INTERVAL 15 DAY - INTERVAL 7 HOUR, NOW() - INTERVAL 16 DAY, NULL, NULL, NULL, NOW() - INTERVAL 9 DAY, 0, NOW() - INTERVAL 17 DAY),
 (23, 7, 6,    'TEMPLATE', 'REMOTE',     0, 1, 1, '想学怎么发语音', '打字太慢，想学发语音消息。',
-     NULL, NULL, '["手机教学"]', 'ANY', 'COMPLETED', NULL, 1, 0, 1, 0,
+     NULL, NULL, '["教学"]', 'ANY', 'COMPLETED', NULL, 1, 0, 1, 0,
      NOW() - INTERVAL 9 DAY, NOW() - INTERVAL 9 DAY - INTERVAL 19 HOUR, NOW() - INTERVAL 9 DAY - INTERVAL 17 HOUR, NOW() - INTERVAL 9 DAY - INTERVAL 18 HOUR,
      'HELPER', NOW() - INTERVAL 8 DAY - INTERVAL 7 HOUR, NOW() - INTERVAL 9 DAY, NULL, NULL, NULL, NOW() - INTERVAL 2 DAY, 0, NOW() - INTERVAL 10 DAY),
 (24, 5, 6,    'FREE',     'ACCOMPANY',  0, 3, 3, '陪我去邮局寄点东西', '想给老家寄点特产，去邮局跑一趟，想请邻居陪我。',
@@ -331,8 +331,8 @@ INSERT INTO `help_order`
      NOW() - INTERVAL 1 DAY, NULL, NULL, NULL, NULL, NULL, NULL, NOW() - INTERVAL 1 DAY, 'REQUESTER',
      '孙女周末回来教我了，先不用啦，谢谢。', NULL, 0, NOW() - INTERVAL 2 DAY);
 
--- 说明：受控标签词表 10 项（常量，与后端 HelpTagConstants 一致）：跑腿代买、维修、家务、陪伴、
---       散步、手机教学、网上办事、宠物花草、聊天、其他；快捷短语 5 条（常量配置）：好的 / 麻烦你了 /
+-- 说明：受控标签词表 10 项（常量，与后端 HelpTagConstants 一致）：跑腿、维修、家务、陪伴、
+--       散步、教学、网上办事、宠物花草、聊天、其他；快捷短语 5 条（常量配置）：好的 / 麻烦你了 /
 --       我在家门口 / 稍等一下 / 谢谢你。
 
 -- ---------- 7. 释放记录与时间线（#11 多轮次；时间线与各单流转一致） ----------
@@ -635,6 +635,11 @@ INSERT INTO `notification` (`user_id`, `type`, `title`, `content`, `jump_type`, 
 (1, 'NEW_MESSAGE',     '新消息', '陈志远 给您发来新消息，去看看吧',                                                    'SESSION', 6,    0, NOW() - INTERVAL 35 MINUTE),
 (1, 'CONFIRM_REQUEST', '对方标记了完成', '陈志远 说"卫生间的灯不亮了"已经完成啦，请您确认一下',                       'ORDER',   6,    0, NOW() - INTERVAL 30 MINUTE),
 (1, 'ACCEPTED',        '有人来接您的求助啦', '陈志远 愿意帮您"想请人搭把手做家务"，去打个招呼吧',                      'ORDER',   4,    0, NOW() - INTERVAL 25 MINUTE);
+
+-- 聊天类通知补齐发送方昵称（message_count 走默认值 1）
+UPDATE `notification`
+SET `sender_nickname` = SUBSTRING_INDEX(`content`, ' 给您发来', 1)
+WHERE `type` = 'NEW_MESSAGE' AND (`sender_nickname` IS NULL OR `sender_nickname` = '');
 
 -- ---------- 14. 浏览记录（与各待响应单 view_count 一致） ----------
 INSERT INTO `order_view` (`order_id`, `user_id`, `created_at`) VALUES

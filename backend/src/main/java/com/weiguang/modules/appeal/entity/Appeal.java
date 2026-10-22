@@ -30,6 +30,9 @@ public class Appeal {
     /** 申诉/反馈理由 */
     private String reason;
 
+    /** 凭证图片相对地址（可选） */
+    private String evidenceUrl;
+
     /** PENDING/RESOLVED */
     private String status;
 

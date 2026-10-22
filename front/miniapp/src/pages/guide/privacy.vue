@@ -1,21 +1,15 @@
 <template>
   <view class="wg-page" :class="userStore.rootClass">
-    <view class="wg-card">
+    <view class="wg-card wg-card-tint" style="background-color:#d9e2d6;color:#4f6b4a">
       <text class="wg-title">微光 · 隐私说明</text>
-      <text class="wg-label">版本 {{ policyVersion }}</text>
+      <text class="wg-label" style="color:#4f6b4a;opacity:.8">版本 {{ policyVersion }}</text>
     </view>
 
     <view class="wg-card">
-      <text>微光是一个社区邻里互助的小家。我们会收集您主动填写的昵称、头像、年龄、常去地址和"需要留意的小习惯"等信息，只用于让邻居更好地帮到您：</text>
-    </view>
-    <view class="wg-card">
-      <text>您的"小习惯"只会在您的求助被接单后展示给接单的那位邻居；</text>
-    </view>
-    <view class="wg-card">
-      <text>聊天记录仅用于回顾与争议处理，管理员只有在处理申诉或安全上报时才能查看；</text>
-    </view>
-    <view class="wg-card">
-      <text>您可以随时在"设置"中注销账号，注销后个人信息将删除或匿名化，历史订单与争议记录按法规要求保留 {{ userStore.retentionDays }} 天后清除。</text>
+      <text class="privacy-p">微光是一个社区邻里互助的小家。我们会收集您主动填写的昵称、头像、年龄、常去地址和"需要留意的小习惯"等信息，只用于让邻居更好地帮到您：</text>
+      <text class="privacy-p">您的"小习惯"只会在您的求助被接单后展示给接单的那位邻居；</text>
+      <text class="privacy-p">聊天记录仅用于回顾与争议处理，管理员只有在处理申诉或安全上报时才能查看；</text>
+      <text class="privacy-p privacy-p-last">您可以随时在"设置"中注销账号，注销后个人信息将删除或匿名化，历史订单与争议记录按法规要求保留 {{ userStore.retentionDays }} 天后清除。</text>
     </view>
 
     <template v-if="!isView">
@@ -69,3 +63,15 @@ export default {
   }
 }
 </script>
+
+<style lang="scss" scoped>
+/* 合并后的正文段落：逐段成块并留出段间距 */
+.privacy-p {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.privacy-p-last {
+  margin-bottom: 0;
+}
+</style>

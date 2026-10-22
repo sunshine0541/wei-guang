@@ -1,8 +1,17 @@
 <template>
   <view class="wg-page" :class="userStore.rootClass">
-    <view class="wg-card">
+    <view class="wg-card wg-card-tint" style="background-color:#d9e2d6;color:#4f6b4a">
       <text class="wg-title">欢迎您</text>
-      <text class="wg-label">第 {{ step }} / 4 步 · 每一步都可以跳过，之后在个人中心补全</text>
+      <!-- B：4 点进度条替代「第 x / 4 步」文字，弱化阅读负担 -->
+      <view class="wg-steps">
+        <view
+          v-for="n in 4"
+          :key="n"
+          class="wg-step-dot"
+          :class="{ 'wg-step-dot-on': n <= step }"
+        />
+      </view>
+      <text class="wg-label" style="color:#4f6b4a;opacity:.8">每一步都可以跳过，之后在个人中心补全</text>
     </view>
 
     <!-- 第 1 步：昵称头像 -->
@@ -21,12 +30,26 @@
       <view class="wg-btn" style="margin-top: 12px" @click="next">下一步</view>
     </view>
 
-    <!-- 第 2 步：模式预置提示 -->
+    <!-- 第 2 步：模式预置提示（两种模式可在本页来回切换，选好再点下一步） -->
     <view v-if="step === 2" class="wg-card">
-      <text>我们为您准备了大字模式，可随时在设置中切换。</text>
-      <view class="wg-label" style="margin-top: 8px">当前：{{ userStore.isElder ? '年长模式（大字）' : '普通模式' }}</view>
-      <view class="wg-btn" style="margin-top: 12px" @click="useElderMode">立即切换为年长模式</view>
-      <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="next">保持当前模式</view>
+      <text>选择您看着舒服的模式，之后可随时在设置中切换。</text>
+      <view
+        class="wg-mode-option"
+        :class="{ 'wg-mode-option-on': !userStore.isElder }"
+        @click="chooseMode('NORMAL')"
+      >
+        <text class="wg-mode-title">普通模式</text>
+        <text class="wg-label">字号与按钮为常规大小</text>
+      </view>
+      <view
+        class="wg-mode-option"
+        :class="{ 'wg-mode-option-on': userStore.isElder }"
+        @click="chooseMode('ELDER')"
+      >
+        <text class="wg-mode-title">年长模式（大字）</text>
+        <text class="wg-label">字号更大、按钮更好点，动效默认关闭</text>
+      </view>
+      <view class="wg-btn" style="margin-top: 12px" @click="next">下一步</view>
     </view>
 
     <!-- 第 3 步：画像填写 -->
@@ -35,7 +58,7 @@
       <input class="wg-input" :value="nickname" @input="nickname = $event.detail.value" />
       <view class="wg-label" style="margin-top: 12px">年龄</view>
       <input class="wg-input" type="number" :value="ageText" @input="ageText = $event.detail.value" />
-      <view class="wg-label" style="margin-top: 12px">住址（选填，用于上门/陪同类求助）</view>
+      <view class="wg-label" style="margin-top: 12px">住址（选填，用于上门/外出类求助）</view>
       <input class="wg-input" placeholder="标签，如：家" :value="addressLabel" @input="addressLabel = $event.detail.value" />
       <input class="wg-input" placeholder="小区/区域" :value="addressArea" @input="addressArea = $event.detail.value" />
       <input class="wg-input" placeholder="楼栋门牌（上门类确认开始后才会给对方看）" :value="addressDetail" @input="addressDetail = $event.detail.value" />
@@ -45,7 +68,7 @@
           v-for="hobby in hobbyOptions"
           :key="hobby"
           class="wg-tag"
-          :class="{ 'wg-tag-active': hobbies.indexOf(hobby) >= 0 }"
+          :class="{ 'wg-chip-active': hobbies.indexOf(hobby) >= 0 }"
           @click="toggleHobby(hobby)"
         >
           {{ hobby }}
@@ -76,6 +99,7 @@
 import { useUserStore } from '@/store/user'
 import { updateProfile } from '@/api/user'
 import { createAddress } from '@/api/address'
+import { uploadImage } from '@/utils/upload'
 import { HOBBY_OPTIONS } from '@/utils/constants'
 
 export default {
@@ -117,9 +141,13 @@ export default {
         this.hobbies.push(hobby)
       }
     },
-    async useElderMode() {
-      await this.userStore.switchMode('ELDER')
-      this.next()
+    /** B：模式只切换、不跳步；两种模式都可来回选 */
+    async chooseMode(mode) {
+      const current = this.userStore.uiMode
+      if ((mode === 'ELDER' && current === 'ELDER') || (mode === 'NORMAL' && current !== 'ELDER')) {
+        return
+      }
+      await this.userStore.switchMode(mode)
     },
     async saveProfile() {
       const nickname = this.nickname.trim()
@@ -159,6 +187,18 @@ export default {
       if (this.emergencyPhone) {
         payload.emergencyContactPhone = this.emergencyPhone
       }
+      // 头像：chooseAvatar 给的是本地临时路径，需先上传成 /files 相对地址再落库
+      if (this.avatarUrl && this.avatarUrl !== this.userStore.avatarUrl) {
+        try {
+          if (/^(wxfile:|https?:\/\/tmp|blob:)/.test(this.avatarUrl)) {
+            payload.avatarUrl = await uploadImage(this.avatarUrl)
+          } else {
+            payload.avatarUrl = this.avatarUrl
+          }
+        } catch (e) {
+          console.error('[微光] 头像上传失败', e)
+        }
+      }
       await updateProfile(payload)
       if (this.addressArea.trim()) {
         await createAddress({
@@ -192,34 +232,51 @@ export default {
 }
 </script>
 
-<style lang="scss">
-.wg-input {
-  min-height: var(--wg-btn-min-height);
-  border: 1px solid #e6ded2;
-  border-radius: var(--wg-radius);
-  padding: 0 12px;
-  margin-top: 8px;
-  background-color: #ffffff;
-  font-size: var(--wg-font-base);
-}
-
-.wg-tags {
-  display: flex;
-  flex-wrap: wrap;
-  margin-top: 8px;
-}
-
+<style lang="scss" scoped>
+/* 可点选的爱好标签：仅补充点击区尺寸，其余样式沿用全局 .wg-tag / .wg-chip-active */
 .wg-tag {
   padding: 8px 14px;
   margin: 0 8px 8px 0;
-  border-radius: var(--wg-radius);
-  border: 1px solid #e6ded2;
-  background-color: #ffffff;
-  font-size: var(--wg-font-base);
 }
 
-.wg-tag-active {
-  background-color: var(--wg-primary-light);
+/* B：4 点进度条 */
+.wg-steps {
+  display: flex;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.wg-step-dot {
+  width: 26px;
+  height: 6px;
+  border-radius: 3px;
+  margin-right: 6px;
+  background-color: rgba(79, 107, 74, 0.25);
+}
+
+.wg-step-dot-on {
+  background-color: #4f6b4a;
+}
+
+/* B：第 2 步的模式二选一卡片 */
+.wg-mode-option {
+  margin-top: 12px;
+  padding: var(--wg-space);
+  border: 2px solid var(--wg-line);
+  border-radius: var(--wg-radius);
+  background-color: var(--wg-surface);
+  display: flex;
+  flex-direction: column;
+}
+
+.wg-mode-option-on {
   border-color: var(--wg-primary);
+  background-color: #d9e2d6;
+  color: #4f6b4a;
+}
+
+.wg-mode-title {
+  font-size: var(--wg-font-base);
+  font-weight: 800;
 }
 </style>

@@ -10,6 +10,8 @@ import com.weiguang.modules.user.entity.User;
 import com.weiguang.modules.user.entity.UserProfile;
 import com.weiguang.modules.user.mapper.UserMapper;
 import com.weiguang.modules.user.mapper.UserProfileMapper;
+
+import java.time.LocalDate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -60,6 +62,8 @@ public class HonorService {
         summary.setLightPassedCount(userMapper.selectCount(Wrappers.<User>lambdaQuery()
                 .eq(User::getLightPassed, 1)
                 .ne(User::getStatus, "CANCELLED")));
+        summary.setTodayOrderCount(helpOrderMapper.selectCount(Wrappers.<HelpOrder>lambdaQuery()
+                .ge(HelpOrder::getCreatedAt, LocalDate.now().atStartOfDay())));
         return summary;
     }
 

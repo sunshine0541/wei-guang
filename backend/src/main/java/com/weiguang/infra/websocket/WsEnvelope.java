@@ -19,6 +19,8 @@ public final class WsEnvelope {
     public static final String TYPE_PONG = "PONG";
     /** 通知推送（§3.5 枚举未含通知类型，T12 新增，见《实现偏差清单》D21） */
     public static final String TYPE_NOTIFICATION = "NOTIFICATION";
+    /** B：对方正在输入（仅在线瞬时转发，不落库） */
+    public static final String TYPE_TYPING = "TYPING";
     /** 防诈强提示 WS 码（T14：SYSTEM 帧；非业务错误码，见《实现偏差清单》D24） */
     public static final int CODE_FRAUD_ALERT = 49001;
 
@@ -95,5 +97,12 @@ public final class WsEnvelope {
         payload.put("jumpId", jumpId);
         payload.put("createdAt", createdAt);
         return of(TYPE_NOTIFICATION, payload, null);
+    }
+
+    /** B：对方正在输入的瞬时转发帧 */
+    public static Map<String, Object> typing(Long sessionId) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("sessionId", sessionId);
+        return of(TYPE_TYPING, payload, null);
     }
 }

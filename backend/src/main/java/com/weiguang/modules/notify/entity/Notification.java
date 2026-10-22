@@ -38,6 +38,10 @@ public class Notification {
 
     /** 是否已读 */
     private Integer isRead;
+    /** 聊天类聚合通知的未读条数（非聊天类固定 1） */
+    private Integer messageCount;
+    /** 聊天类通知的发送方昵称 */
+    private String senderNickname;
 
     /** 创建时间 */
     private LocalDateTime createdAt;

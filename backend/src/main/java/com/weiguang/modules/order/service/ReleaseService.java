@@ -156,9 +156,13 @@ public class ReleaseService {
         LocalDateTime now = LocalDateTime.now();
         int round = order.getCurrentRound() == null ? 1 : order.getCurrentRound();
         int releaseCount = order.getReleaseCount() == null ? 0 : order.getReleaseCount();
-        int timeoutHours = Integer.valueOf(1).equals(order.getUrgentFlag())
-                ? configService.getInt("order.pending_timeout_urgent_hours", 6)
-                : configService.getInt("order.pending_timeout_hours", 24);
+        // 释放重派同样按「希望什么时候」重算待响应截止（与 O2 同一策略）
+        LocalDateTime nextPublishDeadline = PublishDeadlinePolicy.resolve(
+                order.getTimeExpect(),
+                Integer.valueOf(1).equals(order.getUrgentFlag()) ? 1 : 0,
+                configService.getInt("order.pending_timeout_urgent_hours", 6),
+                configService.getInt("order.pending_timeout_hours", 24),
+                configService.getInt("order.zombie_clean_days", 7));
 
         int rows = helpOrderMapper.update(null, Wrappers.<HelpOrder>lambdaUpdate()
                 .eq(HelpOrder::getId, order.getId())
@@ -174,7 +178,7 @@ public class ReleaseService {
                 .set(HelpOrder::getCancelPendingDeadline, null)
                 .set(HelpOrder::getReleaseCount, releaseCount + 1)
                 .set(HelpOrder::getCurrentRound, round + 1)
-                .set(HelpOrder::getPublishDeadline, now.plusHours(timeoutHours))
+                .set(HelpOrder::getPublishDeadline, nextPublishDeadline)
                 .set(HelpOrder::getVersion, order.getVersion() + 1));
         if (rows == 0) {
             return false;

@@ -23,6 +23,8 @@ import com.weiguang.modules.chat.entity.ChatMessage;
 import com.weiguang.modules.chat.entity.ChatSession;
 import com.weiguang.modules.chat.mapper.ChatMessageMapper;
 import com.weiguang.modules.chat.mapper.ChatSessionMapper;
+import com.weiguang.modules.incentive.entity.Evaluation;
+import com.weiguang.modules.incentive.mapper.EvaluationMapper;
 import com.weiguang.modules.light.service.LightService;
 import com.weiguang.modules.notify.service.NotifyService;
 import com.weiguang.modules.order.dto.AcceptVO;
@@ -96,6 +98,7 @@ public class OrderService {
     private final BizMetrics bizMetrics;
     private final WsSessionRegistry wsSessionRegistry;
     private final com.weiguang.modules.appeal.service.AppealService appealService;
+    private final EvaluationMapper evaluationMapper;
 
     public OrderService(HelpOrderMapper helpOrderMapper,
                         OrderViewMapper orderViewMapper,
@@ -115,7 +118,8 @@ public class OrderService {
                         LightService lightService,
                         BizMetrics bizMetrics,
                         WsSessionRegistry wsSessionRegistry,
-                        com.weiguang.modules.appeal.service.AppealService appealService) {
+                        com.weiguang.modules.appeal.service.AppealService appealService,
+                        EvaluationMapper evaluationMapper) {
         this.helpOrderMapper = helpOrderMapper;
         this.orderViewMapper = orderViewMapper;
         this.orderTimelineMapper = orderTimelineMapper;
@@ -135,6 +139,7 @@ public class OrderService {
         this.bizMetrics = bizMetrics;
         this.wsSessionRegistry = wsSessionRegistry;
         this.appealService = appealService;
+        this.evaluationMapper = evaluationMapper;
     }
 
     /** O1 能力一 · 求助理解：先本地敏感词（仅 BLOCK 拦截），否则交 AI（Mock 模式为本地规则） */
@@ -190,7 +195,7 @@ public class OrderService {
         int urgentFlag = request.getUrgentFlag() != null && request.getUrgentFlag() == 1 ? 1 : 0;
         HelpOrder order = buildOrder(uid, user, profile, source, orderType, urgentFlag,
                 request.getTitle(), request.getDescription(), tags, request.getTimeExpect(),
-                address.area(), address.detail());
+                address.area(), address.detail(), normalizeExtraTag(request.getExtraTag()));
         helpOrderMapper.insert(order);
         timelineRecorder.record(order.getId(), "PUBLISH", uid, null);
         touchInteraction(uid);
@@ -213,7 +218,8 @@ public class OrderService {
         HelpOrder order = buildOrder(uid, user, profile, OrderSource.REPEAT.name(), orderType,
                 origin.getUrgentFlag() == null ? 0 : origin.getUrgentFlag(),
                 origin.getTitle(), origin.getDescription(), JsonUtils.toStringList(origin.getTags()),
-                origin.getTimeExpect(), origin.getAddressArea(), origin.getAddressDetail());
+                origin.getTimeExpect(), origin.getAddressArea(), origin.getAddressDetail(),
+                origin.getExtraTag());
         helpOrderMapper.insert(order);
         timelineRecorder.record(order.getId(), "PUBLISH", uid, "一键重发");
         timelineRecorder.record(origin.getId(), "REPUBLISH", uid, "已重发为新单 " + order.getId());
@@ -476,13 +482,24 @@ public class OrderService {
         vo.setTitle(order.getTitle());
         vo.setOrderType(order.getOrderType());
         vo.setTags(JsonUtils.toStringList(order.getTags()));
+        vo.setExtraTag(order.getExtraTag());
         vo.setUrgentFlag(order.getUrgentFlag());
         vo.setDescription(order.getDescription());
         vo.setTimeExpect(order.getTimeExpect());
         vo.setCreatedAt(order.getCreatedAt());
+        vo.setStartedAt(order.getStartedAt());
+        vo.setCompletedAt(order.getCompletedAt());
         vo.setViewCount(order.getViewCount());
         vo.setStatus(order.getStatus());
-        vo.setMyRole(mine ? "REQUESTER" : (uid.equals(order.getHelperId()) ? "HELPER" : null));
+        String myRole = mine ? "REQUESTER" : (uid.equals(order.getHelperId()) ? "HELPER" : null);
+        vo.setMyRole(myRole);
+        // 助人者看已完成的单：带出受助者给的星级（无评价则为 null，前端不渲染）
+        if ("HELPER".equals(myRole) && OrderStatus.COMPLETED.name().equals(order.getStatus())) {
+            Evaluation evaluation = evaluationMapper.selectOne(Wrappers.<Evaluation>lambdaQuery()
+                    .eq(Evaluation::getOrderId, orderId)
+                    .last("LIMIT 1"));
+            vo.setHelperStars(evaluation == null ? null : evaluation.getStars());
+        }
         vo.setConfirmInitiator(order.getConfirmInitiator());
         vo.setCancelPendingBy(order.getCancelPendingBy());
         vo.setCanAppeal(appealService.canAppeal(order, uid));
@@ -544,14 +561,18 @@ public class OrderService {
 
     private HelpOrder buildOrder(Long uid, User user, UserProfile profile, String source, OrderType orderType,
                                  int urgentFlag, String title, String description, List<String> tags,
-                                 String timeExpect, String addressArea, String addressDetail) {
+                                 String timeExpect, String addressArea, String addressDetail, String extraTag) {
         int urgencyBase = configService.getInt(orderType.urgencyBaseConfigKey(), 1);
         int urgencyScore = urgencyBase + urgentFlag * configService.getInt("urgency.urgent_weight", 3);
         Integer age = profile == null ? null : profile.getAge();
         int agePriority = age != null && age >= configService.getInt("elder.age_threshold", 60) ? 1 : 0;
-        int timeoutHours = urgentFlag == 1
-                ? configService.getInt("order.pending_timeout_urgent_hours", 6)
-                : configService.getInt("order.pending_timeout_hours", 24);
+        // 待响应截止跟随「希望什么时候」：尽快/急 6h，今天内到当天 24:00，明天到次日，本周到下周日，不限按僵尸清理天数
+        LocalDateTime publishDeadline = PublishDeadlinePolicy.resolve(
+                timeExpect,
+                urgentFlag,
+                configService.getInt("order.pending_timeout_urgent_hours", 6),
+                configService.getInt("order.pending_timeout_hours", 24),
+                configService.getInt("order.zombie_clean_days", 7));
 
         HelpOrder order = new HelpOrder();
         order.setRequesterId(uid);
@@ -565,15 +586,28 @@ public class OrderService {
         order.setAddressArea(addressArea);
         order.setAddressDetail(addressDetail);
         order.setTags(JsonUtils.toJson(tags));
+        order.setExtraTag(extraTag);
         order.setTimeExpect(timeExpect);
         order.setStatus(OrderStatus.PENDING.name());
         order.setCurrentRound(1);
         order.setReleaseCount(0);
         order.setAgePriority(agePriority);
         order.setViewCount(0);
-        order.setPublishDeadline(LocalDateTime.now().plusHours(timeoutHours));
+        order.setPublishDeadline(publishDeadline);
         order.setVersion(0);
         return order;
+    }
+
+    /** 自定义标签归一：去空白、≤10 字、与受控词表重复则忽略 */
+    private String normalizeExtraTag(String extraTag) {
+        if (extraTag == null) {
+            return null;
+        }
+        String value = extraTag.trim();
+        if (value.isEmpty() || HelpTagConstants.isTag(value)) {
+            return null;
+        }
+        return value.length() > 10 ? value.substring(0, 10) : value;
     }
 
     private void validateTitleAndDescription(PublishRequest request) {
@@ -700,10 +734,12 @@ public class OrderService {
         vo.setTitle(order.getTitle());
         vo.setOrderType(order.getOrderType());
         vo.setTags(JsonUtils.toStringList(order.getTags()));
+        vo.setExtraTag(order.getExtraTag());
         vo.setUrgentFlag(order.getUrgentFlag());
         vo.setTimeExpect(order.getTimeExpect());
         vo.setViewCount(order.getViewCount());
         vo.setCreatedAt(order.getCreatedAt());
+        vo.setAddressArea(order.getAddressArea());
         vo.setRequester(toRequester(profile));
         vo.setMine(order.getRequesterId().equals(uid));
         return vo;

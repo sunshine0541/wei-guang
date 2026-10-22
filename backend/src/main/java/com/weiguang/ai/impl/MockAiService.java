@@ -36,20 +36,20 @@ public class MockAiService implements AiService {
 
         if (containsAny(content, "买", "取", "药")) {
             result.setOrderType("HOME_VISIT");
-            result.setTags(List.of("跑腿代买"));
+            result.setTags(List.of("跑腿"));
             result.setUrgencySuggest("NORMAL");
             result.setTitle(truncate(content, TITLE_MAX_LENGTH));
             result.setConfidence(0.7);
-            result.setReason("看起来是跑腿代买类的小事");
+            result.setReason("看起来是跑腿类的小事");
             return result;
         }
         if (containsAny(content, "手机", "视频", "扫码")) {
             result.setOrderType("REMOTE");
-            result.setTags(List.of("手机教学"));
+            result.setTags(List.of("教学"));
             result.setUrgencySuggest("NORMAL");
             result.setTitle(truncate(content, TITLE_MAX_LENGTH));
             result.setConfidence(0.7);
-            result.setReason("看起来是手机教学类的小事");
+            result.setReason("看起来是教学类的小事");
             return result;
         }
         if (containsAny(content, "陪", "散步", "聊")) {

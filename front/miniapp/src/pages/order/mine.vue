@@ -1,18 +1,23 @@
 <template>
-  <view class="wg-page" :class="userStore.rootClass">
-    <view class="wg-tabs">
-      <view class="wg-tab" :class="{ 'wg-tab-active': tab === 'DOING' }" @click="switchTab('DOING')">进行中</view>
-      <view class="wg-tab" :class="{ 'wg-tab-active': tab === 'DONE' }" @click="switchTab('DONE')">已了结</view>
-      <view class="wg-tab" :class="{ 'wg-tab-active': tab === 'HELPING' }" @click="switchTab('HELPING')">我接的单</view>
+  <view class="wg-page wg-page-tab" :class="userStore.rootClass">
+    <!-- 三个 Tab（分段控件，切换逻辑不变）：进行中 / 已了结 / 我接取的求助 -->
+    <view class="wg-seg">
+      <view class="wg-seg-item" :class="{ 'wg-seg-item-active': tab === 'DOING' }" @click="switchTab('DOING')">进行中</view>
+      <view class="wg-seg-item" :class="{ 'wg-seg-item-active': tab === 'DONE' }" @click="switchTab('DONE')">已了结</view>
+      <view class="wg-seg-item" :class="{ 'wg-seg-item-active': tab === 'HELPING' }" @click="switchTab('HELPING')">我接取的求助</view>
     </view>
 
-    <view v-if="orders.length === 0" class="wg-card">
-      <text>{{ emptyText }}</text>
-    </view>
+    <view v-if="orders.length === 0" class="wg-empty">{{ emptyText }}</view>
 
-    <view v-for="order in orders" :key="order.id" class="wg-card" @click="open(order)">
+    <view
+      v-for="order in orders"
+      :key="order.id"
+      class="wg-card"
+      :class="{ 'wg-mine-item-helping': tab === 'HELPING' }"
+      @click="open(order)"
+    >
       <view class="wg-card-head">
-        <text class="wg-title">{{ order.title }}</text>
+        <text class="wg-subtitle">{{ order.title }}</text>
         <text v-if="order.urgentFlag === 1" class="wg-urgent">急</text>
       </view>
       <view class="wg-label" style="margin-top: 6px">{{ statusText(order) }}</view>
@@ -25,6 +30,8 @@
         一键重发
       </view>
     </view>
+
+    <WgTabBar :active="1" />
   </view>
 </template>
 
@@ -32,10 +39,12 @@
 import { useUserStore } from '@/store/user'
 import { listMyOrders, republishOrder } from '@/api/order'
 import { MESSAGES } from '@/utils/constants'
+import WgTabBar from '@/components/WgTabBar.vue'
 
 const EMPTY_DOING = "您还没有发布过求助，需要邻居搭把手时，点首页的'发布'吧"
 
 export default {
+  components: { WgTabBar },
   data() {
     return {
       tab: 'DOING',
@@ -56,8 +65,18 @@ export default {
       return MESSAGES.EMPTY
     }
   },
+  onLoad(options) {
+    // 从个人中心「我接取的求助」入口带 ?tab=HELPING 进入时，落到对应 Tab
+    if (options && options.tab === 'HELPING') {
+      this.tab = 'HELPING'
+    }
+  },
   onShow() {
     this.load()
+    // A2：隐藏左上角「返回首页⌂」（reLaunch 后页面栈只剩本页，微信会自动加该按钮）
+    if (typeof wx !== 'undefined' && typeof wx.hideHomeButton === 'function') {
+      wx.hideHomeButton()
+    }
   },
   methods: {
     switchTab(tab) {
@@ -73,7 +92,7 @@ export default {
       }
     },
     statusText(order) {
-      // 「我接的单」视角：显示是谁的求助
+      // 「我接取的求助」视角：显示是谁的求助
       if (this.tab === 'HELPING') {
         const who = order.requesterNickname || '邻居'
         const stateMap = {
@@ -134,3 +153,10 @@ export default {
   }
 }
 </script>
+
+<style lang="scss">
+/* 「我接取的求助」卡片：主色左边条，区分助人视角 */
+.wg-card.wg-mine-item-helping {
+  border-left: 4px solid var(--wg-primary);
+}
+</style>

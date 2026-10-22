@@ -31,6 +31,9 @@ public class PublishRequest {
 
     private List<String> tags;
 
+    /** 自定义标签（≤10 字，仅展示、不入推荐；AI 建议或用户手填） */
+    private String extraTag;
+
     /** ASAP / TODAY / TOMORROW / THIS_WEEK / ANY */
     private String timeExpect;
 

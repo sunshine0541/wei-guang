@@ -15,4 +15,7 @@ public class HomeSummaryVO {
 
     /** 善意回流计数 = light_passed=1 的用户数（注销用户不计） */
     private Long lightPassedCount;
+
+    /** 今日社区新求助数（按创建时间落在今天统计） */
+    private Long todayOrderCount;
 }

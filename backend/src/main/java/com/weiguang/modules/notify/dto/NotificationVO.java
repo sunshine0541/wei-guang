@@ -17,5 +17,9 @@ public class NotificationVO {
     private String jumpType;
     private Long jumpId;
     private Integer isRead;
+    /** B：聊天类聚合通知的未读条数 */
+    private Integer messageCount;
+    /** B：聊天类通知的发送方昵称 */
+    private String senderNickname;
     private LocalDateTime createdAt;
 }

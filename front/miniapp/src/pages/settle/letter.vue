@@ -1,13 +1,15 @@
 <template>
   <view class="wg-page" :class="userStore.rootClass">
-    <view class="wg-card">
+    <view class="wg-card wg-card-soft">
       <view class="wg-label">这封信会署您的名字，展示在对方的"我收到的感谢"里。</view>
       <textarea class="wg-textarea" v-model="content" maxlength="500" placeholder="想对邻居说点什么" style="margin-top: 8px" />
+      <!-- B：字数实时计数 -->
+      <view class="wg-count">{{ content.length }}/500</view>
     </view>
     <!-- 能力三 S2："不会写？我帮您起个头"（详设 §6.2 P11） -->
     <view class="wg-btn wg-btn-plain" @click="aiDraft">{{ draftLoading ? '小助手正在起头…' : '不会写？我帮您起个头' }}</view>
     <view class="wg-btn" style="margin-top: 12px" @click="send">发送</view>
-    <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="skip">放弃</view>
+    <view class="wg-btn wg-btn-ghost" style="margin-top: 12px" @click="skip">放弃</view>
   </view>
 </template>
 
@@ -81,3 +83,12 @@ export default {
   }
 }
 </script>
+
+<style lang="scss">
+/* B：字数实时计数 */
+.wg-count {
+  text-align: right;
+  font-size: var(--wg-font-sm);
+  color: var(--wg-text-weak);
+}
+</style>

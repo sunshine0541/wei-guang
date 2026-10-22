@@ -17,4 +17,7 @@ public class AppealCreateRequest {
 
     /** 理由（必填 ≤200） */
     private String reason;
+
+    /** 凭证图片相对地址（可选，先走 /api/upload/image 上传） */
+    private String evidenceUrl;
 }
