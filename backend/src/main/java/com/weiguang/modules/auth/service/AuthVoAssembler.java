@@ -47,6 +47,7 @@ public class AuthVoAssembler {
         WxLoginVO.RuntimeConfig config = new WxLoginVO.RuntimeConfig();
         config.setRetentionDays(configService.getInt("compliance.retention_days", 180));
         config.setElderAgeThreshold(configService.getInt("elder.age_threshold", 60));
+        config.setPrivacyVersion(configService.get("privacy.policy_version", "v1.0"));
         vo.setConfig(config);
         return vo;
     }

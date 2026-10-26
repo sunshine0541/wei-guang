@@ -10,7 +10,7 @@
         <!-- B：点头像更换头像（open-type=chooseAvatar），换完随“保存”一并落库 -->
         <view class="wg-avatar-row">
           <button class="wg-avatar-btn" open-type="chooseAvatar" @chooseavatar="onChooseAvatar">
-            <image v-if="avatarPreview" class="wg-profile-avatar" :src="avatarPreview" mode="aspectFill" />
+            <WgImage v-if="avatarPreview" class="wg-profile-avatar" :src="avatarPreview" :width="56" :height="56" radius="28px" mode="aspectFill" />
             <view v-else class="wg-profile-avatar wg-profile-avatar-empty">换头像</view>
           </button>
           <view class="wg-avatar-tip">
@@ -19,20 +19,23 @@
           </view>
         </view>
         <view class="wg-label" style="margin-top: 12px">称呼</view>
-        <input class="wg-input" :value="nickname" @input="nickname = $event.detail.value" />
+        <input class="wg-input" maxlength="20" :value="nickname" @input="nickname = $event.detail.value" />
         <view class="wg-label" style="margin-top: 12px">年龄</view>
         <input class="wg-input" type="number" :value="ageText" @input="ageText = $event.detail.value" />
       </view>
 
-      <!-- 分组 2：住址（选填；常用地址在地址簿中集中管理） -->
+      <!-- 分组 2：常用地址（4D-补：地址统一在 P15 维护，这里只展示默认地址） -->
       <view class="wg-card">
-        <view class="wg-label">住址（选填，用于上门/外出类求助）</view>
+        <view class="wg-label">常用地址（用于上门/外出类求助）</view>
         <view v-if="defaultAddress" class="wg-label" style="margin-top: 8px">
-          当前默认：{{ defaultAddress.label }} · {{ defaultAddress.areaText }}{{ defaultAddress.detailText ? ' · ' + defaultAddress.detailText : '' }}
+          默认：{{ defaultAddress.label }} · {{ defaultAddress.areaText }}{{ defaultAddress.detailText ? ' · ' + defaultAddress.detailText : '' }}
         </view>
-        <input class="wg-input" placeholder="标签，如：家（填写小区后保存即新增地址）" :value="addressLabel" @input="addressLabel = $event.detail.value" />
-        <input class="wg-input" placeholder="小区/区域" :value="addressArea" @input="addressArea = $event.detail.value" />
-        <input class="wg-input" placeholder="楼栋门牌（选填）" :value="addressDetail" @input="addressDetail = $event.detail.value" />
+        <view v-else class="wg-label" style="margin-top: 8px">
+          还没有常用地址，发布上门/外出类求助前先添加一个
+        </view>
+        <view v-if="defaultAddress" class="wg-label">
+          {{ defaultAddressHasGeo ? '已记录地图位置，可用于计算距离' : '未记录地图位置，补上地图位置后可按距离排序' }}
+        </view>
         <view class="wg-profile-link" @click="goAddress">
           <u-icon name="map" :size="16" />
           <text class="wg-profile-link-text">管理常用地址</text>
@@ -58,7 +61,7 @@
       <!-- 分组 4：需要留意的小习惯（常驻隐私提示文案） -->
       <view class="wg-card">
         <view class="wg-label">需要留意的小习惯</view>
-        <input class="wg-input" placeholder="如：腿脚不便，需要扶一下" :value="careTip" @input="careTip = $event.detail.value" />
+        <input class="wg-input" maxlength="100" placeholder="如：腿脚不便，需要扶一下" :value="careTip" @input="careTip = $event.detail.value" />
         <view class="wg-label" style="margin-top: 8px">
           这段内容会在您求助被接单后，展示给接单的邻居，帮他更好地帮您。请只写需要留意的小习惯（如"腿脚不便，需要扶一下"），不要写密码、身份证号、银行卡号等私人信息。
         </view>
@@ -67,21 +70,22 @@
       <!-- 分组 5：紧急联系人与手机号 -->
       <view class="wg-card">
         <view class="wg-label">紧急联系人（选填）</view>
-        <input class="wg-input" placeholder="姓名" :value="emergencyName" @input="emergencyName = $event.detail.value" />
-        <input class="wg-input" placeholder="电话" :value="emergencyPhone" @input="emergencyPhone = $event.detail.value" />
+        <input class="wg-input" maxlength="20" placeholder="姓名" :value="emergencyName" @input="emergencyName = $event.detail.value" />
+        <input class="wg-input" maxlength="20" placeholder="电话" :value="emergencyPhone" @input="emergencyPhone = $event.detail.value" />
         <!-- B：从手机通讯录选紧急联系人（紧贴紧急联系人字段；不支持则提示手输） -->
         <view class="wg-profile-link" @click="pickContact">
           <u-icon name="phone-fill" :size="16" />
           <text class="wg-profile-link-text">从手机通讯录选</text>
         </view>
         <view class="wg-label" style="margin-top: 12px">手机号（选填）</view>
-        <input class="wg-input" type="number" :value="phone" @input="phone = $event.detail.value" />
+        <input class="wg-input" type="number" maxlength="11" :value="phone" @input="phone = $event.detail.value" />
       </view>
 
       <!-- 保存（底部固定，适老加大） -->
       <view class="wg-save-bar">
         <view class="wg-btn" @click="save">保存</view>
       </view>
+
     </template>
   </view>
 </template>
@@ -89,23 +93,23 @@
 <script>
 import { useUserStore } from '@/store/user'
 import { getProfile, updateProfile } from '@/api/user'
-import { listAddresses, createAddress } from '@/api/address'
+import { listAddresses } from '@/api/address'
 import { uploadImage } from '@/utils/upload'
-import { BASE_URL, HOBBY_OPTIONS } from '@/utils/constants'
+import { BASE_URL, HOBBY_OPTIONS, MOBILE_PATTERN, normalizePhone } from '@/utils/constants'
+import WgImage from '@/components/WgImage.vue'
 
 /**
- * P14 画像编辑（详设 §6.2）：字段同 P02 第 3 步 + 手机号（选填、不校验）。
+ * P14 画像编辑（详设 §6.2）：画像字段 + 手机号（选填；填写时校验 11 位手机号）。
+ * 4D-补：地址统一在 P15 维护，本页只展示默认地址摘要（不再就地新增）。
  * 进入即拉取 U1 回填；保存 → U2；小习惯处常驻同一段隐私提示文案。
  */
 export default {
+  components: { WgImage },
   data() {
     return {
       loading: true,
       nickname: '',
       ageText: '',
-      addressLabel: '',
-      addressArea: '',
-      addressDetail: '',
       defaultAddress: null,
       hobbies: [],
       hobbyOptions: HOBBY_OPTIONS,
@@ -125,6 +129,13 @@ export default {
     userStore() {
       return useUserStore()
     },
+    /** 4D-补：默认地址是否带地图坐标（只做展示提示，不参与编辑） */
+    defaultAddressHasGeo() {
+      const address = this.defaultAddress
+      return !!(address
+        && address.latitude !== null && address.latitude !== undefined
+        && address.longitude !== null && address.longitude !== undefined)
+    },
     /** B：头像预览（本地临时路径直接用；服务端返回的是 /files 相对地址，需拼 BASE_URL） */
     avatarPreview() {
       if (!this.avatarUrl) {
@@ -140,9 +151,6 @@ export default {
       return [
         this.nickname,
         this.ageText,
-        this.addressLabel,
-        this.addressArea,
-        this.addressDetail,
         this.hobbies.join(','),
         this.careTip,
         this.emergencyName,
@@ -242,7 +250,7 @@ export default {
             this.emergencyName = res.displayName
           }
           if (res && res.phoneNumber) {
-            this.emergencyPhone = res.phoneNumber
+            this.emergencyPhone = normalizePhone(res.phoneNumber)
           }
         },
         fail: (err) => {
@@ -280,8 +288,33 @@ export default {
         uni.showToast({ title: '小习惯最多 100 个字', icon: 'none' })
         return
       }
-      if (!this.addressArea.trim() && (this.addressLabel.trim() || this.addressDetail.trim())) {
-        uni.showToast({ title: '地址的"小区/区域"填一下才能保存', icon: 'none' })
+      const emergencyName = this.emergencyName.trim()
+      const emergencyPhone = normalizePhone(this.emergencyPhone)
+      const ownPhone = normalizePhone(this.phone)
+      if (emergencyPhone && !emergencyName) {
+        uni.showModal({
+          title: '紧急联系人',
+          content: '电话已经填好了，再把姓名也填上吧，方便需要时说明找谁。',
+          showCancel: false,
+          confirmText: '知道了'
+        })
+        return
+      }
+      if (emergencyName && !emergencyPhone) {
+        uni.showModal({
+          title: '紧急联系人',
+          content: '姓名已经填好了，再把电话也填上吧，遇到突发情况才能联系到人。',
+          showCancel: false,
+          confirmText: '知道了'
+        })
+        return
+      }
+      if (emergencyPhone && !MOBILE_PATTERN.test(emergencyPhone)) {
+        uni.showToast({ title: '请填 11 位手机号', icon: 'none' })
+        return
+      }
+      if (ownPhone && !MOBILE_PATTERN.test(ownPhone)) {
+        uni.showToast({ title: '请填 11 位手机号', icon: 'none' })
         return
       }
       const payload = { hobbies: this.hobbies }
@@ -292,9 +325,9 @@ export default {
         payload.age = age
       }
       payload.careTip = this.careTip
-      payload.emergencyContactName = this.emergencyName
-      payload.emergencyContactPhone = this.emergencyPhone
-      payload.phone = this.phone
+      payload.emergencyContactName = emergencyName
+      payload.emergencyContactPhone = emergencyPhone
+      payload.phone = ownPhone
       // 头像：本地临时路径先上传成 /files 相对地址
       if (this.avatarUrl && this.avatarUrl !== (this.userStore.avatarUrl || '')) {
         try {
@@ -309,14 +342,6 @@ export default {
       }
       try {
         await updateProfile(payload)
-        if (this.addressArea.trim()) {
-          await createAddress({
-            label: this.addressLabel.trim() || '家',
-            areaText: this.addressArea.trim(),
-            detailText: this.addressDetail.trim() || null,
-            isDefault: 1
-          })
-        }
         await this.userStore.loadProfile()
         // 已保存：解除返回拦截，避免保存后仍弹“未保存”
         this.dirty = false

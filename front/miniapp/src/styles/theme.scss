@@ -449,13 +449,20 @@ page {
 
 /* ============================ 表单 ============================ */
 .wg-input {
-  min-height: var(--wg-btn-min-height);
+  min-width: 100%;
+  box-sizing: border-box;
+  height: var(--wg-btn-min-height);
   border: var(--wg-border);
   border-radius: var(--wg-radius-sm);
   padding: 0 12px;
   margin-top: 8px;
   background-color: var(--wg-surface);
   font-size: var(--wg-font-base);
+}
+
+/* 仅用于 view 型输入框（地址/申诉选择器）的垂直居中；
+   原生 input 不能加 display:flex，否则内部可编辑区不撑满外框、长文字被裁 */
+.wg-input-view {
   display: flex;
   align-items: center;
 }

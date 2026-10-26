@@ -74,6 +74,19 @@ public class UserService {
             profile.setUserId(uid);
         }
 
+        // D52：紧急联系人姓名与电话必须成对；仅在请求涉及联系人字段时校验，不影响无关资料更新
+        if (request.getEmergencyContactName() != null || request.getEmergencyContactPhone() != null) {
+            String effectiveName = request.getEmergencyContactName() != null
+                    ? request.getEmergencyContactName() : profile.getEmergencyContactName();
+            String effectivePhone = request.getEmergencyContactPhone() != null
+                    ? request.getEmergencyContactPhone() : profile.getEmergencyContactPhone();
+            boolean hasName = effectiveName != null && !effectiveName.isBlank();
+            boolean hasPhone = effectivePhone != null && !effectivePhone.isBlank();
+            if (hasName != hasPhone) {
+                throw new BizException(ErrorCode.PARAM_INVALID, "紧急联系人的姓名和电话要一起填");
+            }
+        }
+
         if (request.getHobbies() != null) {
             requireAllHobbies(request.getHobbies());
             profile.setHobbies(JsonUtils.toJson(request.getHobbies()));
@@ -285,6 +298,7 @@ public class UserService {
         vo.setHasPrivacyAgreed(configService.get("privacy.policy_version", "v1.0").equals(user.getPrivacyVersion()));
         vo.setRetentionDays(configService.getInt("compliance.retention_days", 180));
         vo.setElderAgeThreshold(configService.getInt("elder.age_threshold", 60));
+        vo.setPrivacyVersion(configService.get("privacy.policy_version", "v1.0"));
         return vo;
     }
 }

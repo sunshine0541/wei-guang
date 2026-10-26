@@ -21,6 +21,11 @@ export function cancelArbitrate(id, data) {
   return request.post(`/admin/orders/${id}/cancel-arbitrate`, data)
 }
 
+/** 4C 风险核实：result=NORMAL/DEDUCT + note */
+export function riskReview(id, data) {
+  return request.post(`/admin/orders/${id}/risk-review`, data)
+}
+
 export function listReports(params) {
   return request.get('/admin/reports', { params })
 }

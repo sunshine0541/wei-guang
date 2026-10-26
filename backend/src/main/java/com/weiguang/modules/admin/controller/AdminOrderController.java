@@ -6,7 +6,9 @@ import com.weiguang.infra.interceptor.AuthContext;
 import com.weiguang.modules.admin.dto.AdminOrderDetailVO;
 import com.weiguang.modules.admin.dto.AdminOrderVO;
 import com.weiguang.modules.admin.dto.CancelArbitrateRequest;
+import com.weiguang.modules.admin.dto.RiskReviewRequest;
 import com.weiguang.modules.admin.service.AdminOrderService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,14 +30,15 @@ public class AdminOrderController {
         this.adminOrderService = adminOrderService;
     }
 
-    /** 订单列表（状态/类型/关键词筛选，分页） */
+    /** 订单列表（状态/类型/关键词/风险筛选，分页） */
     @GetMapping
     public Result<PageVO<AdminOrderVO>> list(@RequestParam(required = false) String status,
                                              @RequestParam(required = false) String orderType,
                                              @RequestParam(required = false) String keyword,
+                                             @RequestParam(required = false) String riskStatus,
                                              @RequestParam(required = false) Long page,
                                              @RequestParam(required = false) Long pageSize) {
-        return Result.ok(adminOrderService.list(status, orderType, keyword, page, pageSize));
+        return Result.ok(adminOrderService.list(status, orderType, keyword, riskStatus, page, pageSize));
     }
 
     /** 订单详情（时间线/双方/聊天记录门控/裁决可用标记） */
@@ -48,6 +51,13 @@ public class AdminOrderController {
     @PostMapping("/{id}/cancel-arbitrate")
     public Result<Void> cancelArbitrate(@PathVariable Long id, @RequestBody CancelArbitrateRequest request) {
         adminOrderService.cancelArbitrate(AuthContext.getAdminId(), id, request);
+        return Result.ok();
+    }
+
+    /** 风险核实（NORMAL/DEDUCT + 备注） */
+    @PostMapping("/{id}/risk-review")
+    public Result<Void> riskReview(@PathVariable Long id, @Valid @RequestBody RiskReviewRequest request) {
+        adminOrderService.riskReview(AuthContext.getAdminId(), id, request);
         return Result.ok();
     }
 }

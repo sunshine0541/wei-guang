@@ -13,6 +13,7 @@ import com.weiguang.modules.admin.dto.AdminOrderDetailVO;
 import com.weiguang.modules.admin.dto.AdminOrderVO;
 import com.weiguang.modules.admin.dto.AdminUserBriefVO;
 import com.weiguang.modules.admin.dto.CancelArbitrateRequest;
+import com.weiguang.modules.admin.dto.RiskReviewRequest;
 import com.weiguang.modules.appeal.entity.Appeal;
 import com.weiguang.modules.appeal.mapper.AppealMapper;
 import com.weiguang.modules.chat.dto.MessageVO;
@@ -72,6 +73,7 @@ public class AdminOrderService {
     private final NotifyService notifyService;
     private final WsSessionRegistry wsSessionRegistry;
     private final ConfigService configService;
+    private final OrderRiskService orderRiskService;
 
     public AdminOrderService(HelpOrderMapper helpOrderMapper,
                              UserMapper userMapper,
@@ -84,7 +86,8 @@ public class AdminOrderService {
                              OrderTimelineRecorder timelineRecorder,
                              NotifyService notifyService,
                              WsSessionRegistry wsSessionRegistry,
-                             ConfigService configService) {
+                             ConfigService configService,
+                             OrderRiskService orderRiskService) {
         this.helpOrderMapper = helpOrderMapper;
         this.userMapper = userMapper;
         this.userProfileMapper = userProfileMapper;
@@ -97,19 +100,46 @@ public class AdminOrderService {
         this.notifyService = notifyService;
         this.wsSessionRegistry = wsSessionRegistry;
         this.configService = configService;
+        this.orderRiskService = orderRiskService;
     }
 
-    /** GET /admin/orders 列表（状态/类型/关键词筛选，分页） */
-    public PageVO<AdminOrderVO> list(String status, String orderType, String keyword, Long page, Long pageSize) {
-        Page<HelpOrder> result = helpOrderMapper.selectPage(
-                new Page<>(PageUtils.normalizePage(page), PageUtils.normalizeSize(pageSize)),
-                Wrappers.<HelpOrder>lambdaQuery()
-                        .eq(status != null && !status.isBlank(), HelpOrder::getStatus, status)
-                        .eq(orderType != null && !orderType.isBlank(), HelpOrder::getOrderType, orderType)
-                        .like(keyword != null && !keyword.isBlank(), HelpOrder::getTitle, keyword)
-                        .orderByDesc(HelpOrder::getId));
-        Map<Long, String> nicknames = nicknames(collectUserIds(result.getRecords()));
-        return PageVO.of(result.convert(order -> toVO(order, nicknames)));
+    /** GET /admin/orders 列表（状态/类型/关键词/风险筛选，分页） */
+    public PageVO<AdminOrderVO> list(String status, String orderType, String keyword, String riskStatus,
+                                     Long page, Long pageSize) {
+        var wrapper = Wrappers.<HelpOrder>lambdaQuery()
+                .eq(status != null && !status.isBlank(), HelpOrder::getStatus, status)
+                .eq(orderType != null && !orderType.isBlank(), HelpOrder::getOrderType, orderType)
+                .like(keyword != null && !keyword.isBlank(), HelpOrder::getTitle, keyword)
+                .orderByDesc(HelpOrder::getId);
+        boolean riskFilter = "SUSPICIOUS".equals(riskStatus) || "REVIEWED".equals(riskStatus);
+        if (!riskFilter) {
+            Page<HelpOrder> result = helpOrderMapper.selectPage(
+                    new Page<>(PageUtils.normalizePage(page), PageUtils.normalizeSize(pageSize)), wrapper);
+            Map<Long, String> nicknames = nicknames(collectUserIds(result.getRecords()));
+            return PageVO.of(result.convert(order -> toVO(order, nicknames)));
+        }
+
+        // 风险判定依赖实时配置，SQL 无法直接过滤：先取候选集，再在内存中筛选与分页
+        List<HelpOrder> candidates = helpOrderMapper.selectList(wrapper);
+        List<HelpOrder> filtered = candidates.stream()
+                .filter(order -> {
+                    boolean reviewed = order.getRiskReviewedAt() != null;
+                    if ("REVIEWED".equals(riskStatus)) {
+                        return reviewed;
+                    }
+                    return !reviewed && orderRiskService.evaluate(order).suspicious();
+                })
+                .toList();
+        long current = PageUtils.normalizePage(page);
+        long size = PageUtils.normalizeSize(pageSize);
+        int from = (int) Math.min(filtered.size(), (current - 1) * size);
+        int to = (int) Math.min(filtered.size(), from + size);
+        List<HelpOrder> pageOrders = filtered.subList(from, to);
+        Map<Long, String> nicknames = nicknames(collectUserIds(pageOrders));
+        Page<AdminOrderVO> voPage = new Page<>(current, size);
+        voPage.setRecords(pageOrders.stream().map(order -> toVO(order, nicknames)).toList());
+        voPage.setTotal(filtered.size());
+        return PageVO.of(voPage);
     }
 
     /** GET /admin/orders/{id} 详情（时间线 + 双方 + 聊天记录门控 + 裁决可用标记） */
@@ -147,6 +177,16 @@ public class AdminOrderService {
         vo.setCancelPendingDeadline(order.getCancelPendingDeadline());
         vo.setCancelArbitrateAt(order.getCancelArbitrateAt());
         vo.setAppealDeadline(order.getAppealDeadline());
+        vo.setCompleteRequestedAt(order.getCompleteRequestedAt());
+        OrderRiskService.RiskInfo risk = orderRiskService.evaluate(order);
+        vo.setDurationMinutes(risk.evaluated() ? risk.durationMinutes() : null);
+        vo.setMinMinutes(risk.evaluated() ? risk.minMinutes() : null);
+        vo.setRiskCategories(risk.categories());
+        vo.setSuspicious(risk.evaluated() ? risk.suspicious() : null);
+        vo.setRiskReviewAvailable(risk.evaluated() && order.getRiskReviewedAt() == null);
+        vo.setRiskReviewedAt(order.getRiskReviewedAt());
+        vo.setRiskReviewResult(order.getRiskReviewResult());
+        vo.setRiskReviewNote(order.getRiskReviewNote());
         vo.setRequester(brief(order.getRequesterId()));
         vo.setHelper(order.getHelperId() == null ? null : brief(order.getHelperId()));
 
@@ -241,6 +281,40 @@ public class AdminOrderService {
         log.info("协商取消裁决：order={} decision={} admin={}", orderId, decision, adminId);
     }
 
+    /** POST /admin/orders/{id}/risk-review 风险核实（NORMAL/DEDUCT；扣分走既有用户微光值调整） */
+    @Transactional
+    public void riskReview(Long adminId, Long orderId, RiskReviewRequest request) {
+        String result = request == null ? null : request.getResult();
+        if (!"NORMAL".equals(result) && !"DEDUCT".equals(result)) {
+            throw new BizException(ErrorCode.PARAM_INVALID);
+        }
+        String note = request.getNote() == null ? null : request.getNote().trim();
+        if (note != null && note.length() > CONCLUSION_MAX) {
+            throw new BizException(ErrorCode.CONTENT_TOO_LONG);
+        }
+        HelpOrder order = helpOrderMapper.selectById(orderId);
+        if (order == null) {
+            throw new BizException(ErrorCode.FORBIDDEN);
+        }
+        if (!"COMPLETED".equals(order.getStatus())) {
+            throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
+        }
+        LocalDateTime now = LocalDateTime.now();
+        int rows = helpOrderMapper.update(null, Wrappers.<HelpOrder>lambdaUpdate()
+                .eq(HelpOrder::getId, orderId)
+                .eq(HelpOrder::getStatus, "COMPLETED")
+                .set(HelpOrder::getRiskReviewedAt, now)
+                .set(HelpOrder::getRiskReviewResult, result)
+                .set(HelpOrder::getRiskReviewNote, note));
+        if (rows == 0) {
+            throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
+        }
+        String remark = "风险核实：" + ("NORMAL".equals(result) ? "正常" : "已扣分")
+                + (note == null || note.isBlank() ? "" : "（" + note + "）");
+        timelineRecorder.record(orderId, "ADMIN_ACTION", ADMIN_TIMELINE_OPERATOR, remark);
+        log.info("风险核实：order={} result={} admin={}", orderId, result, adminId);
+    }
+
     private AdminOrderVO toVO(HelpOrder order, Map<Long, String> nicknames) {
         AdminOrderVO vo = new AdminOrderVO();
         vo.setId(order.getId());
@@ -254,6 +328,13 @@ public class AdminOrderService {
         vo.setHelperNickname(order.getHelperId() == null ? null : nicknames.get(order.getHelperId()));
         vo.setCancelPendingBy(order.getCancelPendingBy());
         vo.setCreatedAt(order.getCreatedAt());
+        OrderRiskService.RiskInfo risk = orderRiskService.evaluate(order);
+        vo.setDurationMinutes(risk.evaluated() ? risk.durationMinutes() : null);
+        vo.setMinMinutes(risk.evaluated() ? risk.minMinutes() : null);
+        vo.setRiskCategories(risk.categories());
+        vo.setSuspicious(risk.evaluated() ? risk.suspicious() : null);
+        vo.setRiskReviewedAt(order.getRiskReviewedAt());
+        vo.setRiskReviewResult(order.getRiskReviewResult());
         return vo;
     }
 

@@ -43,6 +43,41 @@
       </div>
     </el-card>
 
+    <!-- 4C 保底时长风险核实 -->
+    <el-card v-if="order.suspicious || order.riskReviewedAt" class="mt" :class="{ 'risk-box': order.suspicious }">
+      <template #header>
+        <span :class="order.suspicious ? 'risk-title' : ''">保底时长风险</span>
+        <span class="muted">
+          实际用时 {{ order.durationMinutes }} 分钟 / 保底 {{ order.minMinutes }} 分钟（{{ (order.riskCategories || []).join('、') }}）
+        </span>
+      </template>
+      <div>
+        <el-tag v-if="order.riskReviewedAt" :type="order.riskReviewResult === 'DEDUCT' ? 'danger' : 'success'">
+          {{ order.riskReviewResult === 'DEDUCT' ? '已核实：确认有问题（已扣分）' : '已核实：正常' }}
+        </el-tag>
+        <el-tag v-else type="danger">存疑：用时低于保底，请人工核实</el-tag>
+        <span v-if="order.riskReviewedAt" class="muted">核实时间 {{ order.riskReviewedAt }}</span>
+        <div v-if="order.riskReviewNote" class="muted">备注：{{ order.riskReviewNote }}</div>
+      </div>
+      <el-form v-if="order.riskReviewAvailable" inline class="mt">
+        <el-form-item label="核实结果">
+          <el-radio-group v-model="riskForm.result">
+            <el-radio value="NORMAL">正常</el-radio>
+            <el-radio value="DEDUCT">确认有问题（微光值已调整）</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="riskForm.note" placeholder="联系情况/核实说明（可选）" style="width: 280px" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" :loading="reviewing" @click="doRiskReview">标记已核实</el-button>
+        </el-form-item>
+      </el-form>
+      <div v-if="order.riskReviewAvailable" class="muted">
+        如需扣减微光值，请到发布者/接单者的用户详情使用「微光值调整」，再回到这里标记。
+      </div>
+    </el-card>
+
     <!-- 协商取消裁决操作区：仅挂起单显示（详设 §6.3） -->
     <el-card v-if="order.cancelArbitrateAvailable" class="mt arbitrate-box">
       <template #header>
@@ -97,7 +132,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { cancelArbitrate, getOrderDetail } from '../api/admin'
+import { cancelArbitrate, getOrderDetail, riskReview } from '../api/admin'
 import { ORDER_STATUS_LABELS, ORDER_TYPE_LABELS, TIMELINE_LABELS, OPERATOR_ROLE_LABELS } from '../utils/labels'
 
 const route = useRoute()
@@ -106,6 +141,8 @@ const order = ref(null)
 const chatVisible = ref(false)
 const arbitrating = ref(false)
 const arbitrateForm = reactive({ conclusion: '' })
+const reviewing = ref(false)
+const riskForm = reactive({ result: 'NORMAL', note: '' })
 
 function statusTag(status) {
   if (status === 'COMPLETED') return 'success'
@@ -162,6 +199,29 @@ onMounted(async () => {
   order.value = await getOrderDetail(route.params.id)
 })
 
+async function doRiskReview() {
+  if (riskForm.result === 'DEDUCT') {
+    try {
+      await ElMessageBox.confirm(
+        '确认这单有问题？请确保已通过「用户详情 → 微光值调整」完成扣分；本操作只记录核实结果。',
+        '风险核实',
+        { type: 'warning', confirmButtonText: '确认已扣分', cancelButtonText: '再想想' }
+      )
+    } catch {
+      return
+    }
+  }
+  reviewing.value = true
+  try {
+    await riskReview(order.value.id, { result: riskForm.result, note: riskForm.note || undefined })
+    ElMessage.success('已记录核实结果')
+    order.value = await getOrderDetail(order.value.id)
+    riskForm.note = ''
+  } finally {
+    reviewing.value = false
+  }
+}
+
 function goBack() {
   router.push('/orders')
 }
@@ -201,6 +261,16 @@ function goBack() {
 
 .arbitrate-box {
   border: 1px solid #e6a23c;
+}
+
+.risk-box {
+  border: 1px solid #f56c6c;
+}
+
+.risk-title {
+  color: #f56c6c;
+  font-weight: 600;
+  margin-right: 12px;
 }
 
 .warn-title {

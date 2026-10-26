@@ -16,7 +16,7 @@
         :value="pickerIndex"
         @change="onOrderChange"
       >
-        <view class="wg-input">{{ selectedLabel }}</view>
+        <view class="wg-input wg-input-view">{{ selectedLabel }}</view>
       </picker>
       <view v-else>
         <view class="wg-label" style="margin-top: 8px">暂无可申诉的求助</view>
@@ -35,7 +35,15 @@
       <view class="wg-label" style="margin-top: 12px">上传凭证（可选，最多一张）</view>
       <view class="wg-evidence">
         <view v-if="evidencePreview" class="wg-evidence-thumb">
-          <image class="wg-evidence-img" :src="evidencePreview" mode="aspectFill" @click="previewEvidence" />
+          <WgImage
+            class="wg-evidence-img"
+            :src="evidencePreview"
+            :width="96"
+            :height="96"
+            radius="8px"
+            mode="aspectFill"
+            @click="previewEvidence"
+          />
           <view class="wg-evidence-remove" @click.stop="removeEvidence">×</view>
         </view>
         <view v-else class="wg-evidence-add" @click="pickEvidence">
@@ -76,16 +84,23 @@
           </view>
           <view v-if="item.orderTitle" class="wg-label">关联求助：{{ item.orderTitle }}</view>
           <view class="wg-label">{{ item.reason }}</view>
-          <image
+          <WgImage
             v-if="item.evidenceUrl"
             class="wg-evidence-img"
-            :src="fileUrl(item.evidenceUrl)"
+            :src="item.evidenceUrl"
+            :width="96"
+            :height="96"
+            radius="8px"
             mode="aspectFill"
             @click="previewImage(item.evidenceUrl)"
           />
           <view v-if="item.conclusion" class="wg-label">处理结果：{{ item.conclusion }}</view>
           <view class="wg-label">
             {{ item.createdAt }}<template v-if="item.resolvedAt"> · 已处理 {{ item.resolvedAt }}</template>
+          </view>
+          <!-- B：查看处理详情（数据经本地传递，免新增接口） -->
+          <view class="wg-btn wg-btn-plain" style="margin-top: 8px" @click.stop="goDetail(item)">
+            查看处理详情
           </view>
           <!-- B：处理中的申诉/反馈可撤回 -->
           <view
@@ -107,13 +122,16 @@ import { useUserStore } from '@/store/user'
 import { listMyOrders } from '@/api/order'
 import { getMyAppeals, submitAppeal, submitFeedback, withdrawAppeal } from '@/api/appeal'
 import { uploadImage } from '@/utils/upload'
-import { BASE_URL, MESSAGES } from '@/utils/constants'
+import { MESSAGES, STORAGE_KEYS } from '@/utils/constants'
+import { resolveLocalImage } from '@/utils/image'
+import WgImage from '@/components/WgImage.vue'
 
 /* P17 写死文案（详设 §6.2）：空态与提交成功 */
 const EMPTY_TEXT = '您还没有提交过申诉或反馈'
 const SUBMIT_SUCCESS = '收到啦，我们会尽快处理。'
 
 export default {
+  components: { WgImage },
   data() {
     return {
       loading: true,
@@ -165,6 +183,10 @@ export default {
         return '已撤回'
       }
       return item.status === 'RESOLVED' ? '已处理' : '正在处理'
+    },
+    goDetail(item) {
+      uni.setStorageSync(STORAGE_KEYS.APPEAL_DETAIL, item)
+      uni.navigateTo({ url: '/pages/user/appeal-detail' })
     },
     switchTab(tab) {
       if (this.tab === tab) {
@@ -282,14 +304,11 @@ export default {
         uni.previewImage({ urls: [this.evidencePreview] })
       }
     },
-    fileUrl(url) {
-      if (!url) {
-        return ''
+    async previewImage(url) {
+      const src = await resolveLocalImage(url)
+      if (src) {
+        uni.previewImage({ urls: [src] })
       }
-      return url.indexOf('http') === 0 ? url : BASE_URL + url
-    },
-    previewImage(url) {
-      uni.previewImage({ urls: [this.fileUrl(url)] })
     },
     /** B：分类快选只改开头标记，不覆盖已写正文 */
     pickCategory(category) {

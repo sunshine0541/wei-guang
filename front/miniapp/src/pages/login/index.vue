@@ -7,11 +7,11 @@
 
     <view class="wg-card">
       <view class="wg-label">账号</view>
-      <input class="wg-input" :value="username" placeholder="4-20 位字母或数字" @input="username = $event.detail.value" />
+      <input class="wg-input" maxlength="20" :value="username" placeholder="4-20 位字母或数字" @input="username = $event.detail.value" />
       <view class="wg-label" style="margin-top: 12px">密码</view>
       <!-- B：小眼睛切换密码明文，减少年长用户输错 -->
       <view class="wg-pwd-row">
-        <input class="wg-input" :password="!showPassword" :value="password" placeholder="6-32 位" @input="password = $event.detail.value" />
+        <input class="wg-input" :password="!showPassword" maxlength="32" :value="password" placeholder="6-32 位" @input="password = $event.detail.value" />
         <view class="wg-pwd-eye" @click="showPassword = !showPassword">
           <u-icon :name="showPassword ? 'eye' : 'eye-off'" :size="20" />
         </view>
@@ -19,7 +19,7 @@
       <template v-if="mode === 'REGISTER'">
         <view class="wg-label" style="margin-top: 12px">再输一遍密码</view>
         <view class="wg-pwd-row">
-          <input class="wg-input" :password="!showPassword2" :value="password2" placeholder="两次要一样哦" @input="password2 = $event.detail.value" />
+          <input class="wg-input" :password="!showPassword2" maxlength="32" :value="password2" placeholder="两次要一样哦" @input="password2 = $event.detail.value" />
           <view class="wg-pwd-eye" @click="showPassword2 = !showPassword2">
             <u-icon :name="showPassword2 ? 'eye' : 'eye-off'" :size="20" />
           </view>
@@ -151,7 +151,6 @@ export default {
    点框内空白处无法聚焦；这里给足高度并显式指定 box-sizing，点哪都能聚焦 */
 .wg-pwd-row .wg-input {
   margin-top: 0;
-  width: 100%;
   height: var(--wg-btn-min-height);
   box-sizing: border-box;
   padding-right: 48px;

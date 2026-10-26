@@ -35,7 +35,13 @@
       >
         <view v-if="msg.messageType === 'SYSTEM'" class="wg-msg-system">{{ msg.content }}</view>
         <view v-else class="wg-msg-bubble" :class="{ 'wg-msg-bubble-mine': isMine(msg), 'wg-msg-bubble-warn': msg.riskFlag === 'HIGHLIGHT', 'wg-msg-bubble-strong': msg.riskFlag === 'STRONG' }">
-          <image v-if="msg.messageType === 'IMAGE'" :src="fileUrl(msg.content)" mode="widthFix" class="wg-msg-image" />
+          <WgImage
+            v-if="msg.messageType === 'IMAGE'"
+            :src="msg.content"
+            mode="widthFix"
+            fluid
+            class="wg-msg-image"
+          />
           <text v-else>{{ msg.content }}</text>
           <text v-if="msg.riskFlag === 'HIGHLIGHT'" class="wg-msg-note">涉及敏感内容，请多留个心眼</text>
           <text v-if="msg.pending" class="wg-msg-note">发送中…</text>
@@ -70,7 +76,7 @@
           </view>
         </scroll-view>
         <view class="wg-input-row">
-          <input class="wg-input" v-model="draft" placeholder="和邻居说点什么" @input="sendTyping" @confirm="sendText(draft)" />
+          <input class="wg-input" v-model="draft" maxlength="500" placeholder="和邻居说点什么" @input="sendTyping" @confirm="sendText(draft)" />
           <view class="wg-btn wg-btn-plain wg-send-side" @click="pickImage">图片</view>
           <view class="wg-btn wg-send-side" @click="sendText(draft)">发送</view>
         </view>
@@ -84,13 +90,15 @@ import { useUserStore } from '@/store/user'
 import { getCareTip, getSession, listMessages, listQuickPhrases, readSession, sendMessage } from '@/api/chat'
 import { wsClient } from '@/utils/ws'
 import { uploadImage } from '@/utils/upload'
-import { BASE_URL, MESSAGES } from '@/utils/constants'
+import { MESSAGES } from '@/utils/constants'
+import WgImage from '@/components/WgImage.vue'
 
 /* 防诈（详设 §5.3 写死；与后端 FraudPipeline.ALERT_MESSAGE / WsEnvelope.CODE_FRAUD_ALERT 一致） */
 const FRAUD_ALERT_TEXT = '为了您的安全，请不要把验证码、银行卡、密码等信息告诉任何人。真正的邻居不会向您索要这些。'
 const WS_CODE_FRAUD_ALERT = 49001
 
 export default {
+  components: { WgImage },
   data() {
     return {
       orderId: null,
@@ -192,12 +200,6 @@ export default {
       } else {
         uni.reLaunch({ url: '/pages/index/index' })
       }
-    },
-    fileUrl(url) {
-      if (!url) {
-        return ''
-      }
-      return url.indexOf('http') === 0 ? url : BASE_URL + url
     },
     callFamily() {
       uni.makePhoneCall({
@@ -494,6 +496,7 @@ export default {
 
 .wg-input-row .wg-input {
   flex: 1;
+  min-width: 0;
   margin-right: 8px;
 }
 

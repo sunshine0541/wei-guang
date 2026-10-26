@@ -13,6 +13,9 @@ public class AddressVO {
     private String label;
     private String areaText;
     private String detailText;
+    /** POI 坐标：仅返回给本人地址簿，用于编辑回显与距离计算 */
+    private Double latitude;
+    private Double longitude;
     private Integer isDefault;
 
     public static AddressVO from(AddressBook address) {
@@ -21,6 +24,8 @@ public class AddressVO {
         vo.setLabel(address.getLabel());
         vo.setAreaText(address.getAreaText());
         vo.setDetailText(address.getDetailText());
+        vo.setLatitude(address.getLatitude());
+        vo.setLongitude(address.getLongitude());
         vo.setIsDefault(address.getIsDefault());
         return vo;
     }

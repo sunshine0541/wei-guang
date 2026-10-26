@@ -52,6 +52,7 @@ import { useUserStore } from '@/store/user'
 import { getOrder } from '@/api/order'
 import { confirmOrder } from '@/api/incentive'
 import { MESSAGES, ORDER_TYPE_LABELS } from '@/utils/constants'
+import { wsClient } from '@/utils/ws'
 
 export default {
   data() {
@@ -60,7 +61,10 @@ export default {
       orderId: null,
       order: null,
       /** B：拒绝确认后展示说明卡的标记 */
-      rejectDone: false
+      rejectDone: false,
+      /** 4D-补5：状态推送退订函数与防抖计时器 */
+      wsOff: null,
+      wsTimer: null
     }
   },
   computed: {
@@ -114,6 +118,17 @@ export default {
   onLoad(options) {
     this.orderId = options.id
     this.load()
+    this.bindOrderStatus()
+  },
+  onUnload() {
+    if (this.wsOff) {
+      this.wsOff()
+      this.wsOff = null
+    }
+    if (this.wsTimer) {
+      clearTimeout(this.wsTimer)
+      this.wsTimer = null
+    }
   },
   methods: {
     typeLabel(type) {
@@ -134,16 +149,42 @@ export default {
         uni.redirectTo({ url: `/pages/order/room?id=${this.orderId}` })
       }
     },
-    async load() {
-      this.loading = true
+    async load(silent = false) {
+      if (!silent) {
+        this.loading = true
+      }
       try {
         this.order = await getOrder(this.orderId)
       } catch (e) {
         console.error('[微光] 确认页加载失败', e)
-        this.order = null
+        if (!silent) {
+          this.order = null
+        }
       } finally {
-        this.loading = false
+        if (!silent) {
+          this.loading = false
+        }
       }
+    },
+    /** 4D-补5：订阅状态推送，对方取消/申诉/已确认时页面按钮实时更新 */
+    bindOrderStatus() {
+      wsClient.connect()
+      this.wsOff = wsClient.onMessage((envelope) => {
+        if (!envelope || envelope.type !== 'ORDER_STATUS') {
+          return
+        }
+        const payload = envelope.payload || {}
+        if (String(payload.orderId) !== String(this.orderId)) {
+          return
+        }
+        if (this.wsTimer) {
+          clearTimeout(this.wsTimer)
+        }
+        this.wsTimer = setTimeout(() => {
+          this.wsTimer = null
+          this.load(true)
+        }, 300)
+      })
     },
     agree() {
       uni.showModal({
@@ -166,6 +207,9 @@ export default {
       } catch (e) {
         console.error('[微光] 确认失败', e)
         uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
+        if (e && (e.code === 40002 || e.code === 40003)) {
+          this.load(true)
+        }
       }
     },
     /** B：预设原因快选，减少打字（"其他原因"仍走手写） */
@@ -209,6 +253,9 @@ export default {
       } catch (e) {
         console.error('[微光] 拒绝确认失败', e)
         uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
+        if (e && (e.code === 40002 || e.code === 40003)) {
+          this.load(true)
+        }
       }
     }
   }

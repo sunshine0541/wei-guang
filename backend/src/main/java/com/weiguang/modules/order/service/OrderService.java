@@ -30,6 +30,7 @@ import com.weiguang.modules.notify.service.NotifyService;
 import com.weiguang.modules.order.dto.AcceptVO;
 import com.weiguang.modules.order.dto.CareTipVO;
 import com.weiguang.modules.order.dto.MyOrderVO;
+import com.weiguang.modules.order.dto.ModifyOrderRequest;
 import com.weiguang.modules.order.dto.OrderCardVO;
 import com.weiguang.modules.order.dto.OrderDetailVO;
 import com.weiguang.modules.order.dto.PublishRequest;
@@ -72,6 +73,7 @@ public class OrderService {
 
     private static final String BLOCK_MESSAGE = "这段话里有些内容我们可能帮不上，换一种说法试试？";
     private static final String PENDING_LIMIT_MESSAGE = "您还有求助在等待邻居响应，先等它们被看到，再发新的吧";
+    private static final String EMERGENCY_CONTACT_MESSAGE = "上门/外出类求助需要先填写紧急联系人的姓名和电话，方便服务过程中有突发情况时联系";
     private static final String BROWSE_DEDUP_KEY_PREFIX = "browse:dedup:";
     private static final int AI_SUGGEST_TEXT_MAX_LENGTH = 500;
     /** O15 照护提示卡可见状态：接单后至服务结束，结束即收回 */
@@ -172,13 +174,14 @@ public class OrderService {
         }
         OrderType orderType = OrderType.valueOf(request.getOrderType());
 
-        validateTitleAndDescription(request);
+        validateTitleAndDescription(request.getTitle(), request.getDescription());
         List<String> tags = validateTags(request.getTags());
         if (request.getTimeExpect() != null && !TimeExpect.isValid(request.getTimeExpect())) {
             throw new BizException(ErrorCode.PARAM_INVALID);
         }
 
         AddressSnapshot address = resolveAddress(uid, orderType, request.getAddressId());
+        requireEmergencyContact(profile, orderType);
 
         if (OrderSource.REPEAT.name().equals(source)) {
             requireOwnExpiredOrder(uid, request.getRepeatFromOrderId());
@@ -195,7 +198,8 @@ public class OrderService {
         int urgentFlag = request.getUrgentFlag() != null && request.getUrgentFlag() == 1 ? 1 : 0;
         HelpOrder order = buildOrder(uid, user, profile, source, orderType, urgentFlag,
                 request.getTitle(), request.getDescription(), tags, request.getTimeExpect(),
-                address.area(), address.detail(), normalizeExtraTag(request.getExtraTag()));
+                address.area(), address.detail(), address.lat(), address.lng(),
+                normalizeExtraTag(request.getExtraTag()));
         helpOrderMapper.insert(order);
         timelineRecorder.record(order.getId(), "PUBLISH", uid, null);
         touchInteraction(uid);
@@ -215,11 +219,12 @@ public class OrderService {
         requirePendingLimit(uid);
 
         OrderType orderType = OrderType.valueOf(origin.getOrderType());
+        requireEmergencyContact(profile, orderType);
         HelpOrder order = buildOrder(uid, user, profile, OrderSource.REPEAT.name(), orderType,
                 origin.getUrgentFlag() == null ? 0 : origin.getUrgentFlag(),
                 origin.getTitle(), origin.getDescription(), JsonUtils.toStringList(origin.getTags()),
                 origin.getTimeExpect(), origin.getAddressArea(), origin.getAddressDetail(),
-                origin.getExtraTag());
+                origin.getAddressLat(), origin.getAddressLng(), origin.getExtraTag());
         helpOrderMapper.insert(order);
         timelineRecorder.record(order.getId(), "PUBLISH", uid, "一键重发");
         timelineRecorder.record(origin.getId(), "REPUBLISH", uid, "已重发为新单 " + order.getId());
@@ -227,6 +232,74 @@ public class OrderService {
         // 一键重发同属发布事件（详设 §4.2）
         lightService.onPublish(uid);
         return new PublishVO(order.getId(), false);
+    }
+
+    /** O16 修改待响应求助：仅发布者、仅 PENDING；类型与地址不可改（D53） */
+    @Transactional
+    public void modify(Long uid, Long orderId, ModifyOrderRequest request) {
+        HelpOrder order = helpOrderMapper.selectById(orderId);
+        if (order == null || !uid.equals(order.getRequesterId())) {
+            throw new BizException(ErrorCode.FORBIDDEN);
+        }
+        if (!OrderStatus.PENDING.name().equals(order.getStatus())) {
+            throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
+        }
+        validateTitleAndDescription(request.getTitle(), request.getDescription());
+        List<String> tags = request.getTags() == null
+                ? JsonUtils.toStringList(order.getTags()) : validateTags(request.getTags());
+        String timeExpect = request.getTimeExpect() == null ? order.getTimeExpect() : request.getTimeExpect();
+        if (timeExpect != null && !TimeExpect.isValid(timeExpect)) {
+            throw new BizException(ErrorCode.PARAM_INVALID);
+        }
+        String content = (request.getTitle() == null ? "" : request.getTitle())
+                + (request.getDescription() == null ? "" : request.getDescription());
+        if (sensitiveWordService.hit(content, SensitiveWordService.ACTION_BLOCK)) {
+            throw new BizException(ErrorCode.CONTENT_BLOCKED, BLOCK_MESSAGE);
+        }
+
+        int existingUrgent = order.getUrgentFlag() == null ? 0 : order.getUrgentFlag();
+        int urgentFlag = request.getUrgentFlag() == null
+                ? existingUrgent : (request.getUrgentFlag() == 1 ? 1 : 0);
+        OrderType orderType = OrderType.valueOf(order.getOrderType());
+        int urgencyBase = configService.getInt(orderType.urgencyBaseConfigKey(), 1);
+        int urgencyScore = urgencyBase + urgentFlag * configService.getInt("urgency.urgent_weight", 3);
+        // 截止时间：只有「希望什么时候」或急标变化时才重算，避免靠编辑续命
+        boolean deadlineChanged = urgentFlag != existingUrgent
+                || (timeExpect != null && !timeExpect.equals(order.getTimeExpect()));
+        LocalDateTime publishDeadline = deadlineChanged
+                ? PublishDeadlinePolicy.resolve(
+                        timeExpect,
+                        urgentFlag,
+                        configService.getInt("order.pending_timeout_urgent_hours", 6),
+                        configService.getInt("order.pending_timeout_hours", 24),
+                        configService.getInt("order.zombie_clean_days", 7))
+                : order.getPublishDeadline();
+        String extraTag = request.getExtraTag() == null
+                ? order.getExtraTag() : normalizeExtraTag(request.getExtraTag());
+        UserProfile profile = findProfile(uid);
+        Integer age = profile == null ? null : profile.getAge();
+        int agePriority = age != null && age >= configService.getInt("elder.age_threshold", 60) ? 1 : 0;
+
+        int version = order.getVersion() == null ? 0 : order.getVersion();
+        int rows = helpOrderMapper.update(null, Wrappers.<HelpOrder>lambdaUpdate()
+                .eq(HelpOrder::getId, orderId)
+                .eq(HelpOrder::getStatus, OrderStatus.PENDING.name())
+                .eq(HelpOrder::getVersion, version)
+                .set(HelpOrder::getTitle, request.getTitle())
+                .set(HelpOrder::getDescription, request.getDescription())
+                .set(HelpOrder::getTags, JsonUtils.toJson(tags))
+                .set(HelpOrder::getExtraTag, extraTag)
+                .set(HelpOrder::getTimeExpect, timeExpect)
+                .set(HelpOrder::getUrgentFlag, urgentFlag)
+                .set(HelpOrder::getUrgencyBase, urgencyBase)
+                .set(HelpOrder::getUrgencyScore, urgencyScore)
+                .set(HelpOrder::getAgePriority, agePriority)
+                .set(HelpOrder::getPublishDeadline, publishDeadline)
+                .set(HelpOrder::getVersion, version + 1));
+        if (rows == 0) {
+            throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
+        }
+        timelineRecorder.record(orderId, "MODIFY", uid, "修改了求助内容");
     }
 
     /**
@@ -417,8 +490,9 @@ public class OrderService {
                 requester == null ? null : requester.getCareTip());
     }
 
-    /** O3 求助列表（tab=all|recommend；响应不含 age_priority 与发布者年龄） */
-    public PageVO<OrderCardVO> list(Long uid, String tab, String orderType, Boolean urgentOnly, Long page, Long pageSize) {
+    /** O3 求助列表（tab=all|recommend；sort=distance 时按直线距离升序，无坐标/本人单置后） */
+    public PageVO<OrderCardVO> list(Long uid, String tab, String orderType, Boolean urgentOnly,
+                                    String sort, Long page, Long pageSize) {
         if (orderType != null && !orderType.isBlank() && !OrderType.isValid(orderType)) {
             throw new BizException(ErrorCode.PARAM_INVALID);
         }
@@ -447,6 +521,47 @@ public class OrderService {
                 }
             });
         }
+
+        AddressBook myDefault = defaultAddress(uid);
+        boolean distanceSort = "distance".equals(sort) && hasGeo(myDefault);
+        if (distanceSort) {
+            // 距离排序在内存中完成：无坐标/本人发布的单排在后面，其余按直线距离升序
+            List<HelpOrder> candidates = helpOrderMapper.selectList(wrapper);
+            Map<Long, Double> distances = new HashMap<>();
+            for (HelpOrder order : candidates) {
+                distances.put(order.getId(), order.getRequesterId().equals(uid)
+                        ? null : distanceKm(myDefault, order));
+            }
+            candidates.sort((a, b) -> {
+                Double da = distances.get(a.getId());
+                Double db = distances.get(b.getId());
+                if (da == null && db == null) {
+                    return compareUrgency(a, b);
+                }
+                if (da == null) {
+                    return 1;
+                }
+                if (db == null) {
+                    return -1;
+                }
+                int cmp = Double.compare(da, db);
+                return cmp != 0 ? cmp : compareUrgency(a, b);
+            });
+            long current = PageUtils.normalizePage(page);
+            long size = PageUtils.normalizeSize(pageSize);
+            int from = (int) Math.min(candidates.size(), (current - 1) * size);
+            int to = (int) Math.min(candidates.size(), from + size);
+            List<HelpOrder> pageOrders = candidates.subList(from, to);
+            Map<Long, UserProfile> profiles = loadProfiles(pageOrders.stream()
+                    .map(HelpOrder::getRequesterId).toList());
+            Page<OrderCardVO> voPage = new Page<>(current, size);
+            voPage.setRecords(pageOrders.stream()
+                    .map(order -> toCard(order, profiles.get(order.getRequesterId()), uid, myDefault))
+                    .toList());
+            voPage.setTotal(candidates.size());
+            return PageVO.of(voPage);
+        }
+
         wrapper.orderByDesc(HelpOrder::getUrgencyScore)
                 .orderByDesc(HelpOrder::getAgePriority)
                 .orderByDesc(HelpOrder::getCreatedAt);
@@ -455,7 +570,8 @@ public class OrderService {
                 new Page<>(PageUtils.normalizePage(page), PageUtils.normalizeSize(pageSize)), wrapper);
         Map<Long, UserProfile> profiles = loadProfiles(result.getRecords().stream()
                 .map(HelpOrder::getRequesterId).toList());
-        return PageVO.of(result.convert(order -> toCard(order, profiles.get(order.getRequesterId()), uid)));
+        return PageVO.of(result.convert(order ->
+                toCard(order, profiles.get(order.getRequesterId()), uid, myDefault)));
     }
 
     /** O4 求助详情 + 浏览去重（Redis 预检 + order_view 唯一键；发布者本人不计数） */
@@ -505,9 +621,12 @@ public class OrderService {
         vo.setCanAppeal(appealService.canAppeal(order, uid));
         vo.setRequester(toRequester(profile));
         vo.setMine(mine);
-        // 地址分级：仅非发布者可见小区/区域；远程类不返回地址；门牌永不返回
+        // 地址分级：远程类不返回地址；门牌永不返回；小区/区域对发布者本人也返回（修改页只读展示，D53）
         boolean remote = OrderType.REMOTE.name().equals(order.getOrderType());
-        vo.setAddressArea(mine || remote ? null : order.getAddressArea());
+        vo.setAddressArea(remote ? null : order.getAddressArea());
+        if (!mine) {
+            vo.setDistanceKm(distanceKm(defaultAddress(uid), order));
+        }
         if (mine) {
             int views = order.getViewCount() == null ? 0 : order.getViewCount();
             vo.setViewTip("已有 " + views + " 位邻居看过您的求助");
@@ -561,7 +680,8 @@ public class OrderService {
 
     private HelpOrder buildOrder(Long uid, User user, UserProfile profile, String source, OrderType orderType,
                                  int urgentFlag, String title, String description, List<String> tags,
-                                 String timeExpect, String addressArea, String addressDetail, String extraTag) {
+                                 String timeExpect, String addressArea, String addressDetail,
+                                 Double addressLat, Double addressLng, String extraTag) {
         int urgencyBase = configService.getInt(orderType.urgencyBaseConfigKey(), 1);
         int urgencyScore = urgencyBase + urgentFlag * configService.getInt("urgency.urgent_weight", 3);
         Integer age = profile == null ? null : profile.getAge();
@@ -585,6 +705,8 @@ public class OrderService {
         order.setDescription(description);
         order.setAddressArea(addressArea);
         order.setAddressDetail(addressDetail);
+        order.setAddressLat(addressLat);
+        order.setAddressLng(addressLng);
         order.setTags(JsonUtils.toJson(tags));
         order.setExtraTag(extraTag);
         order.setTimeExpect(timeExpect);
@@ -610,15 +732,15 @@ public class OrderService {
         return value.length() > 10 ? value.substring(0, 10) : value;
     }
 
-    private void validateTitleAndDescription(PublishRequest request) {
-        if (request.getTitle() == null || request.getTitle().isBlank()) {
+    private void validateTitleAndDescription(String title, String description) {
+        if (title == null || title.isBlank()) {
             throw new BizException(ErrorCode.PARAM_INVALID);
         }
-        if (request.getTitle().length() > configService.getInt("help.title_max_length", 20)) {
+        if (title.length() > configService.getInt("help.title_max_length", 20)) {
             throw new BizException(ErrorCode.CONTENT_TOO_LONG);
         }
-        if (request.getDescription() != null
-                && request.getDescription().length() > configService.getInt("content.desc_max_length", 200)) {
+        if (description != null
+                && description.length() > configService.getInt("content.desc_max_length", 200)) {
             throw new BizException(ErrorCode.CONTENT_TOO_LONG);
         }
     }
@@ -642,7 +764,7 @@ public class OrderService {
             if (addressId != null) {
                 throw new BizException(ErrorCode.PARAM_INVALID);
             }
-            return new AddressSnapshot(null, null);
+            return new AddressSnapshot(null, null, null, null);
         }
         if (addressId == null) {
             throw new BizException(ErrorCode.PARAM_INVALID);
@@ -654,7 +776,7 @@ public class OrderService {
             throw new BizException(ErrorCode.FORBIDDEN);
         }
         String detail = orderType.hasDetailAddress() ? address.getDetailText() : null;
-        return new AddressSnapshot(address.getAreaText(), detail);
+        return new AddressSnapshot(address.getAreaText(), detail, address.getLatitude(), address.getLongitude());
     }
 
     private HelpOrder requireOwnExpiredOrder(Long uid, Long orderId) {
@@ -669,6 +791,18 @@ public class OrderService {
             throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
         }
         return order;
+    }
+
+    /** 上门/外出类求助必须已填紧急联系人姓名与电话（服务过程中的安全兜底） */
+    private void requireEmergencyContact(UserProfile profile, OrderType orderType) {
+        if (!orderType.requiresAddress()) {
+            return;
+        }
+        if (profile == null
+                || profile.getEmergencyContactName() == null || profile.getEmergencyContactName().isBlank()
+                || profile.getEmergencyContactPhone() == null || profile.getEmergencyContactPhone().isBlank()) {
+            throw new BizException(ErrorCode.PARAM_INVALID, EMERGENCY_CONTACT_MESSAGE);
+        }
     }
 
     private void requirePendingLimit(Long uid) {
@@ -728,7 +862,7 @@ public class OrderService {
         return map;
     }
 
-    private OrderCardVO toCard(HelpOrder order, UserProfile profile, Long uid) {
+    private OrderCardVO toCard(HelpOrder order, UserProfile profile, Long uid, AddressBook myDefault) {
         OrderCardVO vo = new OrderCardVO();
         vo.setId(order.getId());
         vo.setTitle(order.getTitle());
@@ -742,6 +876,7 @@ public class OrderService {
         vo.setAddressArea(order.getAddressArea());
         vo.setRequester(toRequester(profile));
         vo.setMine(order.getRequesterId().equals(uid));
+        vo.setDistanceKm(vo.isMine() ? null : distanceKm(myDefault, order));
         return vo;
     }
 
@@ -765,6 +900,64 @@ public class OrderService {
         return userProfileMapper.selectOne(Wrappers.<UserProfile>lambdaQuery().eq(UserProfile::getUserId, uid));
     }
 
-    private record AddressSnapshot(String area, String detail) {
+    /** 本人默认地址（距离计算基准） */
+    private AddressBook defaultAddress(Long uid) {
+        AddressBook def = addressBookMapper.selectOne(Wrappers.<AddressBook>lambdaQuery()
+                .eq(AddressBook::getUserId, uid)
+                .eq(AddressBook::getIsDefault, 1)
+                .last("LIMIT 1"));
+        if (def != null) {
+            return def;
+        }
+        // 4D-补：历史数据缺默认时兜底取最早一条，保证与前端展示口径一致
+        return addressBookMapper.selectOne(Wrappers.<AddressBook>lambdaQuery()
+                .eq(AddressBook::getUserId, uid)
+                .orderByAsc(AddressBook::getId)
+                .last("LIMIT 1"));
+    }
+
+    private boolean hasGeo(AddressBook address) {
+        return address != null && address.getLatitude() != null && address.getLongitude() != null;
+    }
+
+    private Double distanceKm(AddressBook mine, HelpOrder order) {
+        if (!hasGeo(mine) || order == null
+                || order.getAddressLat() == null || order.getAddressLng() == null) {
+            return null;
+        }
+        return haversineKm(mine.getLatitude(), mine.getLongitude(),
+                order.getAddressLat(), order.getAddressLng());
+    }
+
+    /** 直线距离（公里，保留 2 位）；仅服务端使用，坐标不下发 */
+    private Double haversineKm(double lat1, double lng1, double lat2, double lng2) {
+        double earthRadius = 6371.0;
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return Math.round(earthRadius * c * 100.0) / 100.0;
+    }
+
+    /** 距离相同/距离未知时的兜底排序：紧急度 → 年长 → 发布时间 */
+    private int compareUrgency(HelpOrder a, HelpOrder b) {
+        int urgencyA = a.getUrgencyScore() == null ? 0 : a.getUrgencyScore();
+        int urgencyB = b.getUrgencyScore() == null ? 0 : b.getUrgencyScore();
+        int cmp = Integer.compare(urgencyB, urgencyA);
+        if (cmp != 0) {
+            return cmp;
+        }
+        int ageA = a.getAgePriority() == null ? 0 : a.getAgePriority();
+        int ageB = b.getAgePriority() == null ? 0 : b.getAgePriority();
+        cmp = Integer.compare(ageB, ageA);
+        if (cmp != 0) {
+            return cmp;
+        }
+        return b.getCreatedAt().compareTo(a.getCreatedAt());
+    }
+
+    private record AddressSnapshot(String area, String detail, Double lat, Double lng) {
     }
 }

@@ -104,6 +104,7 @@ public class SettleService {
                 .eq(HelpOrder::getStatus, OrderStatus.IN_SERVICE.name())
                 .set(HelpOrder::getStatus, OrderStatus.PENDING_CONFIRM.name())
                 .set(HelpOrder::getConfirmInitiator, iAmRequester ? "REQUESTER" : "HELPER")
+                .set(HelpOrder::getCompleteRequestedAt, now)
                 .set(HelpOrder::getConfirmDeadline,
                         now.plusHours(configService.getInt("order.confirm_timeout_hours", 24))));
         if (rows == 0) {

@@ -61,7 +61,7 @@ ALTER TABLE `appeal` AUTO_INCREMENT = 1;
 ALTER TABLE `report` AUTO_INCREMENT = 1;
 ALTER TABLE `order_view` AUTO_INCREMENT = 1;
 
--- ---------- 1. sys_config 全量 62 项（详设第 7 章，逐项对应） ----------
+-- ---------- 1. sys_config 全量 70 项（详设第 7 章 62 项 + 4C 风险保底 8 项） ----------
 INSERT INTO `sys_config` (`config_key`, `config_value`, `description`, `default_value`, `value_range`, `updated_by`) VALUES
 ('elder.age_threshold',             '60',         '年长模式年龄阈值（岁）',                 '60',         '50-100',      'system'),
 ('urgency.base_accompany',          '3',          '紧急度基准分·陪同外出',                  '3',          '0-10',        'system'),
@@ -124,6 +124,14 @@ INSERT INTO `sys_config` (`config_key`, `config_value`, `description`, `default_
 ('cache.hot_ttl_seconds',           '60',         '热点缓存 TTL（秒）',                     '60',         '10-3600',     'system'),
 ('sys.config_refresh_seconds',      '60',         '配置定时刷新间隔（秒）',                 '60',         '10-3600',     'system'),
 ('jwt.expire_days',                 '7',          'JWT 有效期（天）',                       '7',          '1-30',        'system'),
+('risk.min_minutes.paotui',         '5',          '存疑求助保底·跑腿（分钟）',               '5',          '1-120',       'system'),
+('risk.min_minutes.repair',         '10',         '存疑求助保底·小修小补（分钟）',           '10',         '1-120',       'system'),
+('risk.min_minutes.housework',      '8',          '存疑求助保底·家务搭把手（分钟）',         '8',          '1-120',       'system'),
+('risk.min_minutes.accompany',      '10',         '存疑求助保底·陪伴同行（分钟）',           '10',         '1-120',       'system'),
+('risk.min_minutes.teach',          '5',          '存疑求助保底·教学（分钟）',               '5',          '1-120',       'system'),
+('risk.min_minutes.online',         '5',          '存疑求助保底·网上办事（分钟）',           '5',          '1-120',       'system'),
+('risk.min_minutes.plants',         '5',          '存疑求助保底·花草宠物（分钟）',           '5',          '1-120',       'system'),
+('risk.min_minutes.other',          '3',          '存疑求助保底·其他小事（分钟）',           '3',          '1-120',       'system'),
 ('privacy.policy_version',          'v1.0',       '隐私说明版本号',                         'v1.0',       'vX.Y',        'system')
 ON DUPLICATE KEY UPDATE
   `config_value`  = VALUES(`config_value`),
@@ -218,6 +226,25 @@ INSERT INTO `address_book` (`user_id`, `label`, `area_text`, `detail_text`, `is_
 (5, '早市',   '东关早市北门',      NULL,         0),
 (7, '家',     '和平里小区 8 号楼', '3 单元 401', 1),
 (9, '家',     '丽景华庭 9 号楼',   '3 单元 502', 1);
+
+-- 4D 演示坐标：围绕同一城区（约 30.27, 120.15），用于地址导入后的距离计算与排序
+UPDATE `address_book` SET `latitude` = CASE
+    WHEN `area_text` LIKE '梧桐苑%' THEN 30.274100
+    WHEN `area_text` LIKE '桂花苑%' THEN 30.270200
+    WHEN `area_text` LIKE '和平里%' THEN 30.268500
+    WHEN `area_text` LIKE '丽景华庭%' THEN 30.279200
+    WHEN `area_text` LIKE '城南社区医院%' THEN 30.271800
+    WHEN `area_text` LIKE '东关早市%' THEN 30.269400
+    ELSE `latitude` END,
+  `longitude` = CASE
+    WHEN `area_text` LIKE '梧桐苑%' THEN 120.150200
+    WHEN `area_text` LIKE '桂花苑%' THEN 120.146800
+    WHEN `area_text` LIKE '和平里%' THEN 120.154000
+    WHEN `area_text` LIKE '丽景华庭%' THEN 120.143500
+    WHEN `area_text` LIKE '城南社区医院%' THEN 120.148900
+    WHEN `area_text` LIKE '东关早市%' THEN 120.152600
+    ELSE `longitude` END
+WHERE `area_text` IS NOT NULL;
 
 -- ---------- 6. 求助单 28 条（详设 8.3 十二单覆盖矩阵 + 拟真扩量） ----------
 -- 覆盖：8 状态 × 3 类型抽样（PENDING 含上门/远程/陪同）；#1 急标；#8 徽记与回流示例；
@@ -330,6 +357,30 @@ INSERT INTO `help_order`
      NULL, NULL, '["网上办事"]', 'ANY', 'CANCELLED', NULL, 1, 0, 1, 0,
      NOW() - INTERVAL 1 DAY, NULL, NULL, NULL, NULL, NULL, NULL, NOW() - INTERVAL 1 DAY, 'REQUESTER',
      '孙女周末回来教我了，先不用啦，谢谢。', NULL, 0, NOW() - INTERVAL 2 DAY);
+
+-- 4C 风险演示：已完成单回填标记完成时间；#8 造成低于保底的存疑单（网上办事保底 5 分钟，实际 3 分钟）
+UPDATE `help_order` SET `complete_requested_at` = `completed_at`
+WHERE `status` = 'COMPLETED' AND `complete_requested_at` IS NULL;
+UPDATE `help_order` SET `started_at` = `completed_at` - INTERVAL 3 MINUTE,
+    `accepted_at` = `completed_at` - INTERVAL 10 MINUTE,
+    `start_deadline` = `completed_at` - INTERVAL 8 MINUTE,
+    `complete_requested_at` = `completed_at`
+WHERE `id` = 8;
+
+-- 4D 地址快照坐标（演示同一城区；远程单无地址，保持 NULL）
+UPDATE `help_order` SET `address_lat` = CASE
+    WHEN `address_area` LIKE '梧桐苑%' THEN 30.274100
+    WHEN `address_area` LIKE '桂花苑%' THEN 30.270200
+    WHEN `address_area` LIKE '幸福里%' THEN 30.268500
+    WHEN `address_area` LIKE '丽景华庭%' THEN 30.279200
+    ELSE `address_lat` END,
+  `address_lng` = CASE
+    WHEN `address_area` LIKE '梧桐苑%' THEN 120.150200
+    WHEN `address_area` LIKE '桂花苑%' THEN 120.146800
+    WHEN `address_area` LIKE '幸福里%' THEN 120.154000
+    WHEN `address_area` LIKE '丽景华庭%' THEN 120.143500
+    ELSE `address_lng` END
+WHERE `address_area` IS NOT NULL;
 
 -- 说明：受控标签词表 10 项（常量，与后端 HelpTagConstants 一致）：跑腿、维修、家务、陪伴、
 --       散步、教学、网上办事、宠物花草、聊天、其他；快捷短语 5 条（常量配置）：好的 / 麻烦你了 /
@@ -448,6 +499,14 @@ INSERT INTO `order_timeline` (`order_id`, `event_type`, `operator_id`, `remark`,
 (27, 'COMPLETE', 0, NULL, NOW() - INTERVAL 4 DAY),
 (28, 'PUBLISH', 9,  NULL, NOW() - INTERVAL 2 DAY),
 (28, 'CANCEL',  9,  '孙女周末回来教我了', NOW() - INTERVAL 1 DAY);
+
+-- 4C 演示自洽：把 #8 的时间线同步到 3 分钟内完成（与上面的 started_at / complete_requested_at 一致）
+UPDATE `order_timeline` SET `created_at` = (SELECT `completed_at` FROM `help_order` WHERE `id` = 8) - INTERVAL 10 MINUTE
+WHERE `order_id` = 8 AND `event_type` = 'ACCEPT';
+UPDATE `order_timeline` SET `created_at` = (SELECT `completed_at` FROM `help_order` WHERE `id` = 8) - INTERVAL 3 MINUTE
+WHERE `order_id` = 8 AND `event_type` = 'START';
+UPDATE `order_timeline` SET `created_at` = (SELECT `completed_at` FROM `help_order` WHERE `id` = 8)
+WHERE `order_id` = 8 AND `event_type` IN ('COMPLETE_REQUEST', 'CONFIRM', 'COMPLETE');
 
 -- ---------- 8. 会话与消息（订单 7 完整聊天记录，含系统消息 sender_id=0 示例） ----------
 -- 会话按「订单+轮次」建立：#11 仅第一轮会话（CLOSED），验证新接单者不可见上一轮；#12 保留证据消息。

@@ -1,6 +1,5 @@
-import { BASE_URL } from './constants'
+import { BASE_URL, MESSAGES } from './constants'
 import { getToken, toast } from '@/api/request'
-import { MESSAGES } from './constants'
 
 /**
  * 图片上传（详设 §3.3 P1）：wx.uploadFile → POST /api/upload/image，返回 /files/** 相对 URL。

@@ -41,6 +41,8 @@ public class OrderDetailVO {
     private RequesterVO requester;
     /** 仅当浏览者不是发布者时返回小区/区域；远程类为 null */
     private String addressArea;
+    /** 4D：距本人默认地址的直线距离（公里；仅非发布者、非远程、双方有坐标时有值） */
+    private Double distanceKm;
     private boolean mine;
     /** 发布者视图附加文案："已有 N 位邻居看过您的求助" */
     private String viewTip;

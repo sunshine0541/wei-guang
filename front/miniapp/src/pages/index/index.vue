@@ -72,6 +72,7 @@
           {{ item.label }}
         </view>
         <view class="wg-chip" :class="{ 'wg-chip-active': urgentOnly }" @click="toggleUrgent">只看急</view>
+        <view class="wg-chip" :class="{ 'wg-chip-active': distanceSort }" @click="toggleDistanceSort">离我最近</view>
       </view>
 
       <view id="wgOrderList" class="wg-section-title">
@@ -97,10 +98,12 @@
           <text v-if="order.mine" class="wg-tag wg-tag-mine">这是我发的</text>
         </view>
         <view class="wg-card-foot">
-          <image
+          <WgImage
             v-if="order.requester.avatarUrl"
             class="wg-foot-avatar"
-            :src="fileUrl(order.requester.avatarUrl)"
+            :src="order.requester.avatarUrl"
+            :width="28"
+            :height="28"
             mode="aspectFill"
           />
           <text class="wg-label">{{ order.requester.nickname || '邻居' }} · 已有 {{ order.viewCount }} 位邻居看过</text>
@@ -108,30 +111,6 @@
       </view>
 
       <view class="wg-btn" @click="goPublish">我要发布求助</view>
-
-      <!-- 社区区：荣耀榜 + 善意回流（均已授权合并为一张卡，默认收起两行） -->
-      <view class="wg-rows">
-        <view class="wg-row" @click="toggleCommunity">
-          <text>助人之星 · 近 30 天</text>
-          <text class="wg-row-label">{{ communityOpen ? '收起' : '展开' }} ›</text>
-        </view>
-        <view class="wg-row" @click="toggleCommunity">
-          <text class="wg-row-label">
-            <text class="wg-bignum">{{ lightPassedCount }}</text>
-            <text> 束光 · 社区已有 {{ lightPassedCount }} 束光，从被照亮走向照亮他人</text>
-          </text>
-        </view>
-        <view class="wg-row">
-          <text>今天社区里的新求助</text>
-          <text class="wg-row-label">{{ todayOrderCount }} 件</text>
-        </view>
-        <view v-for="(item, index) in communityOpen ? honorList : []" :key="index" class="wg-row">
-          <text class="wg-honor-rank">{{ index + 1 }}</text>
-          <image v-if="item.avatarUrl" class="wg-honor-avatar" :src="fileUrl(item.avatarUrl)" mode="aspectFill" />
-          <text class="wg-honor-name">{{ item.nickname || '邻居' }}</text>
-          <text class="wg-strong">{{ item.helpCount }} 次</text>
-        </view>
-      </view>
 
       <!-- 首次进入紧急提示弹窗（§6.1 紧急提示三处常驻之①） -->
       <view v-if="entryTipVisible" class="wg-dialog-mask">
@@ -152,14 +131,14 @@ import { useUserStore } from '@/store/user'
 import { useNotifyStore } from '@/store/notify'
 import { listOrders, listMyOrders } from '@/api/order'
 import { listAddresses } from '@/api/address'
-import { getHomeSummary } from '@/api/home'
 import { getLight } from '@/api/user'
-import { ORDER_TYPE_LABELS, TIME_EXPECT_LABELS, EMERGENCY_TIP, STORAGE_KEYS, MESSAGES, BASE_URL } from '@/utils/constants'
+import { ORDER_TYPE_LABELS, TIME_EXPECT_LABELS, EMERGENCY_TIP, STORAGE_KEYS, MESSAGES } from '@/utils/constants'
 import EmergencyCard from '@/components/EmergencyCard.vue'
 import WgTabBar from '@/components/WgTabBar.vue'
+import WgImage from '@/components/WgImage.vue'
 
 export default {
-  components: { EmergencyCard, WgTabBar },
+  components: { EmergencyCard, WgTabBar, WgImage },
   data() {
     return {
       statusBarHeight: 0,
@@ -169,10 +148,6 @@ export default {
       orderType: '',
       urgentOnly: false,
       orders: [],
-      honorList: [],
-      lightPassedCount: 0,
-      todayOrderCount: 0,
-      communityOpen: false,
       doingCount: 0,
       helpingCount: 0,
       lightName: '',
@@ -189,7 +164,11 @@ export default {
         { label: '远程', value: 'REMOTE' }
       ],
       /** B：本人默认地址的小区/区域，用于"同区域=很近"粗算 */
-      myArea: ''
+      myArea: '',
+      /** 4D：默认地址是否带地图坐标（有坐标才能按距离排序） */
+      myHasGeo: false,
+      /** 4D：离我最近排序 */
+      distanceSort: false
     }
   },
   computed: {
@@ -225,10 +204,9 @@ export default {
   onShow() {
     // 回到首页时刷新列表与横幅（如从详情返回后「已有 N 位邻居看过」需即时更新）
     if (this.bootstrapped) {
-      this.loadOrders()
+      // 4D-补：先刷新默认地址，再按最新坐标状态决定排序
+      this.refreshAreaThenOrders()
       this.loadMyStat()
-      // 荣耀榜 / 回流计数 / 光语状态也会随完成订单变化，回到首页一并刷新
-      this.loadHomeSummary()
       this.loadLight()
       this.notifyStore.refresh()
     }
@@ -265,7 +243,6 @@ export default {
           return
         }
         await this.loadOrders()
-        this.loadHomeSummary()
         this.loadMyStat()
         this.loadLight()
         this.loadMyArea()
@@ -289,20 +266,10 @@ export default {
         // 年长模式：Tab 被隐藏，改为默认落「为你推荐」（原实现直接砍掉推荐＝功能损失）
         tab: this.userStore.isElder ? 'recommend' : this.tab,
         orderType: this.orderType || undefined,
-        urgentOnly: this.urgentOnly ? true : undefined
+        urgentOnly: this.urgentOnly ? true : undefined,
+        sort: this.distanceSort ? 'distance' : undefined
       })
       this.orders = result.records || []
-    },
-    /** H1 首页聚合：荣耀榜 TOP10 + 善意回流计数 */
-    async loadHomeSummary() {
-      try {
-        const summary = await getHomeSummary()
-        this.honorList = summary.honorTop10 || []
-        this.lightPassedCount = summary.lightPassedCount || 0
-        this.todayOrderCount = summary.todayOrderCount || 0
-      } catch (e) {
-        console.error('[微光] 首页聚合加载失败', e)
-      }
     },
     /** B：取本人默认地址的小区/区域（失败静默，仅影响"很近"提示） */
     async loadMyArea() {
@@ -310,16 +277,48 @@ export default {
         const addresses = await listAddresses()
         const def = addresses.find((item) => item.isDefault === 1) || addresses[0]
         this.myArea = def ? def.areaText || '' : ''
+        this.myHasGeo = !!(def && def.latitude !== null && def.latitude !== undefined
+          && def.longitude !== null && def.longitude !== undefined)
+        // 4D-补：默认地址丢了坐标就自动取消距离排序，避免"选中了却没排序"
+        if (this.distanceSort && !this.myHasGeo) {
+          this.distanceSort = false
+          uni.showToast({ title: '默认地址还没有地图位置，已取消按距离排序', icon: 'none' })
+        }
       } catch (e) {
         console.error('[微光] 默认地址加载失败', e)
       }
     },
-    /** B：同区域即认为很近（不接地图前的粗算口径） */
+    /** 4D-补：回到首页先刷新默认地址坐标状态，再拉列表 */
+    async refreshAreaThenOrders() {
+      await this.loadMyArea()
+      await this.loadOrders()
+    },
+    /** B/4D：优先用真实直线距离，缺坐标时回退到同区域粗算 */
     nearbyText(order) {
-      if (!this.myArea || !order || !order.addressArea) {
+      if (!order || order.mine) {
+        return ''
+      }
+      if (order.distanceKm !== null && order.distanceKm !== undefined) {
+        return this.formatDistance(order.distanceKm)
+      }
+      if (!this.myArea || !order.addressArea) {
         return ''
       }
       return this.myArea === order.addressArea ? '与您同区域，很近' : ''
+    },
+    formatDistance(km) {
+      if (km < 1) {
+        return '距您约 ' + Math.max(10, Math.round(km * 1000 / 10) * 10) + ' 米'
+      }
+      return '距您约 ' + km.toFixed(1) + ' 公里'
+    },
+    toggleDistanceSort() {
+      if (!this.distanceSort && !this.myHasGeo) {
+        uni.showToast({ title: '先在常用地址里用地图选一下默认地址', icon: 'none' })
+        return
+      }
+      this.distanceSort = !this.distanceSort
+      this.loadOrders().catch((e) => console.error('[微光] 按距离排序失败', e))
     },
     /** 双角色概览：我发布的进行中 / 我接的单（复用 O5，失败静默） */
     async loadMyStat() {
@@ -354,16 +353,6 @@ export default {
       uni.setStorageSync(STORAGE_KEYS.ENTRY_TIP_SHOWN, 1)
       this.entryTipVisible = false
     },
-    fileUrl(url) {
-      if (!url) {
-        return ''
-      }
-      return url.indexOf('http') === 0 ? url : BASE_URL + url
-    },
-    toggleCommunity() {
-      this.communityOpen = !this.communityOpen
-    },
-    /** 「我可以帮忙」→ 滚到求助列表（列表本身即助人落地页） */
     goHelpList() {
       const query = uni.createSelectorQuery().in(this)
       query.select('#wgOrderList').boundingClientRect()
@@ -480,26 +469,6 @@ export default {
   border-radius: 50%;
   margin-right: 6px;
   background-color: var(--wg-surface3);
-}
-
-/* 荣耀榜行 */
-.wg-honor-rank {
-  width: 26px;
-  color: var(--wg-primary-deep);
-  font-weight: 800;
-  flex-shrink: 0;
-}
-
-.wg-honor-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  margin-right: 8px;
-  background-color: var(--wg-surface3);
-}
-
-.wg-honor-name {
-  flex: 1;
 }
 
 /* 年长模式：卡片加大（§6.2 P03 适老差异） */

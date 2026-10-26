@@ -61,6 +61,11 @@
         <view class="wg-btn wg-btn-plain" style="margin-top: 8px" @click="answerCancel(false)">不同意</view>
       </view>
 
+      <view v-if="isRequester && order.status === 'PENDING'" class="wg-card">
+        <view class="wg-btn wg-btn-plain" @click="goEdit">修改这条求助</view>
+        <view class="wg-btn wg-btn-plain" style="margin-top: 8px" @click="confirmWithdraw">撤回这条求助</view>
+      </view>
+
       <view v-if="isRequester && canCancel" class="wg-card">
         <view class="wg-btn wg-btn-plain" @click="doCancel">取消这次求助</view>
       </view>
@@ -93,6 +98,7 @@ import { cancelConfirmOrder, cancelOrder, getOrder, getOrderTimeline, releaseOrd
 import { completeOrder } from '@/api/incentive'
 import { getSession } from '@/api/chat'
 import { MESSAGES, ORDER_TYPE_LABELS, TIMELINE_LABELS } from '@/utils/constants'
+import { wsClient } from '@/utils/ws'
 
 const STATUS_LABELS = {
   PENDING: '正在等邻居看到',
@@ -119,7 +125,10 @@ export default {
       session: null,
       timeline: [],
       /** A4：首次进入由 onLoad 完成加载，之后每次 onShow（从确认/评价等页返回）再刷新 */
-      entered: false
+      entered: false,
+      /** 4D-补3：状态推送退订函数与防抖计时器 */
+      wsOff: null,
+      wsTimer: null
     }
   },
   computed: {
@@ -159,7 +168,7 @@ export default {
       )
     },
     canCancel() {
-      return this.order && ['PENDING', 'ACCEPTED', 'IN_SERVICE'].indexOf(this.order.status) >= 0
+      return this.order && ['ACCEPTED', 'IN_SERVICE'].indexOf(this.order.status) >= 0
     },
     isSettled() {
       return this.order && this.order.myRole && this.order.status === 'COMPLETED'
@@ -168,14 +177,26 @@ export default {
   onLoad(options) {
     this.orderId = options.id
     this.load()
+    this.bindOrderStatus()
   },
   onShow() {
     // A4：从「确认完成」（redirectTo 评价页后返回）等页面回到本页时重新拉取状态，
     // 否则状态陈旧会一直显示"去确认"，与确认页来回形成死循环
     if (this.entered) {
-      this.load()
+      this.load(true)
     }
     this.entered = true
+  },
+  onUnload() {
+    // 4D-补3：离开页面退订，避免旧页面继续刷新
+    if (this.wsOff) {
+      this.wsOff()
+      this.wsOff = null
+    }
+    if (this.wsTimer) {
+      clearTimeout(this.wsTimer)
+      this.wsTimer = null
+    }
   },
   methods: {
     typeLabel(type) {
@@ -184,14 +205,21 @@ export default {
     timelineLabel(item) {
       return TIMELINE_LABELS[item.eventType] || item.eventType
     },
-    async load() {
-      this.loading = true
+    /**
+     * 拉取房间数据。silent=true 用于状态推送/操作后的后台刷新，不闪骨架屏、失败不把页面清空。
+     */
+    async load(silent = false) {
+      if (!silent) {
+        this.loading = true
+      }
       try {
         this.order = await getOrder(this.orderId)
         this.timeline = await getOrderTimeline(this.orderId)
       } catch (e) {
         console.error('[微光] 订单房间加载失败', e)
-        this.order = null
+        if (!silent) {
+          this.order = null
+        }
         if (e && e.code === 20003) {
           // 已非参与方（如已释放/被取消后从旧入口进入）：稍后自动返回，不停留在错误页
           setTimeout(() => {
@@ -203,7 +231,9 @@ export default {
           }, 1500)
         }
       } finally {
-        this.loading = false
+        if (!silent) {
+          this.loading = false
+        }
       }
       // A3：仅在「可聊天」状态才拉会话；PENDING/已结束等状态本就没有会话，
       // 之前无条件拉取会被后端以 40002 拒绝并弹「当前状态不允许该操作」，属误报。
@@ -216,6 +246,26 @@ export default {
       } else {
         this.session = null
       }
+    },
+    /** 4D-补3：订阅本单状态推送，另一端点完成/取消时按钮实时变化 */
+    bindOrderStatus() {
+      wsClient.connect()
+      this.wsOff = wsClient.onMessage((envelope) => {
+        if (!envelope || envelope.type !== 'ORDER_STATUS') {
+          return
+        }
+        const payload = envelope.payload || {}
+        if (String(payload.orderId) !== String(this.orderId)) {
+          return
+        }
+        if (this.wsTimer) {
+          clearTimeout(this.wsTimer)
+        }
+        this.wsTimer = setTimeout(() => {
+          this.wsTimer = null
+          this.load(true)
+        }, 300)
+      })
     },
     askReason(title, placeholder, onDone) {
       uni.showModal({
@@ -239,10 +289,14 @@ export default {
       try {
         await promise
         uni.showToast({ title: okText, icon: 'none' })
-        this.load()
+        this.load(true)
       } catch (e) {
         console.error('[微光] 操作失败', e)
         uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
+        // 4D-补3：状态已被对方改掉时自动刷新，避免继续点旧按钮
+        if (e && (e.code === 40002 || e.code === 40003)) {
+          this.load(true)
+        }
       }
     },
     /**
@@ -304,6 +358,40 @@ export default {
       this.askReason('取消这次求助', '说说取消的原因', (reason) => {
         this.action(cancelOrder(this.orderId, { reason, mode: 'CANCEL' }), '已取消')
       })
+    },
+    goEdit() {
+      uni.navigateTo({ url: `/pages/order/edit?id=${this.orderId}` })
+    },
+    confirmWithdraw() {
+      uni.showModal({
+        title: '撤回这条求助',
+        content: '撤回后，这条求助就不再展示给邻居了。确定撤回吗？',
+        confirmText: '撤回',
+        cancelText: '再想想',
+        success: (res) => {
+          if (res.confirm) {
+            this.doWithdraw()
+          }
+        }
+      })
+    },
+    async doWithdraw() {
+      try {
+        // 撤回仅针对仍处于待响应的单；若刚被接单，刷新页面让入口自然消失
+        const latest = await getOrder(this.orderId)
+        if (!latest || latest.status !== 'PENDING') {
+          this.order = latest
+          return
+        }
+        await cancelOrder(this.orderId, { reason: '发布者撤回', mode: 'CANCEL' })
+        uni.showToast({ title: '已撤回这条求助', icon: 'none' })
+        setTimeout(() => {
+          uni.navigateBack({ fail: () => uni.reLaunch({ url: '/pages/order/mine' }) })
+        }, 800)
+      } catch (e) {
+        console.error('[微光] 撤回失败', e)
+        uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
+      }
     },
     answerCancel(agree) {
       this.action(cancelConfirmOrder(this.orderId, { agree }), agree ? '已取消' : '已回复对方')

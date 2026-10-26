@@ -2,7 +2,7 @@
   <view class="wg-page" :class="userStore.rootClass">
     <view class="wg-card wg-card-tint" style="background-color:#d9e2d6;color:#4f6b4a">
       <text class="wg-title">微光 · 隐私说明</text>
-      <text class="wg-label" style="color:#4f6b4a;opacity:.8">版本 {{ policyVersion }}</text>
+      <text class="wg-label" style="color:#4f6b4a;opacity:.8">版本 {{ userStore.policyVersion }}</text>
     </view>
 
     <view class="wg-card">
@@ -23,12 +23,9 @@
 <script>
 import { useUserStore } from '@/store/user'
 
-const POLICY_VERSION = 'v1.0'
-
 export default {
   data() {
     return {
-      policyVersion: POLICY_VERSION,
       /** view=1：从 P18 设置进入的"隐私说明查看"模式（已同意用户，仅阅读） */
       isView: false
     }
@@ -44,7 +41,7 @@ export default {
   methods: {
     async agree() {
       try {
-        await this.userStore.agreePrivacy(this.policyVersion)
+        await this.userStore.agreePrivacy(this.userStore.policyVersion)
         if (this.userStore.isNewUser) {
           uni.redirectTo({ url: '/pages/guide/index' })
         } else {

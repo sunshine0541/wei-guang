@@ -5,6 +5,7 @@ import { clearToken, getToken, setToken } from '@/api/request'
 
 const DEFAULT_RETENTION_DAYS = 180
 const DEFAULT_ELDER_AGE_THRESHOLD = 60
+const DEFAULT_POLICY_VERSION = 'v1.0'
 
 /**
  * 用户态（详设 §1.3 store/user；登录方式见 D31：账密主导）：
@@ -34,7 +35,9 @@ export const useUserStore = defineStore('user', {
     /** 隐私说明与注销文案的天数插值（sys_config compliance.retention_days） */
     retentionDays: DEFAULT_RETENTION_DAYS,
     /** 年长模式年龄阈值（sys_config elder.age_threshold） */
-    elderAgeThreshold: DEFAULT_ELDER_AGE_THRESHOLD
+    elderAgeThreshold: DEFAULT_ELDER_AGE_THRESHOLD,
+    /** 隐私说明版本号（sys_config privacy.policy_version，D50） */
+    policyVersion: DEFAULT_POLICY_VERSION
   }),
 
   getters: {
@@ -81,6 +84,7 @@ export const useUserStore = defineStore('user', {
       if (result.config) {
         this.retentionDays = result.config.retentionDays || DEFAULT_RETENTION_DAYS
         this.elderAgeThreshold = result.config.elderAgeThreshold || DEFAULT_ELDER_AGE_THRESHOLD
+        this.policyVersion = result.config.privacyVersion || DEFAULT_POLICY_VERSION
       }
       this.applyProfile(result.profile)
       this.creditScore = result.creditScore || 0
@@ -95,6 +99,7 @@ export const useUserStore = defineStore('user', {
       this.lightPassed = profile.lightPassed || 0
       this.retentionDays = profile.retentionDays || DEFAULT_RETENTION_DAYS
       this.elderAgeThreshold = profile.elderAgeThreshold || DEFAULT_ELDER_AGE_THRESHOLD
+      this.policyVersion = profile.privacyVersion || DEFAULT_POLICY_VERSION
       // isNewUser 只是"注册/登录瞬间"的标记：能拉到档案说明账号已落地，
       // 清掉它，避免引导完成后进首页又被弹回引导第一步（T17 修正5）
       this.isNewUser = false

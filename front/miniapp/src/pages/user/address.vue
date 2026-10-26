@@ -7,6 +7,11 @@
     <template v-else>
       <view v-if="addresses.length === 0" class="wg-empty">还没有常用地址，添加一个"家"吧</view>
 
+      <!-- 4D-补：默认地址保底提示（历史数据可能出现零默认） -->
+      <view v-else-if="!hasDefault" class="wg-label" style="margin: 0 4px 10px">
+        还没有默认地址，点「设为默认」选一个吧，按距离排序会用到它
+      </view>
+
       <view v-for="item in addresses" :key="item.id" class="wg-card">
         <view class="wg-card-head">
           <text class="wg-title">{{ item.label }}</text>
@@ -14,6 +19,12 @@
         </view>
         <view class="wg-label">{{ item.areaText }}</view>
         <view v-if="item.detailText" class="wg-label">{{ item.detailText }}</view>
+        <view class="wg-label">
+          {{ hasGeo(item) ? '已记录地图位置，可用于计算距离' : '未记录地图位置，补上后可按距离排序' }}
+        </view>
+        <view v-if="!hasGeo(item)" class="wg-btn wg-btn-plain" style="margin-top: 8px" @click="openGeo(item)">
+          补全地图位置
+        </view>
         <view class="wg-addr-actions">
           <view v-if="item.isDefault !== 1" class="wg-btn wg-btn-plain wg-addr-btn" @click="onSetDefault(item)">
             设为默认
@@ -31,14 +42,23 @@
       <view class="wg-dialog-box">
         <text class="wg-dialog-text">{{ editing ? '修改这个地址' : '添加一个地址' }}</text>
         <view class="wg-label">标签</view>
-        <input class="wg-input" placeholder="如：家 / 居委会 / 公园" :value="formLabel" @input="formLabel = $event.detail.value" />
+        <input class="wg-input" maxlength="20" placeholder="如：家 / 居委会 / 公园" :value="formLabel" @input="formLabel = $event.detail.value" />
         <view class="wg-label" style="margin-top: 10px">小区/区域</view>
-        <input class="wg-input" placeholder="如：阳光小区" :value="formArea" @input="formArea = $event.detail.value" />
+        <AddressAreaInput
+          :value="formArea"
+          placeholder="如：阳光小区"
+          :focus="areaFocus"
+          @input="onAreaInput"
+          @select="onGeoSelect"
+        />
+        <view v-if="formLatitude !== null && formLongitude !== null" class="wg-label">
+          已记录地图位置，可用于计算距离
+        </view>
         <view class="wg-label" style="margin-top: 10px">楼栋门牌（选填）</view>
-        <input class="wg-input" placeholder="上门类确认开始后才会给对方看" :value="formDetail" @input="formDetail = $event.detail.value" />
-        <!-- B：新增/编辑时一步设为默认 -->
+        <input class="wg-input" maxlength="100" placeholder="上门类确认开始后才会给对方看" :value="formDetail" @input="formDetail = $event.detail.value" />
+        <!-- B：新增/编辑时一步设为默认；4D-补：默认地址不能直接取消，至少保留一条 -->
         <view class="wg-tags" style="margin-top: 12px">
-          <view class="wg-chip" :class="{ 'wg-chip-active': formIsDefault }" @click="formIsDefault = !formIsDefault">
+          <view class="wg-chip" :class="{ 'wg-chip-active': formIsDefault }" @click="toggleFormDefault">
             {{ formIsDefault ? '已设为默认地址' : '设为默认地址' }}
           </view>
         </view>
@@ -61,7 +81,7 @@
 <script>
 import { useUserStore } from '@/store/user'
 import { listAddresses, createAddress, updateAddress, deleteAddress, setDefaultAddress } from '@/api/address'
-import { MESSAGES } from '@/utils/constants'
+import AddressAreaInput from '@/components/AddressAreaInput.vue'
 
 /** 地址簿上限（详设 §3.3 B 系：每用户 ≤10 条，与后端 ProfileConstants.ADDRESS_MAX_COUNT 一致） */
 const ADDRESS_MAX_COUNT = 10
@@ -70,6 +90,7 @@ const ADDRESS_MAX_COUNT = 10
  * P15 地址簿管理（详设 §6.2）：列表 + 新增/编辑/删除/设默认。
  */
 export default {
+  components: { AddressAreaInput },
   data() {
     return {
       loading: true,
@@ -79,13 +100,21 @@ export default {
       formLabel: '',
       formArea: '',
       formDetail: '',
+      formLatitude: null,
+      formLongitude: null,
       formIsDefault: false,
+      /** 4D-补5：仅「补全地图位置」进入时聚焦小区输入框 */
+      areaFocus: false,
       pendingDelete: null
     }
   },
   computed: {
     userStore() {
       return useUserStore()
+    },
+    /** 4D-补：是否存在默认地址（历史数据可能为零默认） */
+    hasDefault() {
+      return this.addresses.some((item) => item.isDefault === 1)
     }
   },
   onShow() {
@@ -110,8 +139,11 @@ export default {
       this.formLabel = ''
       this.formArea = ''
       this.formDetail = ''
+      this.formLatitude = null
+      this.formLongitude = null
       // 第一条地址默认就是默认地址
       this.formIsDefault = this.addresses.length === 0
+      this.areaFocus = false
       this.formVisible = true
     },
     openEdit(item) {
@@ -119,8 +151,41 @@ export default {
       this.formLabel = item.label || ''
       this.formArea = item.areaText || ''
       this.formDetail = item.detailText || ''
+      this.formLatitude = item.latitude === undefined ? null : item.latitude
+      this.formLongitude = item.longitude === undefined ? null : item.longitude
       this.formIsDefault = item.isDefault === 1
+      this.areaFocus = false
       this.formVisible = true
+    },
+    /** 4D-补：该地址是否已记录地图坐标 */
+    hasGeo(item) {
+      return !!(item
+        && item.latitude !== null && item.latitude !== undefined
+        && item.longitude !== null && item.longitude !== undefined)
+    },
+    /** 4D-补3：未定位地址直接打开编辑，候选会出现在小区输入框下方 */
+    openGeo(item) {
+      this.openEdit(item)
+      this.areaFocus = true
+    },
+    /** 4D-补：默认地址不允许直接取消，保证地址簿始终有一条默认 */
+    toggleFormDefault() {
+      if (this.formIsDefault) {
+        uni.showToast({ title: '默认地址不能直接取消，请先把另一条设为默认', icon: 'none' })
+        return
+      }
+      this.formIsDefault = true
+    },
+    /** 手动改动小区/区域后旧坐标失效，避免距离按旧位置计算 */
+    onAreaInput(value) {
+      this.formArea = value
+      this.formLatitude = null
+      this.formLongitude = null
+    },
+    onGeoSelect(poi) {
+      this.formArea = poi.name || poi.address || ''
+      this.formLatitude = poi.latitude
+      this.formLongitude = poi.longitude
     },
     async submitForm() {
       const area = this.formArea.trim()
@@ -132,6 +197,8 @@ export default {
         label: this.formLabel.trim() || '家',
         areaText: area,
         detailText: this.formDetail.trim() || null,
+        latitude: this.formLatitude,
+        longitude: this.formLongitude,
         isDefault: this.formIsDefault ? 1 : 0
       }
       try {
@@ -176,15 +243,17 @@ export default {
   padding-bottom: 40px;
 }
 
-/* 适老差异：卡片整行可点、操作按钮加大（详设 §6.2 P15） */
+/* 适老差异：卡片整行可点、操作按钮加大（详设 §6.2 P15）；4D-补5：按钮过多时换行 */
 .wg-addr-actions {
   display: flex;
+  flex-wrap: wrap;
   margin-top: 10px;
 }
 
 .wg-addr-btn {
-  flex: 1;
+  flex: 1 1 30%;
   margin-right: 10px;
+  margin-bottom: 8px;
   font-size: var(--wg-font-base);
 }
 

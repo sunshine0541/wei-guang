@@ -43,6 +43,17 @@ public class AdminOrderDetailVO {
     private LocalDateTime cancelArbitrateAt;
     private LocalDateTime appealDeadline;
 
+    /** 4C 保底时长风险字段 */
+    private LocalDateTime completeRequestedAt;
+    private Long durationMinutes;
+    private Integer minMinutes;
+    private List<String> riskCategories;
+    private Boolean suspicious;
+    private boolean riskReviewAvailable;
+    private LocalDateTime riskReviewedAt;
+    private String riskReviewResult;
+    private String riskReviewNote;
+
     private AdminUserBriefVO requester;
     private AdminUserBriefVO helper;
 

@@ -7,7 +7,7 @@
         <u-icon :name="lightIcon" :size="lightIconSize" />
       </view>
       <button v-else class="wg-me-avatar-btn" open-type="chooseAvatar" @chooseavatar="onChooseAvatar">
-        <image class="wg-me-avatar" :src="fileUrl(userStore.avatarUrl)" mode="aspectFill" />
+        <WgImage class="wg-me-avatar" :src="userStore.avatarUrl" :width="48" :height="48" radius="24px" mode="aspectFill" />
       </button>
       <view class="wg-me-info">
         <text class="wg-me-name">{{ userStore.nickname || '邻居' }}</text>
@@ -100,7 +100,7 @@
       </view>
     </view>
 
-    <WgTabBar :active="3" />
+    <WgTabBar :active="4" />
   </view>
 </template>
 
@@ -110,16 +110,16 @@ import { useNotifyStore } from '@/store/notify'
 import { getCreditLedger, getMyThanks, getPointLedger, getNeighborProfile } from '@/api/incentive'
 import { listMyOrders } from '@/api/order'
 import { getLight, updateProfile } from '@/api/user'
-import { BASE_URL } from '@/utils/constants'
 import { uploadImage } from '@/utils/upload'
 import WgTabBar from '@/components/WgTabBar.vue'
+import WgImage from '@/components/WgImage.vue'
 
 /* 微光邀请弹窗文案（写死：详设 P02 首次邀请 / P13 Q13 再触发） */
 const INVITE_TEXT_FIRST = '你愿意成为一缕微光，在别人需要时也照亮他一下吗？'
 const INVITE_TEXT_RETRIGGER = '你曾感受过被帮助的温暖，是否也愿意成为一缕微光，照亮他人？'
 
 export default {
-  components: { WgTabBar },
+  components: { WgTabBar, WgImage },
   data() {
     return {
       creditBalance: 0,
@@ -176,12 +176,6 @@ export default {
     }
   },
   methods: {
-    fileUrl(url) {
-      if (!url) {
-        return ''
-      }
-      return url.indexOf('http') === 0 ? url : BASE_URL + url
-    },
     async load() {
       try {
         const [credit, points, wall] = await Promise.all([

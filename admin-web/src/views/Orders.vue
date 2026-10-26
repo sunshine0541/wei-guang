@@ -16,6 +16,9 @@
           <el-input v-model="query.keyword" placeholder="标题关键词" clearable style="width: 180px" @keyup.enter="load(1)" />
         </el-form-item>
         <el-form-item>
+          <el-checkbox v-model="suspiciousOnly" @change="load(1)">只看存疑</el-checkbox>
+        </el-form-item>
+        <el-form-item>
           <el-button type="primary" @click="load(1)">查询</el-button>
         </el-form-item>
       </el-form>
@@ -41,6 +44,23 @@
         </el-table-column>
         <el-table-column prop="requesterNickname" label="发布者" width="110" />
         <el-table-column prop="helperNickname" label="接单者" width="110" />
+        <el-table-column label="用时/保底" width="120">
+          <template #default="{ row }">
+            <span v-if="row.durationMinutes !== null && row.durationMinutes !== undefined">
+              {{ row.durationMinutes }} / {{ row.minMinutes }} 分
+            </span>
+            <span v-else>—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="风险" width="100">
+          <template #default="{ row }">
+            <el-tag v-if="row.riskReviewedAt" :type="row.riskReviewResult === 'DEDUCT' ? 'danger' : 'success'">
+              {{ row.riskReviewResult === 'DEDUCT' ? '已扣分' : '已核实' }}
+            </el-tag>
+            <el-tag v-else-if="row.suspicious" type="danger">存疑</el-tag>
+            <span v-else>—</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="createdAt" label="发布时间" width="170" />
         <el-table-column label="操作" width="90">
           <template #default="{ row }">
@@ -68,6 +88,7 @@ import { ORDER_STATUS_LABELS, ORDER_TYPE_LABELS } from '../utils/labels'
 
 const router = useRouter()
 const query = reactive({ status: '', orderType: '', keyword: '', page: 1, pageSize: 20 })
+const suspiciousOnly = ref(false)
 const list = ref([])
 const total = ref(0)
 const loading = ref(false)
@@ -87,6 +108,7 @@ async function load(page) {
       status: query.status || undefined,
       orderType: query.orderType || undefined,
       keyword: query.keyword || undefined,
+      riskStatus: suspiciousOnly.value ? 'SUSPICIOUS' : undefined,
       page: query.page,
       pageSize: query.pageSize
     })

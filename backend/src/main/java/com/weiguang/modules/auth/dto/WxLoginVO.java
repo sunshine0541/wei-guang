@@ -39,5 +39,7 @@ public class WxLoginVO {
         private Integer retentionDays;
         /** elder.age_threshold：P02 年长模式预置阈值 */
         private Integer elderAgeThreshold;
+        /** privacy.policy_version：P01/P18 隐私文案版本号（D50） */
+        private String privacyVersion;
     }
 }

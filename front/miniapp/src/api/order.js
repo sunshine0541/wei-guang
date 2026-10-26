@@ -25,6 +25,11 @@ export function getOrder(id) {
   return request({ url: `/api/orders/${id}` })
 }
 
+/** O16 修改待响应求助（仅发布者、仅 PENDING） */
+export function modifyOrder(id, data) {
+  return request({ url: `/api/orders/${id}`, method: 'PUT', data })
+}
+
 /** O5 我的求助 */
 export function listMyOrders(params) {
   return request({ url: '/api/orders/mine', data: params })

@@ -36,4 +36,6 @@ public class UserProfileVO {
     private Integer retentionDays;
     /** 年长模式年龄阈值（同上） */
     private Integer elderAgeThreshold;
+    /** 隐私说明版本号（sys_config privacy.policy_version，D50） */
+    private String privacyVersion;
 }

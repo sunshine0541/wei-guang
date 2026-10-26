@@ -6,7 +6,7 @@
 
     <template v-else-if="profile">
       <view class="wg-card wg-neighbor-head">
-        <image v-if="profile.avatarUrl" class="wg-neighbor-avatar" :src="fileUrl(profile.avatarUrl)" mode="aspectFill" />
+        <WgImage v-if="profile.avatarUrl" class="wg-neighbor-avatar" :src="profile.avatarUrl" :width="88" :height="88" mode="aspectFill" />
         <text class="wg-title">{{ profile.nickname || '邻居' }}</text>
         <text v-if="profile.signature" class="wg-label">{{ profile.signature }}</text>
       </view>
@@ -51,9 +51,11 @@
 <script>
 import { useUserStore } from '@/store/user'
 import { getNeighborEvaluations, getNeighborProfile } from '@/api/incentive'
-import { BASE_URL, MESSAGES } from '@/utils/constants'
+import { MESSAGES } from '@/utils/constants'
+import WgImage from '@/components/WgImage.vue'
 
 export default {
+  components: { WgImage },
   data() {
     return {
       loading: true,
@@ -79,12 +81,6 @@ export default {
     this.load()
   },
   methods: {
-    fileUrl(url) {
-      if (!url) {
-        return ''
-      }
-      return url.indexOf('http') === 0 ? url : BASE_URL + url
-    },
     async load() {
       this.loading = true
       try {

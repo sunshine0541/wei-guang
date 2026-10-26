@@ -28,7 +28,12 @@
           <!-- B：右侧箭头明示该行可点 -->
           <u-icon name="arrow-right" :size="14" />
         </view>
-        <view v-if="order.addressArea">地址：{{ order.addressArea }}</view>
+        <view v-if="order.addressArea">
+          地址：{{ order.addressArea }}
+          <text v-if="order.distanceKm !== null && order.distanceKm !== undefined" class="wg-label">
+            · {{ formatDistance(order.distanceKm) }}
+          </text>
+        </view>
         <view v-else-if="order.orderType === 'REMOTE'" class="wg-label">远程帮助全程线上完成，不需要地址</view>
         <view class="wg-label">已有 {{ order.viewCount }} 位邻居看过</view>
         <view v-if="order.viewTip" class="wg-label">{{ order.viewTip }}</view>
@@ -36,6 +41,10 @@
 
       <view v-if="order.mine" class="wg-card">
         <text class="wg-label">这是您发布的求助，接单按钮已置灰</text>
+        <template v-if="order.status === 'PENDING'">
+          <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="goEdit">修改这条求助</view>
+          <view class="wg-btn wg-btn-plain" style="margin-top: 10px" @click="confirmWithdraw">撤回这条求助</view>
+        </template>
       </view>
 
       <view v-if="canAccept" class="wg-card">
@@ -79,9 +88,10 @@
 
 <script>
 import { useUserStore } from '@/store/user'
-import { acceptOrder, getOrder } from '@/api/order'
+import { acceptOrder, cancelOrder, getOrder } from '@/api/order'
 import { completeOrder } from '@/api/incentive'
 import { MESSAGES, ORDER_TYPE_LABELS, TIME_EXPECT_LABELS } from '@/utils/constants'
+import { wsClient } from '@/utils/ws'
 
 /* 接单成功文案（详设 §6.5） */
 const ACCEPT_OK = '谢谢您，这束微光因您而亮。请尽快点"开始帮忙"，让邻居知道您出发了'
@@ -100,7 +110,10 @@ export default {
       orderId: null,
       /** B：首次进入由 onLoad 加载，之后 onShow 再刷新 */
       entered: false,
-      order: null
+      order: null,
+      /** 状态推送退订函数与防抖计时器（4D-补3） */
+      wsOff: null,
+      wsTimer: null
     }
   },
   computed: {
@@ -163,13 +176,25 @@ export default {
   onLoad(options) {
     this.orderId = options.id
     this.load()
+    this.bindOrderStatus()
   },
   onShow() {
     // B：从聊天/房间返回时刷新状态与浏览数，避免仍显示过期的"我愿意帮助"
     if (this.entered) {
-      this.load()
+      this.load(true)
     }
     this.entered = true
+  },
+  onUnload() {
+    // 4D-补3：离开页面退订，避免旧页面继续刷新
+    if (this.wsOff) {
+      this.wsOff()
+      this.wsOff = null
+    }
+    if (this.wsTimer) {
+      clearTimeout(this.wsTimer)
+      this.wsTimer = null
+    }
   },
   methods: {
     typeLabel(type) {
@@ -178,16 +203,52 @@ export default {
     timeLabel(expect) {
       return expect ? TIME_EXPECT_LABELS[expect] || expect : '不限'
     },
-    async load() {
-      this.loading = true
+    /** 4D：与首页一致的直线距离文案 */
+    formatDistance(km) {
+      if (km < 1) {
+        return '距您约 ' + Math.max(10, Math.round(km * 1000 / 10) * 10) + ' 米'
+      }
+      return '距您约 ' + km.toFixed(1) + ' 公里'
+    },
+    /**
+     * 拉取详情。silent=true 用于状态推送/失败兜底的后台刷新，不闪骨架屏、失败不把页面清空。
+     */
+    async load(silent = false) {
+      if (!silent) {
+        this.loading = true
+      }
       try {
         this.order = await getOrder(this.orderId)
       } catch (e) {
         console.error('[微光] 详情加载失败', e)
-        this.order = null
+        if (!silent) {
+          this.order = null
+        }
       } finally {
-        this.loading = false
+        if (!silent) {
+          this.loading = false
+        }
       }
+    },
+    /** 4D-补3：订阅本单状态推送，另一端点完成/取消时按钮实时变化 */
+    bindOrderStatus() {
+      wsClient.connect()
+      this.wsOff = wsClient.onMessage((envelope) => {
+        if (!envelope || envelope.type !== 'ORDER_STATUS') {
+          return
+        }
+        const payload = envelope.payload || {}
+        if (String(payload.orderId) !== String(this.orderId)) {
+          return
+        }
+        if (this.wsTimer) {
+          clearTimeout(this.wsTimer)
+        }
+        this.wsTimer = setTimeout(() => {
+          this.wsTimer = null
+          this.load(true)
+        }, 300)
+      })
     },
     confirmAccept() {
       uni.showModal({
@@ -202,6 +263,39 @@ export default {
     },
     goChat() {
       uni.navigateTo({ url: `/pages/chat/room?orderId=${this.orderId}` })
+    },
+    goEdit() {
+      uni.navigateTo({ url: `/pages/order/edit?id=${this.orderId}` })
+    },
+    confirmWithdraw() {
+      uni.showModal({
+        title: '撤回这条求助',
+        content: '撤回后，这条求助就不再展示给邻居了。确定撤回吗？',
+        confirmText: '撤回',
+        cancelText: '再想想',
+        success: (res) => {
+          if (res.confirm) {
+            this.doWithdraw()
+          }
+        }
+      })
+    },
+    async doWithdraw() {
+      try {
+        // 撤回仅针对仍处于待响应的单；若刚被接单，刷新页面让入口自然消失
+        const latest = await getOrder(this.orderId)
+        if (!latest || latest.status !== 'PENDING') {
+          this.order = latest
+          return
+        }
+        await cancelOrder(this.orderId, { mode: 'CANCEL', reason: '发布者撤回' })
+        uni.showToast({ title: '已撤回这条求助', icon: 'none' })
+        setTimeout(() => {
+          uni.navigateBack({ fail: () => uni.reLaunch({ url: '/pages/index/index' }) })
+        }, 800)
+      } catch (e) {
+        console.error('[微光] 撤回失败', e)
+      }
     },
     goNeighbor() {
       const id = this.order && this.order.requester && this.order.requester.id
@@ -232,10 +326,14 @@ export default {
           try {
             await completeOrder(this.orderId)
             uni.showToast({ title: '已标记完成，等对方确认一下', icon: 'none' })
-            this.load()
+            this.load(true)
           } catch (e) {
             console.error('[微光] 标记完成失败', e)
             uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
+            // 4D-补3：状态已被对方改掉（如对方先点了完成）时自动刷新，避免继续点旧按钮
+            if (e && (e.code === 40002 || e.code === 40003)) {
+              this.load(true)
+            }
           }
         }
       })

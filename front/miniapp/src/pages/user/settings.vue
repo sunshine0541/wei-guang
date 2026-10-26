@@ -38,7 +38,7 @@
           <u-icon name="info-circle" :size="16" />
           <text class="wg-set-row-text">隐私说明</text>
         </view>
-        <text class="wg-row-label">版本 {{ policyVersion }}</text>
+        <text class="wg-row-label">版本 {{ userStore.policyVersion }}</text>
       </view>
     </view>
 
@@ -60,8 +60,6 @@ import { useUserStore } from '@/store/user'
 import { cancelAccount } from '@/api/user'
 import { clearToken } from '@/api/request'
 
-const POLICY_VERSION = 'v1.0'
-
 /**
  * P18 设置（详设 §6.2）：模式切换 U3 / 动效开关 U4 / 隐私说明查看 / 注销 U6 / 退出登录 A2。
  * 切换模式会重置动效为该模式默认值（后端 U3 落库），提示用户可随时单独调整。
@@ -69,7 +67,6 @@ const POLICY_VERSION = 'v1.0'
 export default {
   data() {
     return {
-      policyVersion: POLICY_VERSION,
       switchKey: 0
     }
   },

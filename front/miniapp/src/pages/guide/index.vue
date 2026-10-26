@@ -23,6 +23,7 @@
       <input
         type="nickname"
         class="wg-input"
+        maxlength="20"
         placeholder="点这里填写昵称"
         :value="nickname"
         @input="nickname = $event.detail.value"
@@ -55,13 +56,9 @@
     <!-- 第 3 步：画像填写 -->
     <view v-if="step === 3" class="wg-card">
       <view class="wg-label">称呼</view>
-      <input class="wg-input" :value="nickname" @input="nickname = $event.detail.value" />
+      <input class="wg-input" maxlength="20" :value="nickname" @input="nickname = $event.detail.value" />
       <view class="wg-label" style="margin-top: 12px">年龄</view>
       <input class="wg-input" type="number" :value="ageText" @input="ageText = $event.detail.value" />
-      <view class="wg-label" style="margin-top: 12px">住址（选填，用于上门/外出类求助）</view>
-      <input class="wg-input" placeholder="标签，如：家" :value="addressLabel" @input="addressLabel = $event.detail.value" />
-      <input class="wg-input" placeholder="小区/区域" :value="addressArea" @input="addressArea = $event.detail.value" />
-      <input class="wg-input" placeholder="楼栋门牌（上门类确认开始后才会给对方看）" :value="addressDetail" @input="addressDetail = $event.detail.value" />
       <view class="wg-label" style="margin-top: 12px">喜欢做的事（可多选）</view>
       <view class="wg-tags">
         <view
@@ -75,11 +72,11 @@
         </view>
       </view>
       <view class="wg-label" style="margin-top: 12px">您的反馈，能让帮助者更好地帮助您——这些信息只会在您求助时，展示给接单的邻居。</view>
-      <input class="wg-input" placeholder="需要留意的小习惯" :value="careTip" @input="careTip = $event.detail.value" />
+      <input class="wg-input" maxlength="100" placeholder="需要留意的小习惯" :value="careTip" @input="careTip = $event.detail.value" />
       <view class="wg-label">这段内容会在您求助被接单后，展示给接单的邻居，帮他更好地帮您。请只写需要留意的小习惯（如"腿脚不便，需要扶一下"），不要写密码、身份证号、银行卡号等私人信息。</view>
       <view class="wg-label" style="margin-top: 12px">紧急联系人（选填）</view>
-      <input class="wg-input" placeholder="姓名" :value="emergencyName" @input="emergencyName = $event.detail.value" />
-      <input class="wg-input" placeholder="电话" :value="emergencyPhone" @input="emergencyPhone = $event.detail.value" />
+      <input class="wg-input" maxlength="20" placeholder="姓名" :value="emergencyName" @input="emergencyName = $event.detail.value" />
+      <input class="wg-input" maxlength="20" placeholder="电话" :value="emergencyPhone" @input="emergencyPhone = $event.detail.value" />
       <view class="wg-btn" style="margin-top: 12px" @click="saveProfile">保存并继续</view>
     </view>
 
@@ -98,9 +95,8 @@
 <script>
 import { useUserStore } from '@/store/user'
 import { updateProfile } from '@/api/user'
-import { createAddress } from '@/api/address'
 import { uploadImage } from '@/utils/upload'
-import { HOBBY_OPTIONS } from '@/utils/constants'
+import { HOBBY_OPTIONS, MOBILE_PATTERN, normalizePhone } from '@/utils/constants'
 
 export default {
   data() {
@@ -109,9 +105,6 @@ export default {
       nickname: '',
       avatarUrl: '',
       ageText: '',
-      addressLabel: '',
-      addressArea: '',
-      addressDetail: '',
       hobbies: [],
       hobbyOptions: HOBBY_OPTIONS,
       careTip: '',
@@ -128,6 +121,12 @@ export default {
     this.nickname = this.userStore.nickname || ''
     this.avatarUrl = this.userStore.avatarUrl || ''
     this.ageText = this.userStore.age === null || this.userStore.age === undefined ? '' : String(this.userStore.age)
+  },
+  onShow() {
+    // 欢迎页不是首页：隐藏微信自动加在左上角的「返回首页」按钮
+    if (typeof wx !== 'undefined' && typeof wx.hideHomeButton === 'function') {
+      wx.hideHomeButton()
+    }
   },
   methods: {
     onChooseAvatar(event) {
@@ -167,8 +166,28 @@ export default {
         uni.showToast({ title: '小习惯最多 100 个字', icon: 'none' })
         return
       }
-      if (!this.addressArea.trim() && (this.addressLabel.trim() || this.addressDetail.trim())) {
-        uni.showToast({ title: '地址的"小区/区域"填一下才能保存', icon: 'none' })
+      const emergencyName = this.emergencyName.trim()
+      const emergencyPhone = normalizePhone(this.emergencyPhone)
+      if (emergencyPhone && !emergencyName) {
+        uni.showModal({
+          title: '紧急联系人',
+          content: '电话已经填好了，再把姓名也填上吧，方便需要时说明找谁。',
+          showCancel: false,
+          confirmText: '知道了'
+        })
+        return
+      }
+      if (emergencyName && !emergencyPhone) {
+        uni.showModal({
+          title: '紧急联系人',
+          content: '姓名已经填好了，再把电话也填上吧，遇到突发情况才能联系到人。',
+          showCancel: false,
+          confirmText: '知道了'
+        })
+        return
+      }
+      if (emergencyPhone && !MOBILE_PATTERN.test(emergencyPhone)) {
+        uni.showToast({ title: '请填 11 位手机号', icon: 'none' })
         return
       }
       const payload = { nickname }
@@ -181,11 +200,11 @@ export default {
       if (this.careTip) {
         payload.careTip = this.careTip
       }
-      if (this.emergencyName) {
-        payload.emergencyContactName = this.emergencyName
+      if (emergencyName) {
+        payload.emergencyContactName = emergencyName
       }
-      if (this.emergencyPhone) {
-        payload.emergencyContactPhone = this.emergencyPhone
+      if (emergencyPhone) {
+        payload.emergencyContactPhone = emergencyPhone
       }
       // 头像：chooseAvatar 给的是本地临时路径，需先上传成 /files 相对地址再落库
       if (this.avatarUrl && this.avatarUrl !== this.userStore.avatarUrl) {
@@ -200,14 +219,6 @@ export default {
         }
       }
       await updateProfile(payload)
-      if (this.addressArea.trim()) {
-        await createAddress({
-          label: this.addressLabel.trim() || '家',
-          areaText: this.addressArea.trim(),
-          detailText: this.addressDetail.trim() || null,
-          isDefault: 1
-        })
-      }
       await this.userStore.loadProfile()
       if (age !== null && age >= this.userStore.elderAgeThreshold && !this.userStore.isElder) {
         this.step = 2

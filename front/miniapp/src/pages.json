@@ -40,6 +40,12 @@
       }
     },
     {
+      "path": "pages/order/edit",
+      "style": {
+        "navigationBarTitleText": "修改求助"
+      }
+    },
+    {
       "path": "pages/order/detail",
       "style": {
         "navigationBarTitleText": "求助详情"
@@ -61,6 +67,12 @@
       "path": "pages/order/mine",
       "style": {
         "navigationBarTitleText": "我的求助"
+      }
+    },
+    {
+      "path": "pages/community/index",
+      "style": {
+        "navigationBarTitleText": "社区"
       }
     },
     {
@@ -127,6 +139,12 @@
       "path": "pages/user/appeal",
       "style": {
         "navigationBarTitleText": "反馈与申诉"
+      }
+    },
+    {
+      "path": "pages/user/appeal-detail",
+      "style": {
+        "navigationBarTitleText": "处理详情"
       }
     },
     {

@@ -24,7 +24,20 @@ export const STORAGE_KEYS = {
   /** 首次进入紧急提示（详设 §6.1 三处常驻之①）已展示标记，只弹一次 */
   ENTRY_TIP_SHOWN: 'wg_entry_tip_shown',
   /** A1 发布流程跨页草稿：P30 选模板/自由描述 → P31 表单 之间传递（B30 草稿恢复后续复用） */
-  PUBLISH_DRAFT: 'wg_publish_draft'
+  PUBLISH_DRAFT: 'wg_publish_draft',
+  /** P17 → 处理详情页的单条申诉/反馈传递（B：查看处理详情） */
+  APPEAL_DETAIL: 'wg_appeal_detail'
+}
+
+/* 手机号：单 11 位大陆手机号（D52） */
+export const MOBILE_PATTERN = /^1[3-9]\d{9}$/
+
+/** 规范化手机号：去空格/横线、去 +86 前缀，便于通讯录号码与手输号码统一校验 */
+export function normalizePhone(value) {
+  if (!value) {
+    return ''
+  }
+  return String(value).replace(/[\s-]/g, '').replace(/^\+?86/, '')
 }
 
 /* 写死文案（详设 §6.1 空/加载/错误通用文案、§6.5） */
@@ -109,7 +122,8 @@ export const TIMELINE_LABELS = {
   APPEAL_OPEN: '进入申诉',
   ARBITRATE: '管理员裁决',
   ADMIN_ACTION: '管理员操作',
-  REPUBLISH: '一键重发'
+  REPUBLISH: '一键重发',
+  MODIFY: '修改求助'
 }
 
 /* 紧急提示（详设 §6.1 三处常驻之一：发布页底部固定条） */

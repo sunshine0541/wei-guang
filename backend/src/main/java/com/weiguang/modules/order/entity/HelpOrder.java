@@ -52,6 +52,12 @@ public class HelpOrder {
     /** 地址快照-楼栋门牌（仅上门类可有值） */
     private String addressDetail;
 
+    /** 地址快照-纬度（服务端距离计算，不下发） */
+    private Double addressLat;
+
+    /** 地址快照-经度（服务端距离计算，不下发） */
+    private Double addressLng;
+
     /** JSON 数组，受控词表，<=3 个 */
     private String tags;
     /** 自定义标签（仅展示，不入推荐） */
@@ -99,6 +105,9 @@ public class HelpOrder {
     /** 完成时间 */
     private LocalDateTime completedAt;
 
+    /** 标记完成时间（O11；风险判定用，不含确认等待） */
+    private LocalDateTime completeRequestedAt;
+
     /** 取消时间 */
     private LocalDateTime cancelledAt;
 
@@ -119,6 +128,15 @@ public class HelpOrder {
 
     /** 申诉截止 */
     private LocalDateTime appealDeadline;
+
+    /** 风险核实时间 */
+    private LocalDateTime riskReviewedAt;
+
+    /** 风险核实结果：NORMAL/DEDUCT */
+    private String riskReviewResult;
+
+    /** 风险核实备注 */
+    private String riskReviewNote;
 
     /** MyBatis-Plus @Version 乐观锁 */
     @Version

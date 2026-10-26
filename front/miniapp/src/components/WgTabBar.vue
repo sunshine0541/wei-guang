@@ -9,8 +9,8 @@
     >
       <view class="wg-tabbar-icon">
         <u-icon :name="index === active ? item.iconActive : item.icon" :size="iconSize" />
-        <!-- B：未读角标挂在「消息」项 -->
-        <view v-if="index === 2 && notifyStore.hasUnread" class="wg-tabbar-dot" />
+        <!-- B：未读角标挂在「消息」项（按路径判断，避免增删 tab 时错位） -->
+        <view v-if="item.path === '/pages/user/notify' && notifyStore.hasUnread" class="wg-tabbar-dot" />
       </view>
       <text class="wg-tabbar-text">{{ item.text }}</text>
     </view>
@@ -22,15 +22,15 @@ import { useUserStore } from '@/store/user'
 import { useNotifyStore } from '@/store/notify'
 
 /**
- * 底部导航（自绘，本轮 4 项：首页 / 我的求助 / 消息 / 我的）
- * —— 不注册原生 tabBar：避免 PNG 图标资源、便于将来扩到 5 项、适老可放大。
- * 「消息」指向现有通知中心 P16（本轮不新增页面/接口）。
+ * 底部导航（自绘，本轮 5 项：首页 / 我的求助 / 社区 / 消息 / 我的）
+ * —— 不注册原生 tabBar：避免 PNG 图标资源、便于将来扩项、适老可放大。
+ * 「消息」指向现有通知中心 P16。
  * 图标取自 uview-plus 内置字体图标（<u-icon>），随字号缩放。
  */
 export default {
   name: 'WgTabBar',
   props: {
-    /** 当前激活项：0 首页 / 1 我的求助 / 2 消息 / 3 我的 */
+    /** 当前激活项：0 首页 / 1 我的求助 / 2 社区 / 3 消息 / 4 我的 */
     active: { type: Number, default: 0 }
   },
   data() {
@@ -38,6 +38,7 @@ export default {
       items: [
         { text: '首页', path: '/pages/index/index', icon: 'home', iconActive: 'home-fill' },
         { text: '我的求助', path: '/pages/order/mine', icon: 'list', iconActive: 'list-dot' },
+        { text: '社区', path: '/pages/community/index', icon: 'grid', iconActive: 'grid-fill' },
         { text: '消息', path: '/pages/user/notify', icon: 'chat', iconActive: 'chat-fill' },
         { text: '我的', path: '/pages/user/index', icon: 'account', iconActive: 'account-fill' }
       ]

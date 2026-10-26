@@ -31,6 +31,12 @@ public class AddressBook {
     /** 楼栋门牌（上门类确认开始后解锁） */
     private String detailText;
 
+    /** POI 纬度（服务端距离计算，不下发） */
+    private Double latitude;
+
+    /** POI 经度（服务端距离计算，不下发） */
+    private Double longitude;
+
     /** 默认地址，每用户至多 1 条 */
     private Integer isDefault;
 

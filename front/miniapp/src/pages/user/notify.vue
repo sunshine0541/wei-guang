@@ -51,7 +51,8 @@
           @touchmove="onTouchMove($event, item)"
           @touchend="onTouchEnd"
         >
-          <!-- B：左滑露出删除（通知为临时收件箱，删除即从服务器移除） -->
+          <!-- B：右滑露出「标记已读」（仅未读）；左滑露出删除 -->
+          <view v-if="item.isRead === 0" class="wg-notify-read" @click.stop="markRead(item)">标记已读</view>
           <view class="wg-notify-del" @click.stop="remove(item)">删除</view>
           <view class="wg-card wg-notify-slide" :style="slideStyle(item)" @click="openItem(item)">
             <view class="wg-card-head">
@@ -71,7 +72,7 @@
       </template>
     </template>
 
-    <WgTabBar :active="2" />
+    <WgTabBar :active="3" />
   </view>
 </template>
 
@@ -268,12 +269,15 @@ export default {
         this.dragging = true
       }
       if (this.dragging) {
-        this.slideX = Math.max(-80, Math.min(0, dx))
+        const maxRight = item.isRead === 0 ? 80 : 0
+        this.slideX = Math.max(-80, Math.min(maxRight, dx))
       }
     },
     onTouchEnd() {
       if (this.dragging && this.slideX < -40) {
         this.slideX = -80
+      } else if (this.dragging && this.slideX > 40) {
+        this.slideX = 80
       } else {
         this.slideX = 0
         this.slideId = null
@@ -281,9 +285,21 @@ export default {
       this.dragging = false
     },
     slideStyle(item) {
-      return this.slideId === item.id && this.slideX < 0
+      return this.slideId === item.id && this.slideX !== 0
         ? `transform: translateX(${this.slideX}px); transition: transform .15s`
         : ''
+    },
+    /** B：右滑标记单条已读（不跳转） */
+    async markRead(item) {
+      try {
+        await readNotification(item.id)
+        item.isRead = 1
+        this.slideId = null
+        this.slideX = 0
+        this.notifyStore.refresh()
+      } catch (e) {
+        uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
+      }
     },
     /** B：删除单条通知 */
     remove(item) {
@@ -308,8 +324,8 @@ export default {
     },
     /** 点击：先已读（N3），再按 jump_type 跳转（详设 §6.2 P16） */
     async openItem(item) {
-      // 已左滑展开时，先收起，不触发跳转
-      if (this.slideId === item.id && this.slideX < 0) {
+      // 已滑动展开（左滑删除或右滑已读）时，先收起，不触发跳转
+      if (this.slideId === item.id && this.slideX !== 0) {
         this.slideId = null
         this.slideX = 0
         return
@@ -411,6 +427,22 @@ export default {
 .wg-notify-readall {
   min-width: 96px;
   padding: 0 20px;
+}
+
+/* B：右滑标记已读 */
+.wg-notify-read {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 80px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #d9e2d6;
+  color: #4f6b4a;
+  font-size: var(--wg-font-base);
+  font-weight: 700;
 }
 
 /* B：左滑删除 */

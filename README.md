@@ -1,7 +1,7 @@
 # 微光 · 社区互助服务系统
 
 > 面向社区老年居民与热心邻居的互助小程序：老人一键发布小事求助，邻居接单远程/上门/外出帮忙，聊天协作、双确认完成，配微光值·积分·光语情感化体系与防诈保护。
-> 毕业设计 MVP（tag `v1.0-mvp`）；2026-10 体验改进已合入 `master`（commit `2f7e862`）。设计依据：《微光-详细设计文档v1.2》《微光-执行文档v1.2》。
+> 毕业设计 MVP（tag `v1.0-mvp`）；2026-10 体验改进（批 1–4F）已完成，待提交到 `master`。设计依据：《微光-详细设计文档v1.2》《微光-执行文档v1.2》。
 
 ## 一、仓库结构
 
@@ -98,7 +98,7 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 
 演示前执行 `sql/reset.sql` 回到干净状态（会清空全部业务数据，属预期）。
 
-1. **李秀英**登录 → 首页：荣耀榜（刘建军 4 次居首）、善意回流计数、通知横幅（"有人来接您的求助啦"，3 条聚合）
+1. **李秀英**登录 → 首页：通知横幅（"有人来接您的求助啦"，3 条聚合）、紧急电话卡、求助列表；底部「社区」：荣耀榜（刘建军 4 次居首）、善意回流计数、今日新求助数、邻里动态（最近完成的互助）
 2. 待响应列表：急标"厨房水管一直渗水"置顶；查看详情 → 地址分级（远程无地址 / 外出仅集合点 / 上门门牌接单后才解锁）
 3. **陈志远**接"卫生间的灯不亮了" → 聊天页：照护提示卡"腿脚不便，需要扶一下"、快捷短语、图片
 4. 陈志远「开始帮忙」→ 李秀英收到"邻居已出发" → 陈志远标记完成 → 李秀英确认 → 结算：微光值 +2、积分 +10、故事卡生成
@@ -107,6 +107,7 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
    - **发布三页**：首页「我需要帮助」→ 模板选择 → 自由描述（AI 建议）→ 表单；中途退出再进入会自动恢复草稿；标签可选「跑腿 / 教学」，也可填一个 ≤10 字的自定义标签。
    - **通知中心**：确认完成或收到消息后，通知按「今天 / 更早」分组；聊天消息聚合为「有 N 位邻居给您发来 M 条消息」，点卡片只展开，点联系人才进入聊天；左滑可删除，底部「消息」有未读红点。
    - **申诉凭证**：完成或取消后 7 天内可发起申诉并上传一张凭证；处理中的申诉/反馈可撤回。
+   - **社区页**：底部第 3 个 tab；展示今日新求助、已传递束光、助人之星 TOP10 与最近完成互助的动态流；动态卡片可点进助人者主页。只读，不带点赞/评论/发帖。
    - **助人者视角**：求助详情会显示「受助者给了你 X 星」；确认页显示「开始于 … · 本次用时 …」。
 7. 分支·释放重派：赵晓琳接远程单演示恢复通道；陈志远演示"实在帮不上"免罚释放 → 李秀英收到"别干等"通知
 8. 分支·防诈：陈志远在聊天中发"验证码"相关索要话术 → 双方收到强提示、管理端「上报处置」出现记录可处置
@@ -123,6 +124,7 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 | 变量 | 说明 |
 | --- | --- |
 | `DASHSCOPE_API_KEY` | 阿里云百炼密钥（`ai.mode=real` 时需要；mock 模式可留空） |
+| `AMAP_WEB_KEY` | 高德 **Web 服务** Key（地址搜索/输入提示/地理编码用；不填则地址搜索降级为手动填写） |
 | `MYSQL_HOST/PORT/DATABASE/USERNAME/PASSWORD` | MySQL 连接（compose 内为 `mysql:3306`） |
 | `REDIS_HOST/PORT` | Redis 连接（compose 内为 `redis:6379`） |
 | `WECHAT_APPID` / `WECHAT_APP_SECRET` | 微信小程序凭据（账密登录为主流程；`/api/auth/wx-login` 保留未用） |
@@ -138,7 +140,9 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 - **只跑一个前端监听**：同时开两个 `npm run dev:mp-weixin`（或 dev 与 build 混跑）会写同一个 `dist`，出现「新 wxml + 旧 JS」混编，表现为方法名 `[object Object]`、空列表或字面量 `false`。先关掉多余进程，删除 `dist` 后重新 dev 编译，并在开发者工具里清缓存。
 - **改 `pages.json` / 重建产物后**：重新编译并在开发者工具清缓存，编译模式选 `pages/index/index`、无启动参数。
 - **后端新增 VO 字段后**：必须重启后端；前端热更新不会让新字段出现。
-- **迁移脚本已全部执行并删除**：`schema.sql` 已包含 `extra_tag`、`evidence_url`、`message_count`、`sender_nickname`，不要重复执行；需要重建时直接用 `schema.sql` + `seed.sql` / `reset.sql`。
+- **迁移脚本已全部执行并删除**：`schema.sql` 已包含 `extra_tag`、`evidence_url`、`message_count`、`sender_nickname`、`address_book.latitude/longitude`、`help_order.address_lat/address_lng`、`complete_requested_at`、`risk_reviewed_at/risk_review_result/risk_review_note`，不要重复执行迁移；需要重建时直接用 `schema.sql` + `seed.sql` / `reset.sql`。
+- **地址搜索提示不可用**：先确认 `backend/.env` 有 `AMAP_WEB_KEY`（必须是「Web服务」类型的 Key），再重启后端；Key 只在后端使用，不下发前端。
+- **头像/聊天图片显示**：开发者工具不允许 `<image>` 直接加载 HTTP，前端已统一用 `WgImage` 先解析成本地路径或 base64；生产环境后端走 HTTPS 时直接显示原图。
 - **换账号演示**：小程序内「设置 → 退出登录」后用另一手机号账号登录（无需 openid，任意账号可切）。
 - **后端地址（自动探测）**：`VITE_API_HOST` 是**编译期**注入的，IP 会随网络变化。已内置探测脚本 `front/miniapp/scripts/detect-lan-host.mjs`，并挂为 `predev:mp-weixin` / `prebuild:mp-weixin` **前置钩子**——每次 `npm run dev:mp-weixin` / `build:mp-weixin` 会**自动探测本机局域网 IPv4 并重写 `.env.local`**（自动排除 WSL / Hyper-V / VPN 等虚拟网卡，按 192.168 > 172.16–31 > 10 优先级取用）。想先看探测结果不写文件：`npm run host:dry`。
 - **真机预览 / 换网络**：手机与电脑同一局域网；`npm run dev:mp-weixin` 会自动写入电脑局域网 IP，无需手改。若需固定地址（例如模拟器只想走 `localhost`）：`$env:WGU_HOST='localhost:8080'; npm run dev:mp-weixin`（PowerShell）即可覆盖自动探测。开发者工具开启「开发版调试」，并勾选「不校验合法域名」；防火墙需放行 8080。
@@ -150,20 +154,21 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 
 - 详细设计：`微光-详细设计文档v1.2.md`（第 11 章为 15 条 MVP 验收判据全文）
 - 执行文档：`微光-执行文档v1.2.md`（T01–T19 任务卡）
-- 实现偏差：`docs/实现偏差清单.md`（D01–D49）
-- 验收走查：`docs/验收走查记录.md`（15 条判据逐项证据）
+- 实现偏差：`docs/实现偏差清单.md`（D01–D62）
+- 验收走查：`docs/验收走查记录.md`（T20，15 条判据 + 2026-10 体验批次）
 
-## 附录 A：页面清单（25 页）
+## 附录 A：页面清单（28 页）
 
 | 模块 | 页面 |
 | --- | --- |
 | 入口与登录 | `pages/index/index`（首页）、`pages/login/index`（登录/注册） |
 | 发布 | `pages/order/publish`（模板选择）、`publish-free`（自由描述 + AI 建议）、`publish-form`（求助表单） |
-| 求助 | `pages/order/detail`（求助详情）、`room`（进展与操作）、`mine`（我的求助）、`confirm`（确认完成） |
+| 求助 | `pages/order/detail`（求助详情）、`room`（进展与操作）、`edit`（修改求助）、`mine`（我的求助）、`confirm`（确认完成） |
 | 聊天 | `pages/chat/room` |
 | 结算 | `pages/settle/evaluate`（评价 / 悄悄话）、`letter`（感谢信）、`story`（故事卡） |
-| 个人 | `pages/user/index`、`profile`、`address`、`settings`、`credit`、`points`、`appeal`、`notify`、`thanks` |
+| 个人 | `pages/user/index`、`profile`、`address`、`settings`、`credit`、`points`、`appeal`、`appeal-detail`、`notify`、`thanks` |
 | 邻居 | `pages/neighbor/profile` |
+| 社区 | `pages/community/index` |
 | 引导 | `pages/guide/privacy`（隐私说明）、`pages/guide/index`（首次引导） |
 
 ## 附录 B：版本与改进记录
@@ -175,7 +180,12 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 | 批 2 | 进度条、骨架重试、P10 评价/悄悄话改造、通知分组与未读、感谢独立页、故事卡数据条、通讯录选联系人、默认地址开关、头像 | 已完成 |
 | 批 3A | 跑腿/教学标签改名、同区域距离粗算、申诉/反馈撤回、通知左滑删除 | 已完成 |
 | 批 3B | 通知聚合与实时刷新、快捷短语分角色、对方正在输入、自定义标签、申诉凭证 | 已完成 |
-| 批 3C | 今日社区求助数、确认页完成时间/本次用时、助人者星级；剩余保底时间、修改/撤回、地址结构化 | 进行中 |
-| 批 4 | 详设收口、偏差清单整理、README 页面清单、全量编译走查 | 未开始 |
+| 批 3C | 今日社区求助数、确认页完成时间/本次用时、助人者星级；保底时间与地址结构化并入批 4 | 已完成 |
+| 批 4A | 紧急联系人硬校验、隐私版本号配置化、输入框截断修复、手机号/长度校验 | 已完成 |
+| 批 4B | 待响应求助修改 / 撤回（P04/P07 + 编辑页） | 已完成 |
+| 批 4C | 8 分类保底时长、管理端存疑筛选与风险核实 | 已完成 |
+| 批 4D | 地址经纬度、高德 POI/输入提示/地理编码、城市限定、距离排序与展示、地址交互收敛、图片 HTTP 兼容 | 已完成 |
+| 批 4G | 社区 tab + 邻里动态；首页社区卡迁移；只读，不做感谢墙/发帖 | 已完成 |
+| 批 4F | README/验收走查、全量回归、三端构建、仓库卫生 | 已完成（待提交） |
 
-> 本轮改进以 commit `2f7e862` 合入 `master`；实现细节与偏差记录见 `docs/实现偏差清单.md` D37–D49。
+> MVP 以 tag `v1.0-mvp` 交付；2026-10 体验改进（批 1–4F）待提交到 `master`，实现细节与偏差记录见 `docs/实现偏差清单.md` D37–D62。

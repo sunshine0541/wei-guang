@@ -23,6 +23,8 @@ public class OrderCardVO {
     private LocalDateTime createdAt;
     /** B：同区域距离粗算用（不暴露楼栋门牌） */
     private String addressArea;
+    /** 4D：距本人默认地址的直线距离（公里，服务端计算；无坐标/远程/本人单为 null） */
+    private Double distanceKm;
     private RequesterVO requester;
     /** 是否本人发布（本人单展示但接单按钮置灰） */
     private boolean mine;

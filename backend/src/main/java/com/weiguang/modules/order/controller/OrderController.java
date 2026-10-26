@@ -11,6 +11,7 @@ import com.weiguang.modules.order.dto.CancelConfirmRequest;
 import com.weiguang.modules.order.dto.CancelRequest;
 import com.weiguang.modules.order.dto.ConfirmRequest;
 import com.weiguang.modules.order.dto.MyOrderVO;
+import com.weiguang.modules.order.dto.ModifyOrderRequest;
 import com.weiguang.modules.order.dto.OrderCardVO;
 import com.weiguang.modules.order.dto.OrderDetailVO;
 import com.weiguang.modules.order.dto.PublishRequest;
@@ -25,6 +26,7 @@ import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -72,9 +74,11 @@ public class OrderController {
     public Result<PageVO<OrderCardVO>> list(@RequestParam(required = false) String tab,
                                             @RequestParam(required = false) String orderType,
                                             @RequestParam(required = false) Boolean urgentOnly,
+                                            @RequestParam(required = false) String sort,
                                             @RequestParam(required = false) Long page,
                                             @RequestParam(required = false) Long pageSize) {
-        return Result.ok(orderService.list(AuthContext.requireUid(), tab, orderType, urgentOnly, page, pageSize));
+        return Result.ok(orderService.list(AuthContext.requireUid(), tab, orderType, urgentOnly,
+                sort, page, pageSize));
     }
 
     /** O5 我的求助列表 */
@@ -95,6 +99,13 @@ public class OrderController {
     @PostMapping("/{id}/accept")
     public Result<AcceptVO> accept(@PathVariable Long id) {
         return Result.ok(orderService.accept(AuthContext.requireUid(), id));
+    }
+
+    /** O16 修改待响应求助（仅发布者、仅 PENDING；类型与地址不可改） */
+    @PutMapping("/{id}")
+    public Result<Void> modify(@PathVariable Long id, @Valid @RequestBody ModifyOrderRequest request) {
+        orderService.modify(AuthContext.requireUid(), id, request);
+        return Result.ok();
     }
 
     /** O7 确认开始（仅当前轮接单者） */

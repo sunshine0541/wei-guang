@@ -90,6 +90,9 @@ public class CancelService {
             throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
         }
         LocalDateTime now = LocalDateTime.now();
+        // PENDING 撤回时没有对方，不开放申诉窗口（D53）
+        LocalDateTime appealDeadline = OrderStatus.PENDING.name().equals(order.getStatus())
+                ? null : now.plusDays(configService.getInt("order.appeal_window_days", 7));
         int rows = helpOrderMapper.update(null, Wrappers.<HelpOrder>lambdaUpdate()
                 .eq(HelpOrder::getId, order.getId())
                 .eq(HelpOrder::getStatus, order.getStatus())
@@ -97,8 +100,7 @@ public class CancelService {
                 .set(HelpOrder::getCancelBy, "REQUESTER")
                 .set(HelpOrder::getCancelReason, reason)
                 .set(HelpOrder::getCancelledAt, now)
-                .set(HelpOrder::getAppealDeadline,
-                        now.plusDays(configService.getInt("order.appeal_window_days", 7)))
+                .set(HelpOrder::getAppealDeadline, appealDeadline)
                 .set(HelpOrder::getCancelPendingBy, null)
                 .set(HelpOrder::getCancelPendingDeadline, null));
         if (rows == 0) {
