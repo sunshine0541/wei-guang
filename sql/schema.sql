@@ -317,7 +317,7 @@ CREATE TABLE `light_event` (
   KEY `idx_light_event_user` (`user_id`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='光语状态事件与徽记（只增不改不删）';
 
--- 2.17 whisper（悄悄话，只增不改）
+-- 2.17 whisper（悄悄话；v1.3 功能下线，表保留兼容历史数据，见详设 §15.9）
 CREATE TABLE `whisper` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `order_id` BIGINT UNSIGNED NOT NULL,
@@ -364,14 +364,17 @@ CREATE TABLE `appeal` (
   KEY `idx_appeal_order` (`order_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='申诉与反馈';
 
--- 2.20 report（防诈高危上报，仅管理员可见）
+-- 2.20 report（高危上报与内容举报，仅管理员可见）
 CREATE TABLE `report` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `order_id` BIGINT UNSIGNED NOT NULL,
-  `message_id` BIGINT UNSIGNED NOT NULL COMMENT '证据消息',
+  `order_id` BIGINT UNSIGNED NULL DEFAULT NULL COMMENT '订单类上报必填；内容举报为 NULL',
+  `message_id` BIGINT UNSIGNED NULL DEFAULT NULL COMMENT '证据消息；内容举报为 NULL',
+  `target_type` VARCHAR(20) NOT NULL DEFAULT 'ORDER' COMMENT 'ORDER/POST/COMMENT（v1.3）',
+  `target_id` BIGINT UNSIGNED NULL DEFAULT NULL COMMENT '目标主键（v1.3；ORDER 时与 order_id 同值）',
   `target_user_id` BIGINT UNSIGNED NOT NULL COMMENT '被上报人',
-  `type` VARCHAR(24) NOT NULL COMMENT 'FRAUD_RISK',
-  `evidence` VARCHAR(255) NOT NULL COMMENT '脱敏后的命中要素与方向',
+  `reporter_id` BIGINT UNSIGNED NULL DEFAULT NULL COMMENT '举报人（内容举报，v1.3）',
+  `type` VARCHAR(24) NOT NULL COMMENT 'FRAUD_RISK/CONTENT_REPORT',
+  `evidence` VARCHAR(255) NOT NULL COMMENT '脱敏后的命中要素与方向/举报理由',
   `status` VARCHAR(16) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING/CONFIRMED/REJECTED',
   `handler_id` BIGINT UNSIGNED NULL DEFAULT NULL,
   `handle_note` VARCHAR(255) NULL DEFAULT NULL,
@@ -379,8 +382,9 @@ CREATE TABLE `report` (
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `handled_at` DATETIME NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `idx_report_order` (`order_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='防诈高危上报';
+  KEY `idx_report_order` (`order_id`),
+  KEY `idx_report_target` (`target_type`, `target_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='高危上报与内容举报';
 
 -- 2.21 sensitive_word（敏感词与防诈要素词库）
 CREATE TABLE `sensitive_word` (
@@ -428,3 +432,46 @@ CREATE TABLE `order_view` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_view_order_user` (`order_id`, `user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='浏览去重记录（只增）';
+
+-- 2.25 community_post（邻里动态；v1.3 社区 2.0）
+CREATE TABLE `community_post` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `author_id` BIGINT UNSIGNED NOT NULL COMMENT '0=官方"微光小助手"（不建外键）',
+  `category` VARCHAR(16) NOT NULL COMMENT 'NORMAL/STORY/OFFICIAL',
+  `title` VARCHAR(50) NULL DEFAULT NULL,
+  `content` VARCHAR(1000) NOT NULL,
+  `images` VARCHAR(1000) NULL DEFAULT NULL COMMENT 'JSON 数组，≤community.post_image_max 个 /files/ URL',
+  `status` VARCHAR(20) NOT NULL COMMENT 'PENDING_REVIEW/PENDING_MANUAL/PUBLISHED/HIDDEN/REJECTED/DELETED',
+  `review_degraded` TINYINT NOT NULL DEFAULT 0 COMMENT 'AI 降级放行标记',
+  `review_reason` VARCHAR(200) NULL DEFAULT NULL COMMENT '本地命中词/AI 结论摘要',
+  `like_count` INT NOT NULL DEFAULT 0,
+  `comment_count` INT NOT NULL DEFAULT 0,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `deleted_at` DATETIME NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_post_status_created` (`status`, `created_at`),
+  KEY `idx_post_author_created` (`author_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='邻里动态';
+
+-- 2.26 community_comment（动态评论，一级）
+CREATE TABLE `community_comment` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `post_id` BIGINT UNSIGNED NOT NULL,
+  `author_id` BIGINT UNSIGNED NOT NULL,
+  `content` VARCHAR(200) NOT NULL,
+  `status` VARCHAR(20) NOT NULL COMMENT 'PENDING_REVIEW/PENDING_MANUAL/PUBLISHED/DELETED',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_comment_post_created` (`post_id`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='动态评论（一级）';
+
+-- 2.27 community_like（动态点赞）
+CREATE TABLE `community_like` (
+  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `post_id` BIGINT UNSIGNED NOT NULL,
+  `user_id` BIGINT UNSIGNED NOT NULL,
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_post_user` (`post_id`, `user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='动态点赞';

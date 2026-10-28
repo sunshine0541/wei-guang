@@ -60,13 +60,13 @@ export default {
     typeLabel() {
       return this.order ? ORDER_TYPE_LABELS[this.order.orderType] || '' : ''
     },
-    /** B：从开始帮忙到完成的耗时（开始时间缺失时用发布时间） */
+    /** B：从开始帮忙到完成的耗时（优先取助人者标记完成时间，排除等待确认/申诉处理） */
     durationText() {
       if (!this.order) {
         return ''
       }
       const start = this.order.startedAt || this.order.createdAt
-      const end = this.order.completedAt || this.order.createdAt
+      const end = this.order.completeRequestedAt || this.order.completedAt || this.order.createdAt
       if (!start || !end) {
         return ''
       }

@@ -24,10 +24,19 @@ public class Report {
     /** 证据消息 */
     private Long messageId;
 
+    /** ORDER/POST/COMMENT（v1.3 内容举报） */
+    private String targetType;
+
+    /** 目标主键（v1.3；ORDER 时与 orderId 同值） */
+    private Long targetId;
+
     /** 被上报人 */
     private Long targetUserId;
 
-    /** FRAUD_RISK */
+    /** 举报人（内容举报，v1.3） */
+    private Long reporterId;
+
+    /** FRAUD_RISK/CONTENT_REPORT */
     private String type;
 
     /** 脱敏后的命中要素与方向 */

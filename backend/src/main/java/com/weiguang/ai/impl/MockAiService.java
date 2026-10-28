@@ -1,6 +1,7 @@
 package com.weiguang.ai.impl;
 
 import com.weiguang.ai.AiService;
+import com.weiguang.ai.dto.ModerationResult;
 import com.weiguang.ai.dto.ReviewResult;
 import com.weiguang.ai.dto.ThankLetterDraftResult;
 import com.weiguang.ai.dto.UnderstandHelpResult;
@@ -23,9 +24,14 @@ public class MockAiService implements AiService {
     private static final String GUESS_REASON = "根据您的描述猜的，您可以改";
     /** 感谢信兜底模板长度上限（ai.letter_max_length 默认值） */
     private static final int LETTER_MAX_LENGTH = 200;
-    /** 防诈要素（详设 §2.21 seed，与 sensitive_word action=REVIEW 的 8 条一致） */
+    /** 防诈要素（详设 §2.21 seed 8 条 + v1.3 双向补充的"垫付/代付/转给"类诱导词） */
     private static final List<String> FRAUD_ELEMENTS = List.of(
-            "验证码", "银行卡", "密码", "转账", "汇款", "扫码付款", "身份证号", "社保卡");
+            "验证码", "银行卡", "密码", "转账", "汇款", "扫码付款", "身份证号", "社保卡",
+            "垫付", "垫一下", "代付", "转给");
+
+    /** 能力四 mock 风险词（演示用，覆盖色情/辱骂/违法交易/诈骗引流） */
+    private static final List<String> MODERATION_RISKY_WORDS = List.of(
+            "赌博", "刷单", "加微信私下交易", "色情", "裸聊", "辱骂", "去死", "砍死", "代付", "垫付");
 
     @Override
     public UnderstandHelpResult understandHelp(String text) {
@@ -92,13 +98,36 @@ public class MockAiService implements AiService {
         ReviewResult result = new ReviewResult();
         result.setHitWords(hits);
         result.setDegraded(false);
-        boolean asking = content.contains("发我") || content.contains("告诉我") || content.contains("给我");
+        boolean asking = containsAny(content, "发我", "告诉我", "给我", "转给", "垫", "代付");
         if (!hits.isEmpty() && asking) {
             result.setRiskLevel("HIGH");
             result.setSuggestion("请不要把验证码、银行卡、密码等信息告诉任何人");
         } else {
             result.setRiskLevel("NONE");
             result.setSuggestion("暂未发现索要敏感信息的风险");
+        }
+        return result;
+    }
+
+    /** 能力四 mock：命中风险词 → RISKY，否则 SAFE（degraded=false） */
+    @Override
+    public ModerationResult moderateContent(String contentType, String text) {
+        String content = text == null ? "" : text;
+        List<String> hits = new ArrayList<>();
+        for (String word : MODERATION_RISKY_WORDS) {
+            if (content.contains(word)) {
+                hits.add(word);
+            }
+        }
+        ModerationResult result = new ModerationResult();
+        result.setHitWords(hits);
+        result.setDegraded(false);
+        if (hits.isEmpty()) {
+            result.setRiskLevel("SAFE");
+            result.setSuggestion("内容看起来没问题");
+        } else {
+            result.setRiskLevel("RISKY");
+            result.setSuggestion("内容可能不适合公开展示，建议修改后再发");
         }
         return result;
     }

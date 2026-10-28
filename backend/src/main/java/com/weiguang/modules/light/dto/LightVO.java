@@ -11,7 +11,7 @@ import lombok.Data;
 @Data
 public class LightVO {
 
-    /** 持久态：UNLIT/STEADY/RESTING */
+    /** 持久层级：UNLIT 未点亮 / LIT 被点亮过 / STEADY 常亮 */
     private String lightState;
 
     /** 展示名称（6.4 文案；lit=true 时为"被点亮"） */

@@ -75,9 +75,7 @@
       </view>
 
       <view v-if="isSettled" class="wg-card">
-        <!-- B：评价与悄悄话拆成两个按钮，同进 P10，分别锚点定位 -->
         <view v-if="isRequester" class="wg-btn wg-btn-plain" @click="goEvaluate">去评价</view>
-        <view class="wg-btn wg-btn-plain" :style="isRequester ? 'margin-top: 8px' : ''" @click="goWhisper">写悄悄话</view>
         <view class="wg-btn wg-btn-plain" style="margin-top: 8px" @click="goStory">看看这次的故事卡</view>
       </view>
 
@@ -415,9 +413,6 @@ export default {
     },
     goEvaluate() {
       uni.navigateTo({ url: `/pages/settle/evaluate?id=${this.orderId}&focus=evaluate` })
-    },
-    goWhisper() {
-      uni.navigateTo({ url: `/pages/settle/evaluate?id=${this.orderId}&focus=whisper` })
     },
     goStory() {
       uni.navigateTo({ url: `/pages/settle/story?id=${this.orderId}` })

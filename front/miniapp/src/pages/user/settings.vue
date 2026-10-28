@@ -16,10 +16,10 @@
           :class="{ 'wg-seg-item-active': userStore.isElder }"
           @click="chooseMode('ELDER')"
         >
-          大字模式
+          年长模式
         </view>
       </view>
-      <view class="wg-label">大字模式：字更大、按钮更大，动效会默认关闭，可随时在下方重新打开。</view>
+      <view class="wg-label">年长模式：字更大、按钮更大，动效会默认关闭，可随时在下方重新打开。</view>
     </view>
 
     <!-- 动效开关（U4，独立生效） -->
@@ -85,7 +85,7 @@ export default {
         uni.showToast({
           title:
             mode === 'ELDER'
-              ? '已切换为大字模式，动效已为您关闭，可随时在下方打开。'
+              ? '已切换为年长模式，动效已为您关闭，可随时在下方打开。'
               : '已切换为普通模式，动效已为您打开，可随时在下方关闭。',
           icon: 'none',
           duration: 3000

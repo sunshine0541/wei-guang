@@ -1,5 +1,6 @@
 package com.weiguang.ai;
 
+import com.weiguang.ai.dto.ModerationResult;
 import com.weiguang.ai.dto.ReviewResult;
 import com.weiguang.ai.dto.ThankLetterDraftResult;
 import com.weiguang.ai.dto.UnderstandHelpResult;
@@ -17,8 +18,8 @@ public interface AiService {
     UnderstandHelpResult understandHelp(String text);
 
     /**
-     * 能力二 · 善意守护（详设 §5.3）：复核"索要敏感信息/诱导转账"风险。
-     * 入参 direction=HELPER_TO_REQUESTER / REQUESTER_TO_HELPER（脱敏后调用）；
+     * 能力二 · 善意守护（详设 §5.3 / §15.4）：复核"索要敏感信息/诱导转账、垫付、代付"风险（双向，不区分角色）。
+     * 入参 direction=HELPER_TO_REQUESTER / REQUESTER_TO_HELPER（脱敏后调用，仅作上下文）；
      * 任何异常不上抛：返回降级结果并置 degraded=true（管线据此维持 HIGHLIGHT 不升级）。
      */
     ReviewResult reviewChat(String text, String direction);
@@ -28,4 +29,10 @@ public interface AiService {
      * 入参=求助标题+双方称呼（脱敏后调用）；任何异常不上抛，降级为本地兜底模板并置 degraded=true。
      */
     ThankLetterDraftResult draftThankLetter(String orderTitle, String requesterName, String helperName);
+
+    /**
+     * 能力四 · 内容审核（详设 §15.1.6）：判定社区动态/评论是否 SAFE 或 RISKY。
+     * 独立于能力二，任何异常不上抛：返回降级结果并置 degraded=true（业务层按降级策略处理）。
+     */
+    ModerationResult moderateContent(String contentType, String text);
 }

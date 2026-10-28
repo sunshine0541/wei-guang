@@ -30,7 +30,7 @@
       <el-descriptions :column="3" border size="small">
         <el-descriptions-item label="微光值">{{ user.creditScore }}</el-descriptions-item>
         <el-descriptions-item label="违约计数">{{ user.violationCount }}</el-descriptions-item>
-        <el-descriptions-item label="模式">{{ user.uiMode === 'ELDER' ? '大字' : '普通' }}</el-descriptions-item>
+        <el-descriptions-item label="模式">{{ user.uiMode === 'ELDER' ? '年长' : '普通' }}</el-descriptions-item>
         <el-descriptions-item label="光语状态">{{ user.lightState }}</el-descriptions-item>
         <el-descriptions-item label="光已传递">{{ user.lightPassed === 1 ? '是' : '否' }}</el-descriptions-item>
         <el-descriptions-item label="曾被帮助">{{ user.helpedBefore === 1 ? '是' : '否' }}</el-descriptions-item>

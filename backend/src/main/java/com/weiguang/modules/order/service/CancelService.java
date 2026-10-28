@@ -8,11 +8,14 @@ import com.weiguang.infra.websocket.WsEnvelope;
 import com.weiguang.infra.websocket.WsSessionRegistry;
 import com.weiguang.modules.chat.entity.ChatSession;
 import com.weiguang.modules.chat.mapper.ChatSessionMapper;
+import com.weiguang.modules.notify.service.NotifyService;
 import com.weiguang.modules.order.dto.CancelConfirmRequest;
 import com.weiguang.modules.order.dto.CancelRequest;
 import com.weiguang.modules.order.entity.HelpOrder;
 import com.weiguang.modules.order.mapper.HelpOrderMapper;
 import com.weiguang.modules.system.service.ConfigService;
+import com.weiguang.modules.user.entity.UserProfile;
+import com.weiguang.modules.user.mapper.UserProfileMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,17 +42,23 @@ public class CancelService {
     private final OrderTimelineRecorder timelineRecorder;
     private final ConfigService configService;
     private final WsSessionRegistry wsSessionRegistry;
+    private final NotifyService notifyService;
+    private final UserProfileMapper userProfileMapper;
 
     public CancelService(HelpOrderMapper helpOrderMapper,
                          ChatSessionMapper chatSessionMapper,
                          OrderTimelineRecorder timelineRecorder,
                          ConfigService configService,
-                         WsSessionRegistry wsSessionRegistry) {
+                         WsSessionRegistry wsSessionRegistry,
+                         NotifyService notifyService,
+                         UserProfileMapper userProfileMapper) {
         this.helpOrderMapper = helpOrderMapper;
         this.chatSessionMapper = chatSessionMapper;
         this.timelineRecorder = timelineRecorder;
         this.configService = configService;
         this.wsSessionRegistry = wsSessionRegistry;
+        this.notifyService = notifyService;
+        this.userProfileMapper = userProfileMapper;
     }
 
     /** O9 取消：mode=CANCEL 单方取消（仅求助者）/ mode=NEGOTIATE 发起协商取消（双方，仅服务中） */
@@ -108,10 +117,14 @@ public class CancelService {
         }
         closeSession(order, now);
         timelineRecorder.record(order.getId(), "CANCEL", uid, reason);
+        Long helperId = order.getHelperId();
+        if (helperId != null && !helperId.equals(uid)) {
+            notifyService.cancelNotice(helperId, order.getTitle(), order.getId());
+        }
         push(order, OrderStatus.CANCELLED.name());
     }
 
-    /** 发起协商取消：仅服务中；cancel_pending_by + 24h 应答截止；通知对方（文案详设未定义，见 D14） */
+    /** 发起协商取消：仅服务中；cancel_pending_by + 24h 应答截止；通知对方（详设 §15.6 CANCEL_REQUEST） */
     private void negotiate(Long uid, HelpOrder order, String reason) {
         if (!OrderStatus.IN_SERVICE.name().equals(order.getStatus())) {
             throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
@@ -132,6 +145,10 @@ public class CancelService {
             throw new BizException(ErrorCode.DUPLICATE_SUBMIT);
         }
         timelineRecorder.record(order.getId(), "CANCEL_REQUEST", uid, reason);
+        Long peerId = uid.equals(order.getRequesterId()) ? order.getHelperId() : order.getRequesterId();
+        if (peerId != null) {
+            notifyService.cancelRequest(peerId, nicknameOf(uid), order.getTitle(), order.getId());
+        }
     }
 
     /** O10 协商取消应答：仅另一方；agree → CANCELLED；否则清空挂起并记时间线 */
@@ -212,5 +229,13 @@ public class CancelService {
         if (order.getHelperId() != null) {
             wsSessionRegistry.push(order.getHelperId(), envelope);
         }
+    }
+
+    private String nicknameOf(Long uid) {
+        UserProfile profile = userProfileMapper.selectOne(Wrappers.<UserProfile>lambdaQuery()
+                .eq(UserProfile::getUserId, uid)
+                .last("LIMIT 1"));
+        return profile == null || profile.getNickname() == null || profile.getNickname().isBlank()
+                ? "邻居" : profile.getNickname();
     }
 }

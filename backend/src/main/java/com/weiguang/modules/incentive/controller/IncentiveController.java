@@ -10,7 +10,6 @@ import com.weiguang.modules.incentive.dto.LetterRequest;
 import com.weiguang.modules.incentive.dto.LedgerVO;
 import com.weiguang.modules.incentive.dto.StoryCardVO;
 import com.weiguang.modules.incentive.dto.ThankVO;
-import com.weiguang.modules.incentive.dto.WhisperRequest;
 import com.weiguang.modules.incentive.service.IncentiveService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,7 +19,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * S1/S3/S4/S5 与 U8/U9/U10（详设 §3.3、§3.6）。
+ * S1/S3/S5 与 U8/U9/U10（详设 §3.3、§3.6；S4 悄悄话已于 v1.3 下线，见 §15.9）。
  */
 @RestController
 public class IncentiveController {
@@ -47,12 +46,6 @@ public class IncentiveController {
     @PostMapping("/api/orders/{id}/thank-letter")
     public Result<IdVO> thankLetter(@PathVariable Long id, @RequestBody LetterRequest request) {
         return Result.ok(incentiveService.thankLetter(AuthContext.requireUid(), id, request));
-    }
-
-    /** S4 发送悄悄话（双方各一条） */
-    @PostMapping("/api/orders/{id}/whisper")
-    public Result<IdVO> whisper(@PathVariable Long id, @RequestBody WhisperRequest request) {
-        return Result.ok(incentiveService.whisper(AuthContext.requireUid(), id, request));
     }
 
     /** S5 查看故事卡 */

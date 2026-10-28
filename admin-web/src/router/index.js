@@ -14,6 +14,7 @@ const routes = [
       { path: 'users', component: () => import('../views/Users.vue'), meta: { title: '用户管理' } },
       { path: 'users/:id', component: () => import('../views/UserDetail.vue'), meta: { title: '用户详情' } },
       { path: 'configs', component: () => import('../views/Configs.vue'), meta: { title: '配置管理' } },
+      { path: 'community', component: () => import('../views/Community.vue'), meta: { title: '社区管理' } },
       { path: 'appeals', component: () => import('../views/Appeals.vue'), meta: { title: '申诉/反馈处理' } }
     ]
   }

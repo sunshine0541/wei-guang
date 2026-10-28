@@ -9,7 +9,12 @@ const BUILD_HOST = import.meta.env.VITE_API_HOST || 'localhost:8080'
 /* 微信开发者工具模拟器的 platform 为 'devtools'（真机为 ios / android） */
 function isDevtools() {
   try {
-    return typeof uni !== 'undefined' && uni.getSystemInfoSync().platform === 'devtools'
+    if (typeof uni === 'undefined') {
+      return false
+    }
+    const device = typeof uni.getDeviceInfo === 'function' ? uni.getDeviceInfo() : null
+    const platform = device ? device.platform : (uni.getSystemInfoSync().platform || '')
+    return platform === 'devtools'
   } catch (e) {
     return false
   }

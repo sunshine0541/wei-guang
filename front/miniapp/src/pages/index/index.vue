@@ -56,7 +56,7 @@
       <!-- 紧急电话卡片（§6.1 紧急提示三处常驻之③） -->
       <EmergencyCard />
 
-      <!-- 求助列表（主体）：Tab + 筛选（年长模式：隐藏 Tab 与筛选，默认落「为你推荐」） -->
+      <!-- 求助列表（主体）：Tab + 筛选（年长模式隐藏 Tab 与筛选，直接展示全部求助） -->
       <view v-if="!userStore.isElder" class="wg-seg">
         <view class="wg-seg-item" :class="{ 'wg-seg-item-active': tab === 'all' }" @click="switchTab('all')">全部求助</view>
         <view class="wg-seg-item" :class="{ 'wg-seg-item-active': tab === 'recommend' }" @click="switchTab('recommend')">为你推荐</view>
@@ -75,9 +75,7 @@
         <view class="wg-chip" :class="{ 'wg-chip-active': distanceSort }" @click="toggleDistanceSort">离我最近</view>
       </view>
 
-      <view id="wgOrderList" class="wg-section-title">
-        {{ userStore.isElder ? '为你推荐' : '附近邻居需要帮忙' }}
-      </view>
+      <view id="wgOrderList" class="wg-section-title">附近邻居需要帮忙</view>
       <view v-if="orders.length === 0" class="wg-empty">{{ emptyText }}</view>
       <view v-for="order in orders" :key="order.id" class="wg-card" @click="openDetail(order.id)">
         <view class="wg-card-head">
@@ -190,15 +188,14 @@ export default {
       return this.userStore.isElder ? 28 : 24
     },
     emptyText() {
-      // 年长模式默认落「为你推荐」，此时页面无「全部求助」入口，故不再引导去该 Tab
-      if (this.userStore.isElder) {
-        return MESSAGES.EMPTY
-      }
-      return this.tab === 'recommend' ? '还没有和您方向匹配的求助，去"全部求助"看看吧' : MESSAGES.EMPTY
+      // 年长模式固定展示全部求助，空态直接使用通用文案
+      return this.userStore.isElder
+        ? MESSAGES.EMPTY
+        : (this.tab === 'recommend' ? '还没有和您方向匹配的求助，去"全部求助"看看吧' : MESSAGES.EMPTY)
     }
   },
   onLoad() {
-    this.statusBarHeight = (uni.getSystemInfoSync().statusBarHeight || 0) + 6
+    this.statusBarHeight = (this.statusBarHeightOf() || 0) + 6
     this.bootstrap()
   },
   onShow() {
@@ -221,6 +218,15 @@ export default {
     }
   },
   methods: {
+    /** 兼容新版微信：优先 getWindowInfo，避免 getSystemInfoSync 弃用警告 */
+    statusBarHeightOf() {
+      if (typeof uni.getWindowInfo === 'function') {
+        return uni.getWindowInfo().statusBarHeight || 0
+      }
+      return typeof uni.getSystemInfoSync === 'function'
+        ? (uni.getSystemInfoSync().statusBarHeight || 0)
+        : 0
+    },
     async bootstrap() {
       this.loading = true
       this.loadFailed = false
@@ -263,8 +269,8 @@ export default {
     },
     async loadOrders() {
       const result = await listOrders({
-        // 年长模式：Tab 被隐藏，改为默认落「为你推荐」（原实现直接砍掉推荐＝功能损失）
-        tab: this.userStore.isElder ? 'recommend' : this.tab,
+        // 年长模式隐藏 Tab，固定展示全部求助（不能用 recommend，否则推荐为空时会误显示"没有求助"）
+        tab: this.userStore.isElder ? 'all' : this.tab,
         orderType: this.orderType || undefined,
         urgentOnly: this.urgentOnly ? true : undefined,
         sort: this.distanceSort ? 'distance' : undefined

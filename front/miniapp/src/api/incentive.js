@@ -25,11 +25,6 @@ export function aiDraftLetter(id) {
   return request({ url: `/api/orders/${id}/thank-letter/ai-draft`, method: 'POST' })
 }
 
-/** S4 发送悄悄话（双方各一条） */
-export function submitWhisper(id, data) {
-  return request({ url: `/api/orders/${id}/whisper`, method: 'POST', data })
-}
-
 /** S5 查看故事卡 */
 export function getStoryCard(id) {
   return request({ url: `/api/orders/${id}/story-card`, silent: true })

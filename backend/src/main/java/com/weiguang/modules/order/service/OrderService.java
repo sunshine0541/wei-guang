@@ -184,7 +184,8 @@ public class OrderService {
         requireEmergencyContact(profile, orderType);
 
         if (OrderSource.REPEAT.name().equals(source)) {
-            requireOwnExpiredOrder(uid, request.getRepeatFromOrderId());
+            // 「再来一次」允许选本人已了结的求助（完成/取消/超时）；一键重发 O13 仍仅限 EXPIRED
+            requireOwnRepeatableOrder(uid, request.getRepeatFromOrderId());
         }
 
         String content = (request.getTitle() == null ? "" : request.getTitle())
@@ -605,6 +606,7 @@ public class OrderService {
         vo.setCreatedAt(order.getCreatedAt());
         vo.setStartedAt(order.getStartedAt());
         vo.setCompletedAt(order.getCompletedAt());
+        vo.setCompleteRequestedAt(order.getCompleteRequestedAt());
         vo.setViewCount(order.getViewCount());
         vo.setStatus(order.getStatus());
         String myRole = mine ? "REQUESTER" : (uid.equals(order.getHelperId()) ? "HELPER" : null);
@@ -788,6 +790,22 @@ public class OrderService {
             throw new BizException(ErrorCode.FORBIDDEN);
         }
         if (!OrderStatus.EXPIRED.name().equals(order.getStatus())) {
+            throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
+        }
+        return order;
+    }
+
+    /** 「再来一次」来源校验：本人 + 已了结（COMPLETED/CANCELLED/EXPIRED） */
+    private HelpOrder requireOwnRepeatableOrder(Long uid, Long orderId) {
+        if (orderId == null) {
+            throw new BizException(ErrorCode.PARAM_INVALID);
+        }
+        HelpOrder order = helpOrderMapper.selectById(orderId);
+        if (order == null || !order.getRequesterId().equals(uid)) {
+            throw new BizException(ErrorCode.FORBIDDEN);
+        }
+        if (!List.of(OrderStatus.COMPLETED.name(), OrderStatus.CANCELLED.name(),
+                OrderStatus.EXPIRED.name()).contains(order.getStatus())) {
             throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
         }
         return order;

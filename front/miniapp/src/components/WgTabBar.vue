@@ -22,7 +22,7 @@ import { useUserStore } from '@/store/user'
 import { useNotifyStore } from '@/store/notify'
 
 /**
- * 底部导航（自绘，本轮 5 项：首页 / 我的求助 / 社区 / 消息 / 我的）
+ * 底部导航（自绘，本轮 5 项：首页 / 求助 / 社区 / 消息 / 我的）
  * —— 不注册原生 tabBar：避免 PNG 图标资源、便于将来扩项、适老可放大。
  * 「消息」指向现有通知中心 P16。
  * 图标取自 uview-plus 内置字体图标（<u-icon>），随字号缩放。
@@ -30,14 +30,14 @@ import { useNotifyStore } from '@/store/notify'
 export default {
   name: 'WgTabBar',
   props: {
-    /** 当前激活项：0 首页 / 1 我的求助 / 2 社区 / 3 消息 / 4 我的 */
+    /** 当前激活项：0 首页 / 1 求助 / 2 社区 / 3 消息 / 4 我的 */
     active: { type: Number, default: 0 }
   },
   data() {
     return {
       items: [
         { text: '首页', path: '/pages/index/index', icon: 'home', iconActive: 'home-fill' },
-        { text: '我的求助', path: '/pages/order/mine', icon: 'list', iconActive: 'list-dot' },
+        { text: '求助', path: '/pages/order/mine', icon: 'list', iconActive: 'list-dot' },
         { text: '社区', path: '/pages/community/index', icon: 'grid', iconActive: 'grid-fill' },
         { text: '消息', path: '/pages/user/notify', icon: 'chat', iconActive: 'chat-fill' },
         { text: '我的', path: '/pages/user/index', icon: 'account', iconActive: 'account-fill' }

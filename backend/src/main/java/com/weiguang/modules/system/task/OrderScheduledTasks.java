@@ -5,8 +5,15 @@ import com.weiguang.common.enums.OrderStatus;
 import com.weiguang.modules.chat.entity.ChatMessage;
 import com.weiguang.modules.chat.mapper.ChatMessageMapper;
 import com.weiguang.modules.incentive.entity.CreditLedger;
+import com.weiguang.modules.incentive.entity.Evaluation;
+import com.weiguang.modules.incentive.entity.StoryCard;
+import com.weiguang.modules.incentive.entity.ThankLetter;
+import com.weiguang.modules.incentive.entity.Whisper;
 import com.weiguang.modules.incentive.mapper.CreditLedgerMapper;
-import com.weiguang.modules.light.service.LightService;
+import com.weiguang.modules.incentive.mapper.EvaluationMapper;
+import com.weiguang.modules.incentive.mapper.StoryCardMapper;
+import com.weiguang.modules.incentive.mapper.ThankLetterMapper;
+import com.weiguang.modules.incentive.mapper.WhisperMapper;
 import com.weiguang.modules.notify.service.NotifyService;
 import com.weiguang.modules.order.entity.HelpOrder;
 import com.weiguang.modules.order.entity.OrderTimeline;
@@ -38,47 +45,46 @@ public class OrderScheduledTasks {
     private final HelpOrderMapper helpOrderMapper;
     private final UserMapper userMapper;
     private final CreditLedgerMapper creditLedgerMapper;
+    private final StoryCardMapper storyCardMapper;
+    private final ThankLetterMapper thankLetterMapper;
+    private final WhisperMapper whisperMapper;
+    private final EvaluationMapper evaluationMapper;
     private final OrderTimelineMapper orderTimelineMapper;
     private final ChatMessageMapper chatMessageMapper;
     private final OrderTimelineRecorder timelineRecorder;
     private final ReleaseService releaseService;
     private final SettleService settleService;
-    private final LightService lightService;
     private final NotifyService notifyService;
     private final ConfigService configService;
 
     public OrderScheduledTasks(HelpOrderMapper helpOrderMapper,
                                UserMapper userMapper,
                                CreditLedgerMapper creditLedgerMapper,
+                               StoryCardMapper storyCardMapper,
+                               ThankLetterMapper thankLetterMapper,
+                               WhisperMapper whisperMapper,
+                               EvaluationMapper evaluationMapper,
                                OrderTimelineMapper orderTimelineMapper,
                                ChatMessageMapper chatMessageMapper,
                                OrderTimelineRecorder timelineRecorder,
                                ReleaseService releaseService,
                                SettleService settleService,
-                               LightService lightService,
                                NotifyService notifyService,
                                ConfigService configService) {
         this.helpOrderMapper = helpOrderMapper;
         this.userMapper = userMapper;
         this.creditLedgerMapper = creditLedgerMapper;
+        this.storyCardMapper = storyCardMapper;
+        this.thankLetterMapper = thankLetterMapper;
+        this.whisperMapper = whisperMapper;
+        this.evaluationMapper = evaluationMapper;
         this.orderTimelineMapper = orderTimelineMapper;
         this.chatMessageMapper = chatMessageMapper;
         this.timelineRecorder = timelineRecorder;
         this.releaseService = releaseService;
         this.settleService = settleService;
-        this.lightService = lightService;
         this.notifyService = notifyService;
         this.configService = configService;
-    }
-
-    /** J7 光语扫描：每 1 h（初始延迟 1 min 便于启动后尽快校准；条件更新幂等，详设 §4.3） */
-    @Scheduled(fixedDelay = 3_600_000, initialDelay = 60_000)
-    public void j7LightScan() {
-        try {
-            lightService.j7Scan();
-        } catch (Exception e) {
-            log.warn("J7 光语扫描异常：{}", e.getMessage());
-        }
     }
 
     /** J1 待响应超时：每 1 min，PENDING 且 publish_deadline<now → EXPIRED */
@@ -241,6 +247,29 @@ public class OrderScheduledTasks {
             chatMessageMapper.update(null, Wrappers.<ChatMessage>lambdaUpdate()
                     .eq(ChatMessage::getSenderId, uid)
                     .set(ChatMessage::getContent, ANONYMIZED));
+            // v1.3：故事卡姓名快照、感谢信/悄悄话正文、评价建议一并匿名化
+            List<Long> relatedOrderIds = helpOrderMapper.selectList(Wrappers.<HelpOrder>lambdaQuery()
+                            .select(HelpOrder::getId)
+                            .and(w -> w.eq(HelpOrder::getRequesterId, uid)
+                                    .or().eq(HelpOrder::getHelperId, uid)))
+                    .stream().map(HelpOrder::getId).toList();
+            if (!relatedOrderIds.isEmpty()) {
+                storyCardMapper.update(null, Wrappers.<StoryCard>lambdaUpdate()
+                        .in(StoryCard::getOrderId, relatedOrderIds)
+                        .set(StoryCard::getRequesterName, ANONYMIZED)
+                        .set(StoryCard::getHelperName, ANONYMIZED)
+                        .set(StoryCard::getThing, ANONYMIZED)
+                        .set(StoryCard::getSummary, ANONYMIZED));
+            }
+            thankLetterMapper.update(null, Wrappers.<ThankLetter>lambdaUpdate()
+                    .eq(ThankLetter::getSenderId, uid)
+                    .set(ThankLetter::getContent, ANONYMIZED));
+            whisperMapper.update(null, Wrappers.<Whisper>lambdaUpdate()
+                    .eq(Whisper::getSenderId, uid)
+                    .set(Whisper::getContent, ANONYMIZED));
+            evaluationMapper.update(null, Wrappers.<Evaluation>lambdaUpdate()
+                    .eq(Evaluation::getRequesterId, uid)
+                    .set(Evaluation::getAdvice, ANONYMIZED));
             // 条件更新保证只处理一次：处理完把 updated_at 前推
             userMapper.update(null, Wrappers.<User>lambdaUpdate()
                     .eq(User::getId, uid)

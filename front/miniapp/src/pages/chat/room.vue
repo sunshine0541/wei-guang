@@ -26,6 +26,9 @@
     </view>
 
     <scroll-view v-if="session" scroll-y class="wg-msg-scroll" :scroll-into-view="scrollTarget">
+      <view v-if="hasOlder" class="wg-load-older" @click="loadOlder">
+        {{ loadingOlder ? '正在加载…' : '查看更早的消息' }}
+      </view>
       <view
         v-for="(msg, index) in messages"
         :id="'msg-' + index"
@@ -105,6 +108,9 @@ export default {
       session: null,
       careTip: null,
       messages: [],
+      messagePage: 1,
+      hasOlder: false,
+      loadingOlder: false,
       quickPhrases: [],
       draft: '',
       myUid: null,
@@ -173,7 +179,7 @@ export default {
     },
     async loadMessages() {
       try {
-        const result = await listMessages(this.session.sessionId, { page: 1, pageSize: 50 })
+        const result = await listMessages(this.session.sessionId, { page: 1, pageSize: 30 })
         const records = (result.records || []).slice().reverse()
         this.messages = records.map((item) => ({
           key: 'm:' + item.msgId,
@@ -184,9 +190,44 @@ export default {
           riskFlag: item.riskFlag,
           createdAt: item.createdAt
         }))
+        this.messagePage = 1
+        const total = result.total || 0
+        this.hasOlder = this.messages.length < total
         this.scrollToBottom()
       } catch (e) {
         console.error('[微光] 消息加载失败', e)
+      }
+    },
+    /** C2 向前翻页：加载更早的消息并保持当前阅读位置 */
+    async loadOlder() {
+      if (this.loadingOlder || !this.hasOlder || !this.session) {
+        return
+      }
+      this.loadingOlder = true
+      const nextPage = this.messagePage + 1
+      try {
+        const result = await listMessages(this.session.sessionId, { page: nextPage, pageSize: 30 })
+        const records = (result.records || []).slice().reverse()
+        const older = records.map((item) => ({
+          key: 'm:' + item.msgId,
+          msgId: item.msgId,
+          senderId: item.senderId,
+          messageType: item.messageType,
+          content: item.content,
+          riskFlag: item.riskFlag,
+          createdAt: item.createdAt
+        }))
+        this.messages = older.concat(this.messages)
+        this.messagePage = nextPage
+        const total = result.total || 0
+        this.hasOlder = this.messages.length < total
+        this.$nextTick(() => {
+          this.scrollTarget = 'msg-0'
+        })
+      } catch (e) {
+        console.error('[微光] 更早消息加载失败', e)
+      } finally {
+        this.loadingOlder = false
       }
     },
     isMine(msg) {
@@ -402,6 +443,14 @@ export default {
   background-color: #e9e6df;
   border-radius: 14px 14px 0 0;
   padding: 10px var(--wg-space) var(--wg-space);
+}
+
+.wg-load-older {
+  margin: 8px 0 12px;
+  text-align: center;
+  color: var(--wg-text-soft);
+  font-size: var(--wg-font-sm);
+  text-decoration: underline;
 }
 
 .wg-chat-page {

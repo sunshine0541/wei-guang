@@ -13,7 +13,10 @@ public class AdminReportVO {
     private Long id;
     private Long orderId;
     private Long messageId;
+    private String targetType;
+    private Long targetId;
     private Long targetUserId;
+    private Long reporterId;
     private String type;
     private String evidence;
     private String status;

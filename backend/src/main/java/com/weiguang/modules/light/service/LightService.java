@@ -13,36 +13,37 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Set;
 
 /**
- * 光语状态机（详设 §4.2 映射表，事件→状态无留白）：
- * - 持久状态：UNLIT/STEADY/RESTING 互斥；"被点亮"为推导态不落库；徽记 LIGHT_PASSED 永久叠加。
- * - 事件挂钩：建号（WxAuthService）/ 发布（OrderService）/ 结算与徽记（SettleService）/ U5（UserService）/
- *   连续被释放（ReleaseService，D15① 于 T15 落地）/ J7 扫描（本类）。
- * - 互动口径：仅更新 last_interaction_at；RESTING 则 rest_since 重置（小憩重新起算，持久态不变）。
+ * 光语 v2（详设 §15.3，替换 §4.2 旧三态）：
+ * - 持久层级：UNLIT 未点亮 / LIT 被点亮过 / STEADY 常亮（已成为微光），只升不降。
+ * - 派生标签：被点亮（存在进行中求助）、小憩（常亮且长期无互动或连续被释放）——不落库。
+ * - 发布求助、被释放、取消、申诉均不改变层级；J7 只算标签，不再写库。
+ * - 事件挂钩：建号（WxAuthService）/ 结算（SettleService）/ U5（UserService）/ 发布（OrderService 仅更新互动时间）。
  */
 @Slf4j
 @Service
 public class LightService {
 
     public static final String STATE_UNLIT = "UNLIT";
+    public static final String STATE_LIT = "LIT";
     public static final String STATE_STEADY = "STEADY";
-    public static final String STATE_RESTING = "RESTING";
 
-    /** 推导态"被点亮"：存在已接单/服务中/待确认/申诉中的求助（详设 §4.2） */
+    /** 推导标签"被点亮"：存在已接单/服务中/待确认/申诉中的求助 */
     private static final Set<String> LIT_STATUSES = Set.of("ACCEPTED", "IN_SERVICE", "PENDING_CONFIRM", "APPEALING");
 
-    /** 6.4 写死文案 */
+    /** 6.4 写死文案（v1.3 修订） */
     private static final String UNLIT_NAME = "未点亮";
     private static final String UNLIT_DESC = "您的微光还未点亮，需要的时候，邻居会为您而来。";
     private static final String LIT_NAME = "被点亮";
     private static final String LIT_DESC = "被点亮：已经有人在向您走来。";
+    private static final String LIT_LEVEL_NAME = "被点亮过";
+    private static final String LIT_LEVEL_DESC = "您的光已经亮过，也记得为邻居留一盏。";
     private static final String STEADY_NAME = "常亮";
     private static final String STEADY_DESC = "您的光正亮着，也在照亮别人。";
     private static final String RESTING_NAME = "小憩";
-    private static final String RESTING_DESC = "您的光在小憩，养足精神再出发。";
+    private static final String RESTING_DESC = "光在歇一会儿，回来时会更暖。";
     private static final String BADGE_DESC = "您曾被照亮，如今也照亮了别人——光已传递。";
 
     private final UserMapper userMapper;
@@ -60,73 +61,49 @@ public class LightService {
 
     // ---------- 事件挂钩（供各业务模块调用） ----------
 
-    /** 互动口径（详设 §4.2 末行）：更新 last_interaction_at；RESTING 则将 rest_since 重置（持久态不变） */
+    /** 互动口径（详设 §15.3）：只更新 last_interaction_at，任何情况下不改层级 */
     public void interaction(Long uid) {
         userMapper.update(null, Wrappers.<User>lambdaUpdate()
                 .eq(User::getId, uid)
-                .set(User::getLastInteractionAt, LocalDateTime.now())
-                .setSql("rest_since = IF(light_state = 'RESTING', NOW(), rest_since)"));
+                .set(User::getLastInteractionAt, LocalDateTime.now()));
     }
 
-    /** 发布求助（§4.2）：STEADY → RESTING（prev=STEADY、rest_since=now）+ 事件；UNLIT/RESTING 不变 */
+    /** 发布求助：仅更新互动时间（v1.3 起不再转"小憩"） */
     public void onPublish(Long uid) {
-        toResting(uid, STATE_STEADY);
-    }
-
-    /** 连续被释放达标（§4.2，D15①）：STEADY 且计数 ≥ light.rest_release_count → RESTING + 事件 */
-    public void onConsecutiveRelease(Long uid) {
-        User user = userMapper.selectById(uid);
-        if (user == null || !STATE_STEADY.equals(user.getLightState())) {
-            return;
-        }
-        int threshold = configService.getInt("light.rest_release_count", 2);
-        if (user.getConsecutiveReleaseCount() == null || user.getConsecutiveReleaseCount() < threshold) {
-            return;
-        }
-        toResting(uid, STATE_STEADY);
-    }
-
-    /** 条件更新 STEADY→RESTING（幂等：WHERE light_state=旧值），成功则记事件 */
-    private int toResting(Long uid, String fromState) {
-        int updated = userMapper.update(null, Wrappers.<User>lambdaUpdate()
-                .eq(User::getId, uid)
-                .eq(User::getLightState, fromState)
-                .set(User::getLightState, STATE_RESTING)
-                .set(User::getLightPrevState, fromState)
-                .set(User::getRestSince, LocalDateTime.now()));
-        if (updated > 0) {
-            recorder.record(LightEventRecorder.TYPE_STATE_CHANGE, uid, fromState, STATE_RESTING, null, null);
-        }
-        return updated;
+        interaction(uid);
     }
 
     // ---------- U7 查询 ----------
 
-    /** U7 光状态：持久态+推导态+徽记+解释文案 6.4 + inviteDue（详设 §3.6 / §4.2 / P13） */
+    /** U7 光状态：持久层级 + 派生标签（被点亮 / 小憩）+ 徽记 + 解释文案 + inviteDue */
     public LightVO light(Long uid) {
         User user = userMapper.selectById(uid);
         if (user == null) {
             throw new BizException(ErrorCode.UNAUTHORIZED);
         }
+        String level = normalize(user.getLightState());
         boolean lit = helpOrderMapper.selectCount(Wrappers.<HelpOrder>lambdaQuery()
                 .eq(HelpOrder::getRequesterId, uid)
                 .in(HelpOrder::getStatus, LIT_STATUSES)) > 0;
         boolean passed = user.getLightPassed() != null && user.getLightPassed() == 1;
 
         LightVO vo = new LightVO();
-        vo.setLightState(user.getLightState());
+        vo.setLightState(level);
         if (lit) {
             vo.setLightStateName(LIT_NAME);
             vo.setLightStateDesc(LIT_DESC);
+        } else if (resting(user)) {
+            vo.setLightStateName(RESTING_NAME);
+            vo.setLightStateDesc(RESTING_DESC);
         } else {
-            switch (user.getLightState() == null ? STATE_UNLIT : user.getLightState()) {
+            switch (level) {
                 case STATE_STEADY -> {
                     vo.setLightStateName(STEADY_NAME);
                     vo.setLightStateDesc(STEADY_DESC);
                 }
-                case STATE_RESTING -> {
-                    vo.setLightStateName(RESTING_NAME);
-                    vo.setLightStateDesc(RESTING_DESC);
+                case STATE_LIT -> {
+                    vo.setLightStateName(LIT_LEVEL_NAME);
+                    vo.setLightStateDesc(LIT_LEVEL_DESC);
                 }
                 default -> {
                     vo.setLightStateName(UNLIT_NAME);
@@ -141,9 +118,34 @@ public class LightService {
         return vo;
     }
 
-    /** 邀请再触发（P13 Q13 规则）：非"常亮" + 曾被帮助 + 距上次弹窗 ≥ light.invite_interval_days */
+    /** 历史数据兼容：旧 RESTING 视为常亮（v1.3 只升不降，seed 重写时清理）；空值视为未点亮 */
+    private String normalize(String state) {
+        if (STATE_LIT.equals(state) || STATE_STEADY.equals(state)) {
+            return state;
+        }
+        if (STATE_UNLIT.equals(state) || state == null) {
+            return STATE_UNLIT;
+        }
+        return STATE_STEADY;
+    }
+
+    /** 小憩标签：常亮用户长期无互动或连续被释放达标（只影响展示，不写库） */
+    private boolean resting(User user) {
+        if (!STATE_STEADY.equals(normalize(user.getLightState()))) {
+            return false;
+        }
+        int triggerDays = configService.getInt("light.rest_trigger_days", 30);
+        int releaseThreshold = configService.getInt("light.rest_release_count", 2);
+        boolean idle = user.getLastInteractionAt() == null
+                || user.getLastInteractionAt().isBefore(LocalDateTime.now().minusDays(triggerDays));
+        boolean released = user.getConsecutiveReleaseCount() != null
+                && user.getConsecutiveReleaseCount() >= releaseThreshold;
+        return idle || released;
+    }
+
+    /** 邀请再触发（P13 Q13 规则）：非常亮 + 曾被帮助 + 距上次弹窗 ≥ light.invite_interval_days */
     private boolean inviteDue(User user) {
-        if (STATE_STEADY.equals(user.getLightState())) {
+        if (STATE_STEADY.equals(normalize(user.getLightState()))) {
             return false;
         }
         if (user.getHelpedBefore() == null || user.getHelpedBefore() != 1) {
@@ -152,51 +154,5 @@ public class LightService {
         int days = configService.getInt("light.invite_interval_days", 7);
         return user.getLastLightInviteAt() == null
                 || !user.getLastLightInviteAt().isAfter(LocalDateTime.now().minusDays(days));
-    }
-
-    // ---------- J7 光语扫描（详设 §4.3，每 1 h） ----------
-
-    /** ①STEADY 无互动超期或连续被释放达标 → RESTING；②RESTING 期满且期间无事件 → 恢复 prev_state */
-    public void j7Scan() {
-        LocalDateTime now = LocalDateTime.now();
-        int triggerDays = configService.getInt("light.rest_trigger_days", 30);
-        int restDays = configService.getInt("light.rest_duration_days", 7);
-        int releaseThreshold = configService.getInt("light.rest_release_count", 2);
-
-        int toRest = 0;
-        int restored = 0;
-        List<User> steadyUsers = userMapper.selectList(Wrappers.<User>lambdaQuery()
-                .eq(User::getLightState, STATE_STEADY));
-        for (User user : steadyUsers) {
-            boolean idle = user.getLastInteractionAt() == null
-                    || user.getLastInteractionAt().isBefore(now.minusDays(triggerDays));
-            boolean released = user.getConsecutiveReleaseCount() != null
-                    && user.getConsecutiveReleaseCount() >= releaseThreshold;
-            if (idle || released) {
-                toRest += toResting(user.getId(), STATE_STEADY);
-            }
-        }
-        List<User> restingUsers = userMapper.selectList(Wrappers.<User>lambdaQuery()
-                .eq(User::getLightState, STATE_RESTING));
-        for (User user : restingUsers) {
-            // rest_since 为空视为异常数据，跳过；期中互动会重置 rest_since，故此处只需比对期满
-            if (user.getRestSince() == null || user.getRestSince().isAfter(now.minusDays(restDays))) {
-                continue;
-            }
-            String back = user.getLightPrevState() == null ? STATE_STEADY : user.getLightPrevState();
-            int updated = userMapper.update(null, Wrappers.<User>lambdaUpdate()
-                    .eq(User::getId, user.getId())
-                    .eq(User::getLightState, STATE_RESTING)
-                    .set(User::getLightState, back)
-                    .set(User::getRestSince, null)
-                    .set(User::getLightPrevState, null));
-            if (updated > 0) {
-                recorder.record(LightEventRecorder.TYPE_STATE_CHANGE, user.getId(), STATE_RESTING, back, null, null);
-                restored++;
-            }
-        }
-        if (toRest > 0 || restored > 0) {
-            log.info("J7 光语扫描：熄灭 {} 人、恢复 {} 人", toRest, restored);
-        }
     }
 }

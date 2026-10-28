@@ -8,7 +8,6 @@ import com.weiguang.infra.websocket.WsEnvelope;
 import com.weiguang.infra.websocket.WsSessionRegistry;
 import com.weiguang.modules.chat.entity.ChatSession;
 import com.weiguang.modules.chat.mapper.ChatSessionMapper;
-import com.weiguang.modules.light.service.LightService;
 import com.weiguang.modules.incentive.entity.CreditLedger;
 import com.weiguang.modules.incentive.mapper.CreditLedgerMapper;
 import com.weiguang.modules.notify.service.NotifyService;
@@ -58,7 +57,6 @@ public class ReleaseService {
     private final UserProfileMapper userProfileMapper;
     private final ConfigService configService;
     private final NotifyService notifyService;
-    private final LightService lightService;
     private final OrderTimelineRecorder timelineRecorder;
     private final WsSessionRegistry wsSessionRegistry;
 
@@ -70,7 +68,6 @@ public class ReleaseService {
                           UserProfileMapper userProfileMapper,
                           ConfigService configService,
                           NotifyService notifyService,
-                          LightService lightService,
                           OrderTimelineRecorder timelineRecorder,
                           WsSessionRegistry wsSessionRegistry) {
         this.helpOrderMapper = helpOrderMapper;
@@ -81,7 +78,6 @@ public class ReleaseService {
         this.userProfileMapper = userProfileMapper;
         this.configService = configService;
         this.notifyService = notifyService;
-        this.lightService = lightService;
         this.timelineRecorder = timelineRecorder;
         this.wsSessionRegistry = wsSessionRegistry;
     }
@@ -202,23 +198,37 @@ public class ReleaseService {
                 .set(ChatSession::getStatus, "CLOSED")
                 .set(ChatSession::getClosedAt, now));
 
-        timelineRecorder.record(order.getId(), "RELEASE", operatorId, reasonType);
+        timelineRecorder.record(order.getId(), "RELEASE", operatorId, releaseRemark(reasonType, reasonText));
 
         Long helperId = order.getHelperId();
         if (helperId != null && !PENALTY_NONE.equals(penalty)) {
             applyViolation(helperId, order, reasonType, penalty);
         }
 
-        // 求助者连续被释放计数 +1；达 light.rest_release_count → 常亮转小憩（详设 §4.2；D15① 于 T15 落地）
+        // 求助者连续被释放计数 +1（v1.3 起只影响"小憩"展示标签，不改光语层级）
         userMapper.update(null, Wrappers.<User>lambdaUpdate()
                 .eq(User::getId, order.getRequesterId())
                 .setSql("consecutive_release_count = consecutive_release_count + 1"));
-        lightService.onConsecutiveRelease(order.getRequesterId());
 
         notifyService.released(order.getRequesterId(), order.getTitle(), order.getId());
         pushOrderStatus(order.getId(), OrderStatus.PENDING.name(), order.getTitle(),
                 order.getRequesterId(), helperId);
         return true;
+    }
+
+    /** 时间线展示文案：优先用户填写的理由，否则按原因类型给中文（不把枚举裸露给用户） */
+    private String releaseRemark(String reasonType, String reasonText) {
+        if (reasonText != null && !reasonText.isBlank()) {
+            return reasonText;
+        }
+        return switch (reasonType == null ? "" : reasonType) {
+            case REASON_QUIT -> "主动放弃，已重新寻找邻居";
+            case REASON_HELPLESS -> "实在帮不上，已重新寻找邻居";
+            case REASON_LOST -> "中途退出，已重新寻找邻居";
+            case REASON_START_TIMEOUT -> "超时未开始，已重新寻找邻居";
+            case "ACCOUNT_CANCELLED" -> "对方账号已注销，已重新寻找邻居";
+            default -> "已重新寻找邻居";
+        };
     }
 
     /** 近 7 天免罚释放次数 < order.helpless_release_limit（以 release_record 统计） */

@@ -3,6 +3,7 @@ package com.weiguang.ai;
 import com.weiguang.ai.dto.ReviewResult;
 import com.weiguang.ai.impl.RestClientAiService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
@@ -20,6 +21,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * 未配置 DASHSCOPE_API_KEY 时自动跳过，不影响常规构建。
  */
 @SpringBootTest
+@EnabledIfEnvironmentVariable(named = "DASHSCOPE_API_KEY", matches = ".+")
 class FraudReviewSamplesTest {
 
     @Autowired

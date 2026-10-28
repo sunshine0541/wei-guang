@@ -22,7 +22,7 @@
         <el-table-column prop="nickname" label="昵称" width="130" />
         <el-table-column prop="age" label="年龄" width="70" />
         <el-table-column label="模式" width="90">
-          <template #default="{ row }">{{ row.uiMode === 'ELDER' ? '大字' : '普通' }}</template>
+          <template #default="{ row }">{{ row.uiMode === 'ELDER' ? '年长' : '普通' }}</template>
         </el-table-column>
         <el-table-column prop="creditScore" label="微光值" width="90" />
         <el-table-column label="光语" width="100">

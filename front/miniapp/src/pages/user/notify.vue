@@ -64,12 +64,15 @@
               </view>
               <view v-if="item.isRead === 0" class="wg-dot" />
             </view>
-            <!-- 适老差异：年长模式仅保留标题+时间两行（详设 §6.2 P16） -->
-            <view v-if="!userStore.isElder" class="wg-notify-content">{{ item.content }}</view>
+            <!-- 通知内容两种模式都展示：悄悄话等以通知为唯一查看渠道（D76） -->
+            <view class="wg-notify-content">{{ item.content }}</view>
             <view class="wg-label" style="margin-top: 6px">{{ item.createdAt }}</view>
           </view>
         </view>
       </template>
+
+      <view v-if="loadingMore" class="wg-feed-more wg-label">正在加载…</view>
+      <view v-else-if="list.length && finished" class="wg-feed-more wg-label">已经到底啦</view>
     </template>
 
     <WgTabBar :active="3" />
@@ -88,7 +91,7 @@ import WgTabBar from '@/components/WgTabBar.vue'
 const EMPTY_TEXT = '暂无新消息'
 const READ_ALL_TEXT = '全部已读'
 
-/* 通知类型图标（详设 §4.4 十三类）：五色低饱和分色，图标用 uview-plus 字体图标 */
+/* 通知类型图标（详设 §4.4 十三类 + v1.3 §15.6 新增六类）：五色低饱和分色，图标用 uview-plus 字体图标 */
 const TYPE_ICONS = {
   NEW_MESSAGE: { icon: 'chat-fill', bg: '#dbe3e7', fg: '#4e6b78' },
   ACCEPTED: { icon: 'man-add', bg: '#d9e2d6', fg: '#4f6b4a' },
@@ -102,7 +105,14 @@ const TYPE_ICONS = {
   POINTS_CREDITED: { icon: 'gift', bg: '#ede3d0', fg: '#8a7648' },
   CREDIT_CHANGED: { icon: 'integral', bg: '#d9e2d6', fg: '#4f6b4a' },
   ADMIN_ACTION: { icon: 'warning', bg: '#ead9d3', fg: '#8a5f52' },
-  FEEDBACK_RESULT: { icon: 'email', bg: '#ead9d3', fg: '#8a5f52' }
+  FEEDBACK_RESULT: { icon: 'email', bg: '#ead9d3', fg: '#8a5f52' },
+  CANCEL_NOTICE: { icon: 'close-circle', bg: '#ead9d3', fg: '#8a5f52' },
+  CANCEL_REQUEST: { icon: 'chat', bg: '#e4deec', fg: '#63568c' },
+  CONFIRM_REJECT: { icon: 'close', bg: '#ead9d3', fg: '#8a5f52' },
+  APPEAL_OPEN: { icon: 'file-text', bg: '#e4deec', fg: '#63568c' },
+  POST_REVIEW_RESULT: { icon: 'eye', bg: '#dbe3e7', fg: '#4e6b78' },
+  COMMENT_REPLY: { icon: 'chat-fill', bg: '#d9e2d6', fg: '#4f6b4a' },
+  WHISPER: { icon: 'heart', bg: '#ead9d3', fg: '#8a5f52' }
 }
 
 export default {
@@ -111,6 +121,10 @@ export default {
     return {
       loading: true,
       list: [],
+      page: 1,
+      pageSize: 20,
+      finished: false,
+      loadingMore: false,
       loadingText: MESSAGES.LOADING,
       emptyText: EMPTY_TEXT,
       readAllText: READ_ALL_TEXT,
@@ -189,6 +203,12 @@ export default {
       }
     })
   },
+  onReachBottom() {
+    if (!this.finished && !this.loadingMore) {
+      this.page += 1
+      this.load(false)
+    }
+  },
   onUnload() {
     if (this.offWs) {
       this.offWs()
@@ -233,14 +253,26 @@ export default {
         ? { backgroundColor: entry.bg, color: entry.fg }
         : { backgroundColor: '#dbe3e7', color: '#4e6b78' }
     },
-    async load() {
+    async load(reset = true) {
+      if (this.loadingMore) {
+        return
+      }
+      if (reset) {
+        this.page = 1
+        this.finished = false
+      }
+      this.loadingMore = true
       try {
-        const result = await listNotifications({ page: 1, pageSize: 50 })
-        this.list = result.records || []
+        const result = await listNotifications({ page: this.page, pageSize: this.pageSize })
+        const records = result.records || []
+        this.list = reset ? records : this.list.concat(records)
+        const total = result.total || 0
+        this.finished = records.length < this.pageSize || this.list.length >= total
       } catch (e) {
         console.error('[微光] 通知列表加载失败', e)
       } finally {
         this.loading = false
+        this.loadingMore = false
       }
     },
     /** B：左滑手势（仅横向拖动超过 8px 才进入滑动，避免干扰纵向滚动） */
@@ -341,13 +373,15 @@ export default {
       }
       this.jump(item)
     },
-    /** 跳转目标页：订单详情 / 聊天 / 申诉进度（NONE 无目标则不跳） */
+    /** 跳转目标页：订单详情 / 聊天 / 申诉进度 / 邻里动态（NONE 无目标则不跳） */
     jump(item) {
       let url = ''
       if (item.jumpType === 'ORDER' && item.jumpId) {
         url = `/pages/order/room?id=${item.jumpId}`
       } else if (item.jumpType === 'SESSION' && item.jumpId) {
         url = `/pages/chat/room?orderId=${item.jumpId}`
+      } else if (item.jumpType === 'POST' && item.jumpId) {
+        url = `/pages/community/detail?id=${item.jumpId}`
       } else if (item.jumpType === 'APPEAL') {
         url = '/pages/user/appeal'
       }
@@ -520,5 +554,10 @@ export default {
 .wg-chat-digest-count-max {
   background-color: #c0392b;
   color: #ffffff;
+}
+
+.wg-feed-more {
+  margin: 10px 0;
+  text-align: center;
 }
 </style>

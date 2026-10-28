@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.weiguang.ai.AiSanitizer;
 import com.weiguang.ai.AiService;
+import com.weiguang.ai.dto.ModerationResult;
 import com.weiguang.ai.dto.ReviewResult;
 import com.weiguang.ai.dto.ThankLetterDraftResult;
 import com.weiguang.ai.dto.UnderstandHelpResult;
@@ -51,12 +52,21 @@ public abstract class AbstractRealAiService implements AiService {
             + "真诚、口语、不油腻；不提钱、不做承诺、不涉及隐私、不诱导代操作。"
             + "只输出严格 JSON，不输出多余文字：{\"letterDraft\":\"...\"}";
 
-    /** 能力二系统提示（详设 §5.3 Prompt 要点） */
+    /** 能力二系统提示（详设 §5.3 / §15.4 Prompt 要点，双向不区分角色） */
     private static final String REVIEW_SYSTEM = "你是社区邻里互助平台的善意守护助手。"
-            + "判断发送方是否在索要对方的验证码/银行卡/密码/转账/汇款/扫码付款/身份证号/社保卡等敏感信息，或诱导对方转账付款。"
-            + "正常陪同去银行、教对方自己操作不算高危。"
+            + "判断发送方是否在索要对方的验证码/银行卡/密码/转账/汇款/扫码付款/身份证号/社保卡等敏感信息，或诱导对方转账、垫付、代付。"
+            + "发送方可能是求助者，也可能是助人者；无论哪一方，索要敏感信息或诱导对方出钱都属于高危。"
+            + "正常陪同去银行、教对方自己操作、明确表示不用给钱不算高危。"
             + "只输出严格 JSON，不输出多余文字："
             + "{\"riskLevel\":\"NONE|WARN|HIGH\",\"hitWords\":[\"...\"],\"suggestion\":\"...\"}";
+
+    /** 能力四系统提示（详设 §15.1.6 Prompt 要点） */
+    private static final String MODERATION_SYSTEM = "你是社区邻里互助平台的内容审核助手。"
+            + "判断用户发布的社区动态或评论是否适合在邻里间公开展示。"
+            + "识别：色情低俗、辱骂攻击、违法交易（赌博/刷单/私下交易）、诈骗引流、个人隐私（身份证号/银行卡/手机号/详细门牌）、"
+            + "医疗金融法律等专业断言；求助类内容本身不算违规，但 suggestion 中提示\"需要帮忙请去发布求助\"。"
+            + "只输出严格 JSON，不输出多余文字："
+            + "{\"riskLevel\":\"SAFE|RISKY\",\"hitWords\":[\"...\"],\"suggestion\":\"...\"}";
 
     protected final AiSanitizer sanitizer;
     protected final MockAiService mockFallback;
@@ -188,6 +198,46 @@ public abstract class AbstractRealAiService implements AiService {
             fallback.setDegraded(true);
             bizMetrics.aiDegraded();
             logMetadata("reviewChat", model, start, true, null, e);
+            return fallback;
+        }
+    }
+
+    /** 能力四 · 内容审核（详设 §15.1.6）：异常时回退 mock 并置 degraded=true */
+    @Override
+    public ModerationResult moderateContent(String contentType, String text) {
+        String model = configService.get("ai.model.review", "qwen3.7-plus");
+        long start = System.currentTimeMillis();
+        String safeText = sanitizer.sanitize(text);
+        try {
+            String userPrompt = "contentType=" + contentType + "\n内容：" + safeText;
+            ModelCallResult call = callWithRetry(MODERATION_SYSTEM, userPrompt, model);
+            JsonNode node = parseJson(call.text);
+            String riskLevel = node.path("riskLevel").asText("");
+            if (!"SAFE".equals(riskLevel) && !"RISKY".equals(riskLevel)) {
+                throw new IllegalStateException("riskLevel 非法：" + riskLevel);
+            }
+            ModerationResult result = new ModerationResult();
+            result.setRiskLevel(riskLevel);
+            List<String> hitWords = new ArrayList<>();
+            JsonNode hitNode = node.path("hitWords");
+            if (hitNode.isArray()) {
+                for (JsonNode item : hitNode) {
+                    String word = item.asText("").trim();
+                    if (!word.isEmpty()) {
+                        hitWords.add(word);
+                    }
+                }
+            }
+            result.setHitWords(hitWords);
+            result.setSuggestion(truncate(node.path("suggestion").asText("").trim(), SUGGESTION_MAX_LENGTH));
+            result.setDegraded(false);
+            logMetadata("moderateContent", model, start, false, call, null);
+            return result;
+        } catch (Exception e) {
+            ModerationResult fallback = mockFallback.moderateContent(contentType, text);
+            fallback.setDegraded(true);
+            bizMetrics.aiDegraded();
+            logMetadata("moderateContent", model, start, true, null, e);
             return fallback;
         }
     }

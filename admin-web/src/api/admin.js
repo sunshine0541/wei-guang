@@ -58,6 +58,44 @@ export function listConfigs() {
   return request.get('/admin/configs')
 }
 
+// ---------- 社区 2.0（v1.3） ----------
+
+export function listCommunityPosts(params) {
+  return request.get('/admin/community/posts', { params })
+}
+
+export function getCommunityPost(id) {
+  return request.get(`/admin/community/posts/${id}`)
+}
+
+export function reviewCommunityPost(id, data) {
+  return request.post(`/admin/community/posts/${id}/review`, data)
+}
+
+export function hideCommunityPost(id) {
+  return request.post(`/admin/community/posts/${id}/hide`)
+}
+
+export function restoreCommunityPost(id) {
+  return request.post(`/admin/community/posts/${id}/restore`)
+}
+
+export function deleteCommunityPost(id) {
+  return request.delete(`/admin/community/posts/${id}`)
+}
+
+export function createOfficialPost(data) {
+  return request.post('/admin/community/official', data)
+}
+
+export function reviewCommunityComment(id, data) {
+  return request.post(`/admin/community/comments/${id}/review`, data)
+}
+
+export function deleteCommunityComment(id) {
+  return request.delete(`/admin/community/comments/${id}`)
+}
+
 export function updateConfig(key, value) {
   return request.put(`/admin/configs/${key}`, { value })
 }

@@ -162,6 +162,9 @@ public class SettleService {
         appeal.setCreatedAt(LocalDateTime.now());
         appealMapper.insert(appeal);
         timelineRecorder.record(orderId, "APPEAL_OPEN", uid, request.getReason());
+        Long initiatorId = "REQUESTER".equals(order.getConfirmInitiator())
+                ? order.getRequesterId() : order.getHelperId();
+        notifyService.confirmReject(initiatorId, order.getTitle(), orderId);
         pushStatus(order, OrderStatus.APPEALING.name());
     }
 
@@ -238,19 +241,23 @@ public class SettleService {
             }
         }
 
-        // 3) 受助者 helped_before=1；UNLIT/RESTING → STEADY（清空 rest_since/light_prev_state）
+        // 3) 受助者 helped_before=1；UNLIT → LIT（v1.3 只升不降；LIT/STEADY 不变）
         userMapper.update(null, Wrappers.<User>lambdaUpdate()
                 .eq(User::getId, requesterId)
                 .set(User::getHelpedBefore, 1));
         String requesterLight = requester == null ? null : requester.getLightState();
-        if ("UNLIT".equals(requesterLight) || "RESTING".equals(requesterLight)) {
-            userMapper.update(null, Wrappers.<User>lambdaUpdate()
+        if (requesterLight == null || "UNLIT".equals(requesterLight)) {
+            var lightUpdate = Wrappers.<User>lambdaUpdate()
                     .eq(User::getId, requesterId)
-                    .eq(User::getLightState, requesterLight)
-                    .set(User::getLightState, "STEADY")
-                    .set(User::getRestSince, null)
-                    .set(User::getLightPrevState, null));
-            recordLightEvent("STATE_CHANGE", requesterId, requesterLight, "STEADY", null, order.getId(), now);
+                    .set(User::getLightState, "LIT");
+            if (requesterLight == null) {
+                lightUpdate.isNull(User::getLightState);
+            } else {
+                lightUpdate.eq(User::getLightState, requesterLight);
+            }
+            userMapper.update(null, lightUpdate);
+            recordLightEvent("STATE_CHANGE", requesterId, requesterLight == null ? "UNLIT" : requesterLight,
+                    "LIT", null, order.getId(), now);
         }
 
         // 4) 助人者徽记：曾被帮助过（helped_before=1）且当前常亮且未获得过 → LIGHT_PASSED

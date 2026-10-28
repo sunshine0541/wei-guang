@@ -1,7 +1,7 @@
 # 微光 · 社区互助服务系统
 
-> 面向社区老年居民与热心邻居的互助小程序：老人一键发布小事求助，邻居接单远程/上门/外出帮忙，聊天协作、双确认完成，配微光值·积分·光语情感化体系与防诈保护。
-> 毕业设计 MVP（tag `v1.0-mvp`）；2026-10 体验改进（批 1–4F）已提交到 `master`（commit `b22742b`）。设计依据：《微光-详细设计文档v1.2》《微光-执行文档v1.2》。
+> 面向社区老年居民与热心邻居的互助小程序：老人一键发布小事求助，邻居接单远程/上门/外出帮忙，聊天协作、双确认完成，配微光值·荣誉积分·光语情感化体系、双向防诈与社区 UGC。
+> 毕业设计 MVP（tag `v1.0-mvp`）；2026-10 体验改进（批 1–4F）+ v1.3 社区 2.0 / AI 审核 / 看板 / 分页（T21–T28）已完成。设计依据：《微光-详细设计文档v1.2》《微光-执行文档v1.2》。
 
 ## 一、仓库结构
 
@@ -10,8 +10,9 @@
 | `backend/` | Spring Boot 3.5（Java 17）后端：REST + WebSocket + 定时任务；MySQL 8.4 / Redis 7.4；含 `docker-compose.yml`（MySQL + Redis + 后端容器一键起） |
 | `front/miniapp/` | uni-app + Vue3 微信小程序端（唯一用户端形态） |
 | `admin-web/` | Vue3 + Element Plus 管理后台（概览 / 订单 / 协商取消裁决 / 上报处置 / 用户 / 配置） |
-| `sql/` | `schema.sql` 全量建表（23 张表）；`seed.sql` 拟真演示数据（自包含一键重置）；`reset.sql` ≡ seed.sql |
-| `docs/` | 《实现偏差清单》《验收走查记录》 |
+| `sql/` | `schema.sql` 全量建表（26 张表）；`seed.sql` 拟真演示数据（自包含一键重置）；`reset.sql` ≡ seed.sql |
+| `scripts/` | `seed-check`（18 条不变量）、`demo-reset`、`smoke`、`run-demo` 四个 PowerShell 脚本 |
+| `docs/` | 《实现偏差清单》《验收走查记录》《seed契约》《论文研究边界与前提假设》 |
 | 根目录两篇 v1.2 文档 | 详细设计 / 执行文档（任务卡与验收判据） |
 
 ## 二、环境要求
@@ -42,6 +43,7 @@ docker exec -i weiguang-mysql mysql --default-character-set=utf8mb4 -uroot -p we
 
 > 也可在仓库根目录用本地 mysql 客户端：`Get-Content sql\schema.sql | mysql -u root -p weiguang`。
 > 数据库口令取自 `backend/.env` 的 `MYSQL_PASSWORD`（compose 缺省 `weiguang123`）。
+> 一键复位 + 自检：`powershell -ExecutionPolicy Bypass -File scripts\demo-reset.ps1`（执行 `reset.sql` 后自动跑 18 条 seed 不变量断言）。
 
 ### 3. 启动后端
 
@@ -102,22 +104,22 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 2. 待响应列表：急标"厨房水管一直渗水"置顶；查看详情 → 地址分级（远程无地址 / 外出仅集合点 / 上门门牌接单后才解锁）
 3. **陈志远**接"卫生间的灯不亮了" → 聊天页：照护提示卡"腿脚不便，需要扶一下"、快捷短语、图片
 4. 陈志远「开始帮忙」→ 李秀英收到"邻居已出发" → 陈志远标记完成 → 李秀英确认 → 结算：微光值 +2、积分 +10、故事卡生成
-5. 李秀英写评价 + 悄悄话；用 AI「起个头」写感谢信并发送；查看故事卡
+5. 李秀英写评价；用 AI「起个头」写感谢信并发送；查看故事卡
 6. 分支·体验补充：
    - **发布三页**：首页「我需要帮助」→ 模板选择 → 自由描述（AI 建议）→ 表单；中途退出再进入会自动恢复草稿；标签可选「跑腿 / 教学」，也可填一个 ≤10 字的自定义标签。
    - **通知中心**：确认完成或收到消息后，通知按「今天 / 更早」分组；聊天消息聚合为「有 N 位邻居给您发来 M 条消息」，点卡片只展开，点联系人才进入聊天；左滑可删除，底部「消息」有未读红点。
    - **申诉凭证**：完成或取消后 7 天内可发起申诉并上传一张凭证；处理中的申诉/反馈可撤回。
-   - **社区页**：底部第 3 个 tab；展示今日新求助、已传递束光、助人之星 TOP10 与最近完成互助的动态流；动态卡片可点进助人者主页。只读，不带点赞/评论/发帖。
-   - **助人者视角**：求助详情会显示「受助者给了你 X 星」；确认页显示「开始于 … · 本次用时 …」。
+   - **社区页**：底部第 3 个 tab；顶部「助人之星 / 今日新求助 / 已成为微光」三块，下方三 Tab（推荐 / 最新 / 互助故事）；支持发帖、点赞/取消点赞、评论、举报；自己的帖子可删除；非 PUBLISHED 状态仅作者可见。发帖/评论走「本地敏感词 + AI 审核 + 人工队列」。
+   - **助人者视角**：求助详情会显示「受助者给了你 X 星」；确认页与故事卡显示「本次用时」（按助人者标记完成时间计算，不含等待确认/申诉）。
 7. 分支·释放重派：赵晓琳接远程单演示恢复通道；陈志远演示"实在帮不上"免罚释放 → 李秀英收到"别干等"通知
 8. 分支·防诈：陈志远在聊天中发"验证码"相关索要话术 → 双方收到强提示、管理端「上报处置」出现记录可处置
-9. 管理端：订单列表/详情与时间线；协商取消裁决；把配置页 `elder.age_threshold` 改为 70 → 重新发布验证排序变化，改回
-10. 个人页：微光徽标（被点亮/常亮/小憩）+「光已传递」徽记；微光值 / 积分明细
+9. 管理端：看板（近 7 天趋势 / 状态分布 / 防诈与社区待审）、订单列表/详情与时间线、协商取消裁决、社区审核、把配置页 `elder.age_threshold` 改为 70 → 重新发布验证排序变化，改回
+10. 个人页：微光徽标（被点亮 / 常亮）+「光已传递」徽记；微光值 / 荣誉积分明细
 11. 稳定性：`docker compose stop redis` 后主线仍可走通（降级）；恢复后用 RedisInsight 查看限流键与 TTL
 12. AI：管理端把 `ai.mode` 切 `real` 复跑（需 `.env` 配 `DASHSCOPE_API_KEY`）；切回 `mock`
 13. 结束：再跑一次 `sql/reset.sql` 复位
 
-注意：同一用户最多 2 条待响应求助（防刷屏），超出时发布/重发返回 30003 温柔提示（李秀英 seed 存量已达 3 条，属演示数据特例，实测该规则可先成交一单再发布）。
+注意：同一用户最多 2 条待响应求助（防刷屏），超出时发布/重发返回 30003 温柔提示（seed 中李秀英、王德明各有 2 条，已达上限；实测时先成交或撤回一单再发布）。
 
 ## 六、环境变量（backend/.env，模板见 .env.example）
 
@@ -146,7 +148,7 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 - **换账号演示**：小程序内「设置 → 退出登录」后用另一手机号账号登录（无需 openid，任意账号可切）。
 - **后端地址（自动探测）**：`VITE_API_HOST` 是**编译期**注入的，IP 会随网络变化。已内置探测脚本 `front/miniapp/scripts/detect-lan-host.mjs`，并挂为 `predev:mp-weixin` / `prebuild:mp-weixin` **前置钩子**——每次 `npm run dev:mp-weixin` / `build:mp-weixin` 会**自动探测本机局域网 IPv4 并重写 `.env.local`**（自动排除 WSL / Hyper-V / VPN 等虚拟网卡，按 192.168 > 172.16–31 > 10 优先级取用）。想先看探测结果不写文件：`npm run host:dry`。
 - **真机预览 / 换网络**：手机与电脑同一局域网；`npm run dev:mp-weixin` 会自动写入电脑局域网 IP，无需手改。若需固定地址（例如模拟器只想走 `localhost`）：`$env:WGU_HOST='localhost:8080'; npm run dev:mp-weixin`（PowerShell）即可覆盖自动探测。开发者工具开启「开发版调试」，并勾选「不校验合法域名」；防火墙需放行 8080。
-- **重置数据**：执行 `sql/reset.sql`（等价于清空业务数据 + 重灌演示数据），随后所有账号请重新登录。
+- **重置数据**：优先执行 `powershell -ExecutionPolicy Bypass -File scripts\demo-reset.ps1`（内部用 `docker cp` + `source`，可避免中文乱码），随后所有账号请重新登录。不要用 `Get-Content ... | docker exec -i mysql` 的方式灌 SQL：Windows PowerShell 5.1 会把中文重编码成 ANSI/GBK，落库变成 `?`。
 - **待响应上限**：同一用户最多 2 条待响应（`order.pending_limit`），超限 30003。
 - **登录限流**：连续错密码超过 5 次/分钟返回 30005，等一分钟后重试。
 
@@ -154,10 +156,12 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 
 - 详细设计：`微光-详细设计文档v1.2.md`（第 11 章为 15 条 MVP 验收判据全文）
 - 执行文档：`微光-执行文档v1.2.md`（T01–T19 任务卡）
-- 实现偏差：`docs/实现偏差清单.md`（D01–D62）
-- 验收走查：`docs/验收走查记录.md`（T20，15 条判据 + 2026-10 体验批次）
+- 实现偏差：`docs/实现偏差清单.md`（D01–D87）
+- 验收走查：`docs/验收走查记录.md`（T20 15 条判据 + 2026-10 体验批次 + T29 v1.3 收口）
+- seed 契约：`docs/seed契约.md`（数据画像、覆盖矩阵、18 条不变量、时间自洽规则）
+- 研究边界：`docs/论文研究边界与前提假设.md`（v1.0 定稿）
 
-## 附录 A：页面清单（28 页）
+## 附录 A：页面清单（30 页）
 
 | 模块 | 页面 |
 | --- | --- |
@@ -165,10 +169,10 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 | 发布 | `pages/order/publish`（模板选择）、`publish-free`（自由描述 + AI 建议）、`publish-form`（求助表单） |
 | 求助 | `pages/order/detail`（求助详情）、`room`（进展与操作）、`edit`（修改求助）、`mine`（我的求助）、`confirm`（确认完成） |
 | 聊天 | `pages/chat/room` |
-| 结算 | `pages/settle/evaluate`（评价 / 悄悄话）、`letter`（感谢信）、`story`（故事卡） |
+| 结算 | `pages/settle/evaluate`（评价）、`letter`（感谢信）、`story`（故事卡） |
 | 个人 | `pages/user/index`、`profile`、`address`、`settings`、`credit`、`points`、`appeal`、`appeal-detail`、`notify`、`thanks` |
 | 邻居 | `pages/neighbor/profile` |
-| 社区 | `pages/community/index` |
+| 社区 | `pages/community/index`（信息流）、`publish`（发帖）、`detail`（帖子详情/评论） |
 | 引导 | `pages/guide/privacy`（隐私说明）、`pages/guide/index`（首次引导） |
 
 ## 附录 B：版本与改进记录
@@ -187,5 +191,9 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 | 批 4D | 地址经纬度、高德 POI/输入提示/地理编码、城市限定、距离排序与展示、地址交互收敛、图片 HTTP 兼容 | 已完成 |
 | 批 4G | 社区 tab + 邻里动态；首页社区卡迁移；只读，不做感谢墙/发帖 | 已完成 |
 | 批 4F | README/验收走查、全量回归、三端构建、仓库卫生 | 已完成 |
+| T21–T24 | 光语 v2、社区 2.0（发帖/点赞/评论/举报/删帖）、AI 内容审核、通知 19 类 | 已完成 |
+| T25–T26 | 管理端看板、通知/聊天分页、seed 重写与 18 条自检 | 已完成 |
+| T27–T28 | 实测缺陷修复（注销、释放文案、年长模式）、上传魔数校验、Dockerfile、compose 初始化 | 已完成 |
+| T29 | seed 时间自洽与用时口径修正、管理端「年长」文案复验、边界/README/验收/交接收口 | 已完成 |
 
-> MVP 以 tag `v1.0-mvp` 交付；2026-10 体验改进（批 1–4F）已合入 `master`（commit `b22742b`），实现细节与偏差记录见 `docs/实现偏差清单.md` D37–D62。
+> MVP 以 tag `v1.0-mvp` 交付；2026-10 体验改进（批 1–4F）已合入 `master`（commit `b22742b`）。v1.3（T21–T29）实现细节与偏差见 `docs/实现偏差清单.md` D63–D86。

@@ -47,7 +47,7 @@
         :class="{ 'wg-mode-option-on': userStore.isElder }"
         @click="chooseMode('ELDER')"
       >
-        <text class="wg-mode-title">年长模式（大字）</text>
+        <text class="wg-mode-title">年长模式</text>
         <text class="wg-label">字号更大、按钮更好点，动效默认关闭</text>
       </view>
       <view class="wg-btn" style="margin-top: 12px" @click="next">下一步</view>
@@ -83,6 +83,9 @@
     <!-- 第 4 步：微光邀请 -->
     <view v-if="step === 4" class="wg-card">
       <text>你愿意成为一缕微光，在别人需要时也照亮他一下吗？</text>
+      <view class="wg-label" style="margin-top: 10px">
+        成为微光，表示您愿意在自己方便的时候，尽可能帮助身边的邻居；这不是任务，也不影响您随时休息。
+      </view>
       <view class="wg-btn" style="margin-top: 12px" @click="answerInvite('WILLING')">我愿意</view>
       <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="answerInvite('LATER')">暂时还不行</view>
     </view>
@@ -220,9 +223,21 @@ export default {
       }
       await updateProfile(payload)
       await this.userStore.loadProfile()
+      // 年龄达到阈值：弹窗征得同意后自动切换年长模式，再进入第 4 步（不再回跳第 2 步）
       if (age !== null && age >= this.userStore.elderAgeThreshold && !this.userStore.isElder) {
-        this.step = 2
-        return
+        const applyElder = await new Promise((resolve) => {
+          uni.showModal({
+            title: '已为您切换为年长模式',
+            content: '看到您填写的年龄，已把字号和按钮调大。是否应用年长模式？',
+            confirmText: '是',
+            cancelText: '普通模式',
+            success: (res) => resolve(!!res.confirm),
+            fail: () => resolve(true)
+          })
+        })
+        if (applyElder) {
+          await this.userStore.switchMode('ELDER')
+        }
       }
       this.step = 4
     },

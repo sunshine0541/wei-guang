@@ -71,7 +71,7 @@
         <view v-if="order.myRole === 'HELPER' && order.helperStars" class="wg-label" style="margin-bottom: 12px">
           受助者给了你 {{ order.helperStars }} 星
         </view>
-        <view class="wg-btn wg-btn-plain" @click="goEvaluate">评价 / 悄悄话</view>
+        <view v-if="order.myRole === 'REQUESTER'" class="wg-btn wg-btn-plain" @click="goEvaluate">评价</view>
         <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="goStory">看看这次的故事卡</view>
       </view>
 

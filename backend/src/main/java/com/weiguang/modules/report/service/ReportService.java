@@ -138,7 +138,10 @@ public class ReportService {
         vo.setId(report.getId());
         vo.setOrderId(report.getOrderId());
         vo.setMessageId(report.getMessageId());
+        vo.setTargetType(report.getTargetType());
+        vo.setTargetId(report.getTargetId());
         vo.setTargetUserId(report.getTargetUserId());
+        vo.setReporterId(report.getReporterId());
         vo.setType(report.getType());
         vo.setEvidence(report.getEvidence());
         vo.setStatus(report.getStatus());

@@ -25,6 +25,8 @@ public class OrderDetailVO {
     private LocalDateTime startedAt;
     /** 完成时间（COMPLETED 后有值） */
     private LocalDateTime completedAt;
+    /** 助人者标记完成时间（真实服务用时口径，不含等待对方确认/申诉处理） */
+    private LocalDateTime completeRequestedAt;
     /** 受助者给助人者的评价星级（仅接单者且已完成时有值，无评价为 null） */
     private Integer helperStars;
     private Integer viewCount;

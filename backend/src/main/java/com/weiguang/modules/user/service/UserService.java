@@ -3,10 +3,20 @@ package com.weiguang.modules.user.service;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.weiguang.common.constants.HelpTagConstants;
 import com.weiguang.common.constants.ProfileConstants;
+import com.weiguang.common.enums.OrderStatus;
 import com.weiguang.common.error.ErrorCode;
 import com.weiguang.common.exception.BizException;
 import com.weiguang.common.util.JsonUtils;
+import com.weiguang.infra.websocket.WsEnvelope;
+import com.weiguang.infra.websocket.WsSessionRegistry;
+import com.weiguang.modules.chat.entity.ChatSession;
+import com.weiguang.modules.chat.mapper.ChatSessionMapper;
 import com.weiguang.modules.light.service.LightEventRecorder;
+import com.weiguang.modules.notify.service.NotifyService;
+import com.weiguang.modules.order.entity.HelpOrder;
+import com.weiguang.modules.order.mapper.HelpOrderMapper;
+import com.weiguang.modules.order.service.OrderTimelineRecorder;
+import com.weiguang.modules.order.service.ReleaseService;
 import com.weiguang.modules.system.service.ConfigService;
 import com.weiguang.modules.user.dto.ModeVO;
 import com.weiguang.modules.user.dto.MotionVO;
@@ -45,17 +55,35 @@ public class UserService {
     private final AddressBookMapper addressBookMapper;
     private final ConfigService configService;
     private final LightEventRecorder lightEventRecorder;
+    private final HelpOrderMapper helpOrderMapper;
+    private final ChatSessionMapper chatSessionMapper;
+    private final OrderTimelineRecorder timelineRecorder;
+    private final NotifyService notifyService;
+    private final ReleaseService releaseService;
+    private final WsSessionRegistry wsSessionRegistry;
 
     public UserService(UserMapper userMapper,
                        UserProfileMapper userProfileMapper,
                        AddressBookMapper addressBookMapper,
                        ConfigService configService,
-                       LightEventRecorder lightEventRecorder) {
+                       LightEventRecorder lightEventRecorder,
+                       HelpOrderMapper helpOrderMapper,
+                       ChatSessionMapper chatSessionMapper,
+                       OrderTimelineRecorder timelineRecorder,
+                       NotifyService notifyService,
+                       ReleaseService releaseService,
+                       WsSessionRegistry wsSessionRegistry) {
         this.userMapper = userMapper;
         this.userProfileMapper = userProfileMapper;
         this.addressBookMapper = addressBookMapper;
         this.configService = configService;
         this.lightEventRecorder = lightEventRecorder;
+        this.helpOrderMapper = helpOrderMapper;
+        this.chatSessionMapper = chatSessionMapper;
+        this.timelineRecorder = timelineRecorder;
+        this.notifyService = notifyService;
+        this.releaseService = releaseService;
+        this.wsSessionRegistry = wsSessionRegistry;
     }
 
     /** U1 我的档案 */
@@ -170,9 +198,7 @@ public class UserService {
                 .set(User::getInviteFlag, choice)
                 .set(User::getLastLightInviteAt, LocalDateTime.now());
         if (toSteady) {
-            update.set(User::getLightState, STATE_STEADY)
-                    .set(User::getRestSince, null)
-                    .set(User::getLightPrevState, null);
+            update.set(User::getLightState, STATE_STEADY);
         }
         userMapper.update(null, update);
 
@@ -184,10 +210,13 @@ public class UserService {
         }
     }
 
-    /** U6 注销账号：登录标识改写（openid/username 非空各自改写，D31）、画像匿名化、地址簿物理删除、status=CANCELLED（历史订单/账本保留） */
+    /** U6 注销账号：先了结进行中求助，再匿名化（openid/username 改写、画像清空、地址物理删除、status=CANCELLED） */
     @Transactional
     public void cancelAccount(Long uid) {
         User user = requireUser(uid);
+        LocalDateTime now = LocalDateTime.now();
+        settleInProgressOrders(uid, now);
+
         var update = Wrappers.<User>lambdaUpdate()
                 .eq(User::getId, uid)
                 .set(User::getStatus, STATUS_CANCELLED);
@@ -203,6 +232,7 @@ public class UserService {
                 .set(UserProfile::getNickname, ProfileConstants.CANCELLED_NICKNAME)
                 .set(UserProfile::getAvatarUrl, null)
                 .set(UserProfile::getAge, null)
+                .set(UserProfile::getSignature, null)
                 .set(UserProfile::getHobbies, null)
                 .set(UserProfile::getCareTip, null)
                 .set(UserProfile::getHelpDirections, null)
@@ -211,6 +241,62 @@ public class UserService {
                 .set(UserProfile::getPhone, null));
         int removed = addressBookMapper.physicalDeleteByUserId(uid);
         log.info("账号注销完成 uid={}，地址簿物理删除 {} 条", uid, removed);
+    }
+
+    /**
+     * 注销前了结进行中求助（详设 §15.6 / 执行文档 T20）：
+     * 作为求助者：PENDING/ACCEPTED/IN_SERVICE → CANCELLED 并通知接单者；
+     * 作为助人者：ACCEPTED/IN_SERVICE → 免罚释放回求助池（不扣微光值）；
+     * PENDING_CONFIRM/APPEALING 保留，由 J3 超时或管理员仲裁自然了结。
+     */
+    private void settleInProgressOrders(Long uid, LocalDateTime now) {
+        List<HelpOrder> asRequester = helpOrderMapper.selectList(Wrappers.<HelpOrder>lambdaQuery()
+                .eq(HelpOrder::getRequesterId, uid)
+                .in(HelpOrder::getStatus, OrderStatus.PENDING.name(),
+                        OrderStatus.ACCEPTED.name(), OrderStatus.IN_SERVICE.name()));
+        for (HelpOrder order : asRequester) {
+            boolean fromPending = OrderStatus.PENDING.name().equals(order.getStatus());
+            int rows = helpOrderMapper.update(null, Wrappers.<HelpOrder>lambdaUpdate()
+                    .eq(HelpOrder::getId, order.getId())
+                    .eq(HelpOrder::getStatus, order.getStatus())
+                    .set(HelpOrder::getStatus, OrderStatus.CANCELLED.name())
+                    .set(HelpOrder::getCancelBy, "REQUESTER")
+                    .set(HelpOrder::getCancelReason, "账号注销")
+                    .set(HelpOrder::getCancelledAt, now)
+                    .set(HelpOrder::getAppealDeadline, fromPending ? null
+                            : now.plusDays(configService.getInt("order.appeal_window_days", 7)))
+                    .set(HelpOrder::getCancelPendingBy, null)
+                    .set(HelpOrder::getCancelPendingDeadline, null));
+            if (rows == 0) {
+                continue;
+            }
+            closeCurrentSession(order, now);
+            timelineRecorder.record(order.getId(), "CANCEL", uid, "账号注销");
+            Long helperId = order.getHelperId();
+            if (helperId != null) {
+                notifyService.cancelNotice(helperId, order.getTitle(), order.getId());
+                wsSessionRegistry.push(helperId,
+                        WsEnvelope.orderStatus(order.getId(), OrderStatus.CANCELLED.name(), order.getTitle()));
+            }
+        }
+
+        List<HelpOrder> asHelper = helpOrderMapper.selectList(Wrappers.<HelpOrder>lambdaQuery()
+                .eq(HelpOrder::getHelperId, uid)
+                .in(HelpOrder::getStatus, OrderStatus.ACCEPTED.name(), OrderStatus.IN_SERVICE.name()));
+        for (HelpOrder order : asHelper) {
+            // 免罚释放：账号注销不属于违约，回到待响应池由其他邻居接续
+            releaseService.coreRelease(order, "ACCOUNT_CANCELLED", uid, "对方账号注销", "NONE");
+        }
+    }
+
+    private void closeCurrentSession(HelpOrder order, LocalDateTime now) {
+        int round = order.getCurrentRound() == null ? 1 : order.getCurrentRound();
+        chatSessionMapper.update(null, Wrappers.<ChatSession>lambdaUpdate()
+                .eq(ChatSession::getOrderId, order.getId())
+                .eq(ChatSession::getRound, round)
+                .eq(ChatSession::getStatus, "ACTIVE")
+                .set(ChatSession::getStatus, "CLOSED")
+                .set(ChatSession::getClosedAt, now));
     }
 
     /** A3 隐私同意：版本必须与当前 privacy.policy_version 一致 */

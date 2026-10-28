@@ -87,10 +87,11 @@ export default {
       this.templates = await listTemplates()
     },
     async loadRepeatOrders() {
-      const result = await listMyOrders({ tab: 'DONE' })
-      this.repeatOrders = (result.records || []).filter((item) => item.status === 'EXPIRED')
+      // 「再来一次」= 选一条历史求助（已完成/已取消/已超时均可），不再只限 EXPIRED
+      const result = await listMyOrders({ tab: 'DONE', page: 1, pageSize: 50 })
+      this.repeatOrders = result.records || []
       if (this.repeatOrders.length === 0) {
-        uni.showToast({ title: '还没有可以重发的求助', icon: 'none' })
+        uni.showToast({ title: '还没有历史求助', icon: 'none' })
       }
     },
     /** A1：跨页草稿（选出模板/历史单后写入 storage，交给下一页表单预填） */

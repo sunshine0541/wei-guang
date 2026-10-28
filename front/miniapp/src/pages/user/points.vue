@@ -1,8 +1,9 @@
 <template>
   <view class="wg-page" :class="userStore.rootClass">
     <view class="wg-card wg-points-top">
-      <view class="wg-label">当前积分</view>
+      <view class="wg-label">当前荣誉积分</view>
       <view class="wg-bignum">{{ balance }}</view>
+      <view class="wg-label">荣誉积分只记录您的善意，不能兑换，也不能提现。</view>
     </view>
 
     <view v-if="records.length === 0" class="wg-empty">{{ emptyText }}</view>

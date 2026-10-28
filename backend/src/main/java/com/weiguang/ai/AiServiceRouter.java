@@ -1,5 +1,6 @@
 package com.weiguang.ai;
 
+import com.weiguang.ai.dto.ModerationResult;
 import com.weiguang.ai.dto.ReviewResult;
 import com.weiguang.ai.dto.ThankLetterDraftResult;
 import com.weiguang.ai.dto.UnderstandHelpResult;
@@ -47,6 +48,11 @@ public class AiServiceRouter implements AiService {
     @Override
     public ThankLetterDraftResult draftThankLetter(String orderTitle, String requesterName, String helperName) {
         return delegate().draftThankLetter(orderTitle, requesterName, helperName);
+    }
+
+    @Override
+    public ModerationResult moderateContent(String contentType, String text) {
+        return delegate().moderateContent(contentType, text);
     }
 
     private AiService delegate() {

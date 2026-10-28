@@ -1,8 +1,8 @@
 <template>
   <view class="wg-page wg-page-tab" :class="userStore.rootClass">
-    <!-- 三个 Tab（分段控件，切换逻辑不变）：进行中 / 已了结 / 我接取的求助 -->
+    <!-- 三个 Tab（分段控件，切换逻辑不变）：我发布的求助 / 已了结 / 我接取的求助 -->
     <view class="wg-seg">
-      <view class="wg-seg-item" :class="{ 'wg-seg-item-active': tab === 'DOING' }" @click="switchTab('DOING')">进行中</view>
+      <view class="wg-seg-item" :class="{ 'wg-seg-item-active': tab === 'DOING' }" @click="switchTab('DOING')">我发布的求助</view>
       <view class="wg-seg-item" :class="{ 'wg-seg-item-active': tab === 'DONE' }" @click="switchTab('DONE')">已了结</view>
       <view class="wg-seg-item" :class="{ 'wg-seg-item-active': tab === 'HELPING' }" @click="switchTab('HELPING')">我接取的求助</view>
     </view>

@@ -189,8 +189,12 @@ public class AppealService {
         timelineRecorder.record(order.getId(), "APPEAL_OPEN", uid, reason);
         pushStatus(order.getRequesterId(), order.getHelperId(), order.getId(),
                 OrderStatus.APPEALING.name(), order.getTitle());
-        // 注：详设 §3.6 F1 写"事务外通知对方"，但 §4.4 通知文案表无 F1 对应 type 与模板，
-        // 按"不得发明文案"原则暂不落通知（见《实现偏差清单》D18）。
+        // 详设 §15.6：F1 提交成功 → 被申诉方 + 提交人各落一条 APPEAL_OPEN 通知
+        Long peerId = order.getRequesterId().equals(uid) ? order.getHelperId() : order.getRequesterId();
+        if (peerId != null) {
+            notifyService.appealOpen(peerId, nicknameOf(uid), order.getTitle(), order.getId());
+        }
+        notifyService.appealOpenSelf(uid, order.getTitle(), order.getId());
         return appeal.getId();
     }
 
@@ -612,6 +616,14 @@ public class AppealService {
                 .eq(Appeal::getOrderId, order.getId())
                 .eq(Appeal::getStatus, STATUS_PENDING));
         return pending == null || pending == 0;
+    }
+
+    private String nicknameOf(Long uid) {
+        UserProfile profile = userProfileMapper.selectOne(Wrappers.<UserProfile>lambdaQuery()
+                .eq(UserProfile::getUserId, uid)
+                .last("LIMIT 1"));
+        return profile == null || profile.getNickname() == null || profile.getNickname().isBlank()
+                ? "邻居" : profile.getNickname();
     }
 
     private String operatorRole(Long operatorId, HelpOrder order) {

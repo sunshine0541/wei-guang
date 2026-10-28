@@ -5,6 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -53,14 +55,30 @@ public class WsSessionRegistry {
         return session != null && session.isOpen();
     }
 
-    /** 向指定用户推送信封；失败视为离线，由调用方决定是否落通知 */
+    /** 向指定用户推送信封；事务内自动延后到提交后发送（避免对方读到未提交的旧状态）。
+     *  同一连接的消息发送串行化，避免"聊天消息"与"防诈强提示"并发写同一会话导致一帧丢失。 */
     public boolean push(Long uid, Object envelope) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    doPush(uid, envelope);
+                }
+            });
+            return true;
+        }
+        return doPush(uid, envelope);
+    }
+
+    private boolean doPush(Long uid, Object envelope) {
         WebSocketSession session = sessions.get(uid);
         if (session == null || !session.isOpen()) {
             return false;
         }
         try {
-            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(envelope)));
+            synchronized (session) {
+                session.sendMessage(new TextMessage(objectMapper.writeValueAsString(envelope)));
+            }
             return true;
         } catch (IOException | IllegalStateException e) {
             log.warn("WS 推送失败 uid={}：{}", uid, e.getMessage());
@@ -75,11 +93,13 @@ public class WsSessionRegistry {
         push(uid, envelope);
     }
 
-    /** 直接回帧（如 PONG） */
+    /** 直接回帧（如 PONG）；与业务推送共用同一会话锁，避免并发写坏帧 */
     public void sendTo(WebSocketSession session, Object envelope) {
         try {
             if (session.isOpen()) {
-                session.sendMessage(new TextMessage(objectMapper.writeValueAsString(envelope)));
+                synchronized (session) {
+                    session.sendMessage(new TextMessage(objectMapper.writeValueAsString(envelope)));
+                }
             }
         } catch (IOException | IllegalStateException e) {
             log.warn("WS 回帧失败 sid={}：{}", session.getId(), e.getMessage());

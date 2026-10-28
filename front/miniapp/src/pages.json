@@ -66,13 +66,25 @@
     {
       "path": "pages/order/mine",
       "style": {
-        "navigationBarTitleText": "我的求助"
+        "navigationBarTitleText": "求助"
       }
     },
     {
       "path": "pages/community/index",
       "style": {
         "navigationBarTitleText": "社区"
+      }
+    },
+    {
+      "path": "pages/community/publish",
+      "style": {
+        "navigationBarTitleText": "发布动态"
+      }
+    },
+    {
+      "path": "pages/community/detail",
+      "style": {
+        "navigationBarTitleText": "邻里动态"
       }
     },
     {
@@ -132,7 +144,7 @@
     {
       "path": "pages/user/points",
       "style": {
-        "navigationBarTitleText": "我的积分"
+        "navigationBarTitleText": "我的荣誉积分"
       }
     },
     {

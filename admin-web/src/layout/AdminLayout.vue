@@ -8,6 +8,7 @@
         <el-menu-item index="/reports">上报处置</el-menu-item>
         <el-menu-item index="/users">用户管理</el-menu-item>
         <el-menu-item index="/configs">配置管理</el-menu-item>
+        <el-menu-item index="/community">社区管理</el-menu-item>
         <el-menu-item index="/appeals">申诉/反馈处理</el-menu-item>
       </el-menu>
     </el-aside>

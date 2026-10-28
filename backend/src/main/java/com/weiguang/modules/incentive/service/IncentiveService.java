@@ -18,19 +18,16 @@ import com.weiguang.modules.incentive.dto.NeighborEvaluationVO;
 import com.weiguang.modules.incentive.dto.NeighborProfileVO;
 import com.weiguang.modules.incentive.dto.StoryCardVO;
 import com.weiguang.modules.incentive.dto.ThankVO;
-import com.weiguang.modules.incentive.dto.WhisperRequest;
 import com.weiguang.modules.incentive.entity.CreditLedger;
 import com.weiguang.modules.incentive.entity.Evaluation;
 import com.weiguang.modules.incentive.entity.PointLedger;
 import com.weiguang.modules.incentive.entity.StoryCard;
 import com.weiguang.modules.incentive.entity.ThankLetter;
-import com.weiguang.modules.incentive.entity.Whisper;
 import com.weiguang.modules.incentive.mapper.CreditLedgerMapper;
 import com.weiguang.modules.incentive.mapper.EvaluationMapper;
 import com.weiguang.modules.incentive.mapper.PointLedgerMapper;
 import com.weiguang.modules.incentive.mapper.StoryCardMapper;
 import com.weiguang.modules.incentive.mapper.ThankLetterMapper;
-import com.weiguang.modules.incentive.mapper.WhisperMapper;
 import com.weiguang.modules.order.entity.HelpOrder;
 import com.weiguang.modules.order.mapper.HelpOrderMapper;
 import com.weiguang.modules.system.service.ConfigService;
@@ -55,7 +52,6 @@ public class IncentiveService {
 
     private static final int ADVICE_MAX_LENGTH = 100;
     private static final int LETTER_MAX_LENGTH = 500;
-    private static final int WHISPER_MAX_LENGTH = 200;
     /** U11 感谢墙在邻居公开页内展示的条数（分页明细走 U10） */
     private static final int NEIGHBOR_THANKS_LIMIT = 10;
 
@@ -64,7 +60,6 @@ public class IncentiveService {
     private final UserProfileMapper userProfileMapper;
     private final EvaluationMapper evaluationMapper;
     private final ThankLetterMapper thankLetterMapper;
-    private final WhisperMapper whisperMapper;
     private final StoryCardMapper storyCardMapper;
     private final CreditLedgerMapper creditLedgerMapper;
     private final PointLedgerMapper pointLedgerMapper;
@@ -76,7 +71,6 @@ public class IncentiveService {
                             UserProfileMapper userProfileMapper,
                             EvaluationMapper evaluationMapper,
                             ThankLetterMapper thankLetterMapper,
-                            WhisperMapper whisperMapper,
                             StoryCardMapper storyCardMapper,
                             CreditLedgerMapper creditLedgerMapper,
                             PointLedgerMapper pointLedgerMapper,
@@ -87,7 +81,6 @@ public class IncentiveService {
         this.userProfileMapper = userProfileMapper;
         this.evaluationMapper = evaluationMapper;
         this.thankLetterMapper = thankLetterMapper;
-        this.whisperMapper = whisperMapper;
         this.storyCardMapper = storyCardMapper;
         this.creditLedgerMapper = creditLedgerMapper;
         this.pointLedgerMapper = pointLedgerMapper;
@@ -160,32 +153,6 @@ public class IncentiveService {
             throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
         }
         return aiService.draftThankLetter(order.getTitle(), nicknameOf(uid), nicknameOf(order.getHelperId()));
-    }
-
-    /** S4 悄悄话（双方各一条、窗口内） */
-    @Transactional
-    public IdVO whisper(Long uid, Long orderId, WhisperRequest request) {
-        HelpOrder order = requireCompletedInWindow(orderId);
-        requireParticipant(order, uid);
-        String content = normalize(request.getContent());
-        if (content == null) {
-            throw new BizException(ErrorCode.PARAM_INVALID);
-        }
-        if (content.length() > WHISPER_MAX_LENGTH) {
-            throw new BizException(ErrorCode.CONTENT_TOO_LONG);
-        }
-        Whisper whisper = new Whisper();
-        whisper.setOrderId(orderId);
-        whisper.setSenderId(uid);
-        whisper.setReceiverId(uid.equals(order.getRequesterId()) ? order.getHelperId() : order.getRequesterId());
-        whisper.setContent(content);
-        whisper.setCreatedAt(LocalDateTime.now());
-        try {
-            whisperMapper.insert(whisper);
-        } catch (DuplicateKeyException e) {
-            throw new BizException(ErrorCode.DUPLICATE_SUBMIT);
-        }
-        return IdVO.of(whisper.getId());
     }
 
     /** S5 查看故事卡（订单双方；未生成 → 40002） */

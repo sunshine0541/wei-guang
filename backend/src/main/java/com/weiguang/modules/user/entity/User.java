@@ -46,13 +46,13 @@ public class User {
     /** NORMAL/BANNED/CANCELLED */
     private String status;
 
-    /** UNLIT/STEADY/RESTING */
+    /** UNLIT/LIT/STEADY（v1.3：只升不降；RESTING 已废弃） */
     private String lightState;
 
-    /** 进入熄灭前的持久状态 */
+    /** 旧版"熄灭前状态"，v1.3 起停用（保留字段兼容历史数据） */
     private String lightPrevState;
 
-    /** 进入熄灭时刻 */
+    /** 旧版"熄灭时刻"，v1.3 起停用（保留字段兼容历史数据） */
     private LocalDateTime restSince;
 
     /** 光已传递徽记 */

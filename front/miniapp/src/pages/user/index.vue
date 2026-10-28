@@ -22,7 +22,7 @@
         <text class="wg-me-kpi-value" style="color: #4f6b4a">{{ creditBalance }}</text>
       </view>
       <view class="wg-me-kpi-item" style="background-color: #ede3d0" @click="goPoints">
-        <text class="wg-me-kpi-label" style="color: #8a7648">我的积分</text>
+        <text class="wg-me-kpi-label" style="color: #8a7648">我的荣誉积分</text>
         <text class="wg-me-kpi-value" style="color: #8a7648">{{ pointBalance }}</text>
       </view>
     </view>
@@ -87,7 +87,7 @@
       </view>
       <view class="wg-row" @click="goSettings">
         <text>设置</text>
-        <text class="wg-row-label">{{ userStore.isElder ? '大字模式' : '普通模式' }} ›</text>
+        <text class="wg-row-label">{{ userStore.isElder ? '年长模式' : '普通模式' }} ›</text>
       </view>
     </view>
 
@@ -150,11 +150,8 @@ export default {
       if (this.light.lit) {
         return 'star-fill'
       }
-      if (this.light.lightState === 'STEADY') {
+      if (this.light.lightState === 'STEADY' || this.light.lightState === 'LIT') {
         return 'star-fill'
-      }
-      if (this.light.lightState === 'RESTING') {
-        return 'clock'
       }
       return 'star'
     },

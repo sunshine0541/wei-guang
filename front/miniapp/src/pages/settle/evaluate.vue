@@ -22,38 +22,23 @@
           <view class="wg-star-hint">{{ starHint }}</view>
         </view>
 
-        <!-- B：建议与悄悄话合并为一张卡的两个分区 -->
-        <view class="wg-card">
-          <template v-if="isRequester">
-            <view id="wgAdviceSection">
-              <view class="wg-label">想给邻居一句建议（可选，最多 100 字）</view>
-              <input class="wg-input" v-model="advice" maxlength="100" placeholder="想给邻居一句建议（可选）" />
-              <view class="wg-quick-row">
-                <view v-for="w in adviceTags" :key="w" class="wg-chip" @click="appendAdvice(w)">{{ w }}</view>
-              </view>
-              <view class="wg-count">{{ advice.length }}/100</view>
-            </view>
-            <view class="wg-divider" />
-          </template>
-
-          <view id="wgWhisperSection" :class="{ 'wg-focus-flash': highlight === 'whisper' }">
-            <view class="wg-label">悄悄话（可选）</view>
-            <textarea
-              class="wg-textarea"
-              v-model="whisper"
-              maxlength="200"
-              :focus="focusWhisper"
-              placeholder="这句话只有对方能看到，不会公开"
-            />
+        <!-- 悄悄话功能已于 v1.3 下线（D79），本页仅保留评价 -->
+        <view v-if="isRequester" class="wg-card">
+          <view id="wgAdviceSection">
+            <view class="wg-label">想给邻居一句建议（可选，最多 100 字）</view>
+            <input class="wg-input" v-model="advice" maxlength="100" placeholder="想给邻居一句建议（可选）" />
             <view class="wg-quick-row">
-              <view v-for="w in whisperQuick" :key="w" class="wg-chip" @click="whisper = w">{{ w }}</view>
+              <view v-for="w in adviceTags" :key="w" class="wg-chip" @click="appendAdvice(w)">{{ w }}</view>
             </view>
-            <view class="wg-count">{{ whisper.length }}/200</view>
+            <view class="wg-count">{{ advice.length }}/100</view>
           </view>
+        </view>
+        <view v-else class="wg-card">
+          <text>这次帮助已经完成，谢谢您的付出。</text>
         </view>
 
         <!-- B：未选星时提交置灰 -->
-        <view class="wg-btn" :class="{ 'wg-btn-off': isRequester && !stars }" @click="submit">提交</view>
+        <view v-if="isRequester" class="wg-btn" :class="{ 'wg-btn-off': !stars }" @click="submit">提交</view>
         <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="skip">跳过</view>
       </template>
     </template>
@@ -67,7 +52,7 @@
 <script>
 import { useUserStore } from '@/store/user'
 import { getOrder } from '@/api/order'
-import { submitEvaluation, submitWhisper } from '@/api/incentive'
+import { submitEvaluation } from '@/api/incentive'
 import { MESSAGES } from '@/utils/constants'
 
 export default {
@@ -78,13 +63,10 @@ export default {
       order: null,
       stars: 0,
       advice: '',
-      whisper: '',
       adviceTags: ['准时', '耐心', '细心'],
-      whisperQuick: ['谢谢你', '下次还找您'],
       focus: '',
       /** B：页面较短时用高亮/聚焦代替滚动锚点 */
-      highlight: '',
-      focusWhisper: false
+      highlight: ''
     }
   },
   computed: {
@@ -129,22 +111,18 @@ export default {
       }
       this.applyFocus()
     },
-    /** B：按 P07 按钮意图定位到对应分区；页面不够长时改为高亮 + 输入聚焦 */
+    /** B：从 P07「去评价」进入时高亮并滚动到评价卡；悄悄话已下线 */
     applyFocus() {
-      if (this.focus !== 'whisper' && this.focus !== 'evaluate') {
+      if (this.focus !== 'evaluate') {
         return
       }
-      this.highlight = this.focus === 'whisper' ? 'whisper' : 'evaluate'
-      if (this.focus === 'whisper') {
-        this.focusWhisper = true
-      }
+      this.highlight = 'evaluate'
       setTimeout(() => {
         this.highlight = ''
       }, 1600)
-      const target = this.focus === 'whisper' ? '#wgWhisperSection' : '#wgEvaluateCard'
       setTimeout(() => {
         const query = uni.createSelectorQuery().in(this)
-        query.select(target).boundingClientRect()
+        query.select('#wgEvaluateCard').boundingClientRect()
         query.selectViewport().scrollOffset()
         query.exec((res) => {
           if (!res || !res[0] || !res[1]) {
@@ -163,25 +141,17 @@ export default {
       this.advice = next.slice(0, 100)
     },
     async submit() {
-      if (this.isRequester && !this.stars) {
+      if (!this.isRequester) {
+        this.next()
+        return
+      }
+      if (!this.stars) {
         uni.showToast({ title: '先给个星星吧', icon: 'none' })
         return
       }
       try {
-        let okText = null
-        if (this.isRequester && this.stars) {
-          await submitEvaluation(this.orderId, { stars: this.stars, advice: this.advice || null })
-          okText = '谢谢您的评价，这会让善意被更多人看见。'
-        }
-        if (this.whisper.trim()) {
-          await submitWhisper(this.orderId, { content: this.whisper.trim() })
-          if (!okText) {
-            okText = '这句话已悄悄送到。'
-          }
-        }
-        if (okText) {
-          uni.showToast({ title: okText, icon: 'none' })
-        }
+        await submitEvaluation(this.orderId, { stars: this.stars, advice: this.advice || null })
+        uni.showToast({ title: '谢谢您的评价，这会让善意被更多人看见。', icon: 'none' })
       } catch (e) {
         console.error('[微光] 提交失败', e)
         if (e && e.code === 40003) {

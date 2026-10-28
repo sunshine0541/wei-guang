@@ -13,6 +13,7 @@ public class BizMetrics {
     private final Counter orderAccept;
     private final Counter aiDegraded;
     private final Counter fraudHit;
+    private final Counter moderationHit;
 
     public BizMetrics(MeterRegistry meterRegistry) {
         this.orderAccept = Counter.builder("weiguang.order.accept.total")
@@ -23,6 +24,9 @@ public class BizMetrics {
                 .register(meterRegistry);
         this.fraudHit = Counter.builder("weiguang.fraud.hit.total")
                 .description("防诈高危命中次数（能力二复核确认 HIGH）")
+                .register(meterRegistry);
+        this.moderationHit = Counter.builder("weiguang.moderation.hit.total")
+                .description("内容审核拦截次数（能力四判定 RISKY）")
                 .register(meterRegistry);
     }
 
@@ -39,5 +43,10 @@ public class BizMetrics {
     /** 防诈高危命中 +1（详设 §5.3） */
     public void fraudHit() {
         fraudHit.increment();
+    }
+
+    /** 内容审核拦截 +1（详设 §15.4） */
+    public void moderationHit() {
+        moderationHit.increment();
     }
 }

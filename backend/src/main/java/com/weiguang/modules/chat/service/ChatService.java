@@ -163,10 +163,15 @@ public class ChatService {
         }
         validate(request);
 
-        // 详设 §5.3 防诈管线第 1、2 层：本地分级（HIGHLIGHT 高亮；防诈要素+助人者→求助者 → 交能力二异步复核）
+        // 详设 §5.3/§15.4 防诈管线第 1、2 层：本地分级（HIGHLIGHT 高亮；命中防诈要素即交能力二异步复核，双向）
         FraudPipeline.LocalDecision decision = "TEXT".equals(request.getMessageType())
-                ? fraudPipeline.evaluateLocal(request.getContent(), uid.equals(session.getHelperId()))
+                ? fraudPipeline.evaluateLocal(request.getContent())
                 : new FraudPipeline.LocalDecision(FraudPipeline.FLAG_NONE, false, List.of());
+        boolean senderIsHelper = uid.equals(session.getHelperId());
+        String direction = senderIsHelper
+                ? FraudPipeline.DIRECTION_HELPER_TO_REQUESTER
+                : FraudPipeline.DIRECTION_REQUESTER_TO_HELPER;
+        Long receiverId = senderIsHelper ? session.getRequesterId() : session.getHelperId();
 
         MessageVO message;
         boolean fresh = true;
@@ -183,7 +188,7 @@ public class ChatService {
         if (fresh && decision.reviewRequired()) {
             // 第 3 层：异步复核（不阻塞发送、不在事务内）；HIGH → STRONG+上报+强提示，否则维持 HIGHLIGHT
             fraudPipeline.reviewAsync(session.getOrderId(), message.getMsgId(), uid,
-                    session.getRequesterId(), request.getContent(), decision.hitWords());
+                    receiverId, request.getContent(), decision.hitWords(), direction);
         }
         return message;
     }

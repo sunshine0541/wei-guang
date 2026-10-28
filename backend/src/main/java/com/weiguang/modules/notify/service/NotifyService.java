@@ -100,10 +100,10 @@ public class NotifyService {
                 "\"" + orderTitle + "\"已圆满完成，感谢您的信任", "ORDER", orderId);
     }
 
-    /** 积分到账：您获得了 {points} 积分，感谢您的善意（数值取 points.per_complete） */
+    /** 荣誉积分到账：您获得了 {points} 荣誉积分，感谢您的善意（数值取 points.per_complete） */
     public void pointsCredited(Long userId, int points) {
-        insert(userId, "POINTS_CREDITED", "积分到账",
-                "您获得了 " + points + " 积分，感谢您的善意", "NONE", null);
+        insert(userId, "POINTS_CREDITED", "荣誉积分到账",
+                "您获得了 " + points + " 荣誉积分，感谢您的善意", "NONE", null);
     }
 
     /** 微光值变动：您的微光值有变动，去看看明细吧（详设 §4.4 CREDIT_CHANGED） */
@@ -157,8 +157,64 @@ public class NotifyService {
                 "您参与的\"" + orderTitle + "\"协商取消，管理员裁决：" + conclusion, "ORDER", orderId);
     }
 
-    // ---------- N1–N4 查询与已读 ----------
+    /** 求助已取消：您正在帮忙的"{title}"已被取消（详设 §15.6 CANCEL_NOTICE） */
+    public void cancelNotice(Long helperId, String orderTitle, Long orderId) {
+        insert(helperId, "CANCEL_NOTICE", "求助已取消",
+                "您正在帮忙的\"" + orderTitle + "\"已被取消，辛苦了，去看看吧", "ORDER", orderId);
+    }
 
+    /** 邻居想和您商量取消：{name} 想和您商量取消"{title}"（详设 §15.6 CANCEL_REQUEST） */
+    public void cancelRequest(Long peerId, String initiatorNickname, String orderTitle, Long orderId) {
+        insert(peerId, "CANCEL_REQUEST", "邻居想和您商量取消",
+                initiatorNickname + " 想和您商量取消\"" + orderTitle + "\"，去看看吧", "ORDER", orderId);
+    }
+
+    /** 完成确认被拒绝："{title}"的完成确认被对方拒绝（详设 §15.6 CONFIRM_REJECT） */
+    public void confirmReject(Long initiatorId, String orderTitle, Long orderId) {
+        insert(initiatorId, "CONFIRM_REJECT", "完成确认被拒绝了",
+                "\"" + orderTitle + "\"的完成确认被对方拒绝了，已进入申诉处理", "ORDER", orderId);
+    }
+
+    /** 邻居提交了申诉：{name} 就"{title}"提交了申诉（详设 §15.6 APPEAL_OPEN） */
+    public void appealOpen(Long peerId, String initiatorNickname, String orderTitle, Long orderId) {
+        insert(peerId, "APPEAL_OPEN", "邻居提交了申诉",
+                initiatorNickname + " 就\"" + orderTitle + "\"提交了申诉，请留意处理结果", "ORDER", orderId);
+    }
+
+    /** 申诉已提交回执：您关于"{title}"的申诉已提交（详设 §15.6 APPEAL_OPEN） */
+    public void appealOpenSelf(Long userId, String orderTitle, Long orderId) {
+        insert(userId, "APPEAL_OPEN", "申诉已提交",
+                "您关于\"" + orderTitle + "\"的申诉已提交，管理员会尽快处理", "ORDER", orderId);
+    }
+
+    /** 动态审核结果（APPROVED/PENDING/REJECTED；jump=POST，详设 §15.6） */
+    public void postReviewResult(Long userId, Long postId, String result) {
+        String title;
+        String content;
+        switch (result == null ? "" : result) {
+            case "APPROVED" -> {
+                title = "动态审核通过";
+                content = "您的动态已通过审核，邻居们可以看到啦";
+            }
+            case "REJECTED" -> {
+                title = "动态未通过审核";
+                content = "您的动态未通过审核，请修改后再发布";
+            }
+            default -> {
+                title = "动态审核中";
+                content = "您的动态需要人工确认一下，请耐心等待";
+            }
+        }
+        insert(userId, "POST_REVIEW_RESULT", title, content, "POST", postId);
+    }
+
+    /** 动态收到评论：{name} 评论了您的动态（jump=POST，详设 §15.6） */
+    public void commentReply(Long postAuthorId, String commenterNickname, Long postId) {
+        insert(postAuthorId, "COMMENT_REPLY", "收到新评论",
+                commenterNickname + " 评论了您的动态，去看看吧", "POST", postId);
+    }
+
+    // ---------- N1–N4 查询与已读 ----------
     /** N1 通知列表（分页，按时间倒序） */
     public PageVO<NotificationVO> list(Long uid, Long page, Long pageSize) {
         Page<Notification> result = notificationMapper.selectPage(

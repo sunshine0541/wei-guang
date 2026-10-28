@@ -92,14 +92,16 @@ export default {
       }
       return '这次求助已经不在等待确认的状态了，看看最新进展吧'
     },
-    /** C：本次用时——已确认的单用完成时间，待确认的单算到此刻 */
+    /** C：本次用时——助人者标记完成时以标记时间为准；未标记前算到此刻 */
     durationText() {
       if (!this.order || !this.order.startedAt) {
         return ''
       }
       const toTime = (value) => new Date(String(value).replace(/-/g, '/').replace('T', ' ')).getTime()
       const start = toTime(this.order.startedAt)
-      const end = this.order.completedAt ? toTime(this.order.completedAt) : Date.now()
+      const end = this.order.completeRequestedAt
+        ? toTime(this.order.completeRequestedAt)
+        : (this.order.completedAt ? toTime(this.order.completedAt) : Date.now())
       if (!start || !end || end <= start) {
         return '不到 1 分钟'
       }
