@@ -1,5 +1,6 @@
 package com.weiguang.modules.geo.controller;
 
+import com.weiguang.common.annotation.RateLimit;
 import com.weiguang.common.result.Result;
 import com.weiguang.infra.interceptor.AuthContext;
 import com.weiguang.modules.geo.dto.GeoPoiVO;
@@ -26,12 +27,14 @@ public class GeoController {
 
     /** GET /api/geo/pois?keyword=梧桐苑 */
     @GetMapping("/pois")
+    @RateLimit(prefix = "rate:geo:", limitKey = "rate.chat_per_minute")
     public Result<List<GeoPoiVO>> pois(@RequestParam(required = false) String keyword) {
         return Result.ok(geoService.search(AuthContext.requireUid(), keyword));
     }
 
     /** GET /api/geo/tips?keyword=梧桐 — 输入提示（无结果返回空列表） */
     @GetMapping("/tips")
+    @RateLimit(prefix = "rate:geo:", limitKey = "rate.chat_per_minute")
     public Result<List<GeoPoiVO>> tips(@RequestParam(required = false) String keyword) {
         return Result.ok(geoService.tips(AuthContext.requireUid(), keyword));
     }

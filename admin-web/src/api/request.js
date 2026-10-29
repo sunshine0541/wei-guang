@@ -2,7 +2,10 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '../router'
 
-const request = axios.create({ timeout: 20000 })
+const request = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE || '',
+  timeout: 20000
+})
 
 request.interceptors.request.use((config) => {
   const token = localStorage.getItem('wg_admin_token')
@@ -22,11 +25,11 @@ request.interceptors.response.use(
     if (body.code === 0) {
       return body.data
     }
-    if (body.code === 20001 || body.code === 20002) {
+    if (body.code === 20001 || body.code === 20002 || body.code === 20003) {
       localStorage.removeItem('wg_admin_token')
       localStorage.removeItem('wg_admin_name')
       if (router.currentRoute.value.path !== '/login') {
-        ElMessage.error('登录已失效，请重新登录')
+        ElMessage.error(body.code === 20003 ? '账号权限已失效，请重新登录' : '登录已失效，请重新登录')
         router.push('/login')
       }
     } else {

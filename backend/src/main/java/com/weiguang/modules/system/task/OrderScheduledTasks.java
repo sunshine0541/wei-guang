@@ -14,6 +14,7 @@ import com.weiguang.modules.incentive.mapper.EvaluationMapper;
 import com.weiguang.modules.incentive.mapper.StoryCardMapper;
 import com.weiguang.modules.incentive.mapper.ThankLetterMapper;
 import com.weiguang.modules.incentive.mapper.WhisperMapper;
+import com.weiguang.modules.incentive.service.CreditService;
 import com.weiguang.modules.notify.service.NotifyService;
 import com.weiguang.modules.order.entity.HelpOrder;
 import com.weiguang.modules.order.entity.OrderTimeline;
@@ -30,7 +31,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 定时任务 J1–J6/J8/J10（详设 §4.3）。单机单实例，全部条件更新保证每单只流转一次；
@@ -56,6 +59,7 @@ public class OrderScheduledTasks {
     private final SettleService settleService;
     private final NotifyService notifyService;
     private final ConfigService configService;
+    private final CreditService creditService;
 
     public OrderScheduledTasks(HelpOrderMapper helpOrderMapper,
                                UserMapper userMapper,
@@ -70,7 +74,8 @@ public class OrderScheduledTasks {
                                ReleaseService releaseService,
                                SettleService settleService,
                                NotifyService notifyService,
-                               ConfigService configService) {
+                               ConfigService configService,
+                               CreditService creditService) {
         this.helpOrderMapper = helpOrderMapper;
         this.userMapper = userMapper;
         this.creditLedgerMapper = creditLedgerMapper;
@@ -85,6 +90,7 @@ public class OrderScheduledTasks {
         this.settleService = settleService;
         this.notifyService = notifyService;
         this.configService = configService;
+        this.creditService = creditService;
     }
 
     /** J1 待响应超时：每 1 min，PENDING 且 publish_deadline<now → EXPIRED */
@@ -172,37 +178,68 @@ public class OrderScheduledTasks {
     @Scheduled(fixedDelay = 3_600_000)
     public void j6AbuseCheck() {
         LocalDateTime since = LocalDateTime.now().minusDays(7);
+        int urgentThreshold = configService.getInt("abuse.urgent_count_7d", 2);
+        int cancelThreshold = configService.getInt("abuse.cancel_count_7d", 3);
+
+        Set<Long> urgentUsers = ids(helpOrderMapper.selectObjs(Wrappers.<HelpOrder>query()
+                .select("requester_id")
+                .eq("urgent_flag", 1)
+                .ge("created_at", since)
+                .in("status", OrderStatus.CANCELLED.name(), OrderStatus.EXPIRED.name())
+                .groupBy("requester_id")
+                .having("COUNT(*) >= " + urgentThreshold)));
+        Set<Long> cancelUsers = ids(helpOrderMapper.selectObjs(Wrappers.<HelpOrder>query()
+                .select("requester_id")
+                .eq("cancel_by", "REQUESTER")
+                .ge("cancelled_at", since)
+                .groupBy("requester_id")
+                .having("COUNT(*) >= " + cancelThreshold)));
+
+        Set<Long> candidates = new HashSet<>(urgentUsers);
+        candidates.addAll(cancelUsers);
+        if (candidates.isEmpty()) {
+            log.info("J6 滥用判定：命中 0 次");
+            return;
+        }
+
+        Set<String> deducted = new HashSet<>();
+        for (CreditLedger ledger : creditLedgerMapper.selectList(Wrappers.<CreditLedger>lambdaQuery()
+                .in(CreditLedger::getUserId, candidates)
+                .in(CreditLedger::getReasonCode, "URGENT_ABUSE", "MALICIOUS_CANCEL")
+                .ge(CreditLedger::getCreatedAt, since))) {
+            deducted.add(ledger.getUserId() + "|" + ledger.getReasonCode());
+        }
+
         int hits = 0;
-        List<User> users = userMapper.selectList(null);
-        for (User user : users) {
+        for (User user : userMapper.selectBatchIds(candidates)) {
             if (!"NORMAL".equals(user.getStatus())) {
                 continue;
             }
-            // 滥用急标：7 天内标急的求助中，被主动取消或无人接单超时的数量达阈值
-            Long urgentAbuse = helpOrderMapper.selectCount(Wrappers.<HelpOrder>lambdaQuery()
-                    .eq(HelpOrder::getRequesterId, user.getId())
-                    .eq(HelpOrder::getUrgentFlag, 1)
-                    .ge(HelpOrder::getCreatedAt, since)
-                    .in(HelpOrder::getStatus, OrderStatus.CANCELLED.name(), OrderStatus.EXPIRED.name()));
-            if (urgentAbuse != null
-                    && urgentAbuse >= configService.getInt("abuse.urgent_count_7d", 2)
-                    && !deductedRecently(user.getId(), "URGENT_ABUSE", since)) {
-                deduct(user.getId(), "URGENT_ABUSE", configService.getInt("credit.urgent_abuse", -10));
-                hits++;
-            }
-            // 恶意取消：7 天内主动取消自己发布的求助数量达阈值
-            Long cancelCount = helpOrderMapper.selectCount(Wrappers.<HelpOrder>lambdaQuery()
-                    .eq(HelpOrder::getRequesterId, user.getId())
-                    .eq(HelpOrder::getCancelBy, "REQUESTER")
-                    .ge(HelpOrder::getCancelledAt, since));
-            if (cancelCount != null
-                    && cancelCount >= configService.getInt("abuse.cancel_count_7d", 3)
-                    && !deductedRecently(user.getId(), "MALICIOUS_CANCEL", since)) {
-                deduct(user.getId(), "MALICIOUS_CANCEL", configService.getInt("credit.malicious_cancel", -10));
-                hits++;
+            Long uid = user.getId();
+            try {
+                if (urgentUsers.contains(uid) && !deducted.contains(uid + "|URGENT_ABUSE")) {
+                    deduct(uid, "URGENT_ABUSE", configService.getInt("credit.urgent_abuse", -10));
+                    hits++;
+                }
+                if (cancelUsers.contains(uid) && !deducted.contains(uid + "|MALICIOUS_CANCEL")) {
+                    deduct(uid, "MALICIOUS_CANCEL", configService.getInt("credit.malicious_cancel", -10));
+                    hits++;
+                }
+            } catch (Exception e) {
+                log.warn("J6 用户 {} 滥用判定异常：{}", uid, e.getMessage());
             }
         }
-        log.info("J6 滥用判定：命中 {} 次", hits);
+        log.info("J6 滥用判定：候选 {} 人，命中 {} 次", candidates.size(), hits);
+    }
+
+    private Set<Long> ids(List<Object> values) {
+        Set<Long> ids = new HashSet<>();
+        for (Object value : values) {
+            if (value instanceof Number number) {
+                ids.add(number.longValue());
+            }
+        }
+        return ids;
     }
 
     /** J8 协商取消超时：每 10 min，应答截止已过且仍在未完成态 → 清空挂起字段（请求失效） */
@@ -294,29 +331,8 @@ public class OrderScheduledTasks {
         return true;
     }
 
-    private boolean deductedRecently(Long uid, String reasonCode, LocalDateTime since) {
-        Long count = creditLedgerMapper.selectCount(Wrappers.<CreditLedger>lambdaQuery()
-                .eq(CreditLedger::getUserId, uid)
-                .eq(CreditLedger::getReasonCode, reasonCode)
-                .ge(CreditLedger::getCreatedAt, since));
-        return count != null && count > 0;
-    }
-
     private void deduct(Long uid, String reasonCode, int delta) {
-        User user = userMapper.selectById(uid);
-        int balance = user == null || user.getCreditScore() == null ? 0 : user.getCreditScore();
-        int newBalance = Math.max(0, balance + delta);
-        userMapper.update(null, Wrappers.<User>lambdaUpdate()
-                .eq(User::getId, uid)
-                .set(User::getCreditScore, newBalance));
-        CreditLedger ledger = new CreditLedger();
-        ledger.setUserId(uid);
-        ledger.setDelta(delta);
-        ledger.setReasonCode(reasonCode);
-        ledger.setBalanceAfter(newBalance);
-        ledger.setOperatorId(0L);
-        ledger.setCreatedAt(LocalDateTime.now());
-        creditLedgerMapper.insert(ledger);
+        creditService.apply(uid, delta, reasonCode, null, 0L, null);
         notifyService.creditChanged(uid);
     }
 }

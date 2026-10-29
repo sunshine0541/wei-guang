@@ -8,8 +8,7 @@ import com.weiguang.infra.websocket.WsEnvelope;
 import com.weiguang.infra.websocket.WsSessionRegistry;
 import com.weiguang.modules.chat.entity.ChatSession;
 import com.weiguang.modules.chat.mapper.ChatSessionMapper;
-import com.weiguang.modules.incentive.entity.CreditLedger;
-import com.weiguang.modules.incentive.mapper.CreditLedgerMapper;
+import com.weiguang.modules.incentive.service.CreditService;
 import com.weiguang.modules.notify.service.NotifyService;
 import com.weiguang.modules.order.dto.ReleaseRequest;
 import com.weiguang.modules.order.entity.HelpOrder;
@@ -51,7 +50,6 @@ public class ReleaseService {
 
     private final HelpOrderMapper helpOrderMapper;
     private final ReleaseRecordMapper releaseRecordMapper;
-    private final CreditLedgerMapper creditLedgerMapper;
     private final ChatSessionMapper chatSessionMapper;
     private final UserMapper userMapper;
     private final UserProfileMapper userProfileMapper;
@@ -59,20 +57,20 @@ public class ReleaseService {
     private final NotifyService notifyService;
     private final OrderTimelineRecorder timelineRecorder;
     private final WsSessionRegistry wsSessionRegistry;
+    private final CreditService creditService;
 
     public ReleaseService(HelpOrderMapper helpOrderMapper,
                           ReleaseRecordMapper releaseRecordMapper,
-                          CreditLedgerMapper creditLedgerMapper,
                           ChatSessionMapper chatSessionMapper,
                           UserMapper userMapper,
                           UserProfileMapper userProfileMapper,
                           ConfigService configService,
                           NotifyService notifyService,
                           OrderTimelineRecorder timelineRecorder,
-                          WsSessionRegistry wsSessionRegistry) {
+                          WsSessionRegistry wsSessionRegistry,
+                          CreditService creditService) {
         this.helpOrderMapper = helpOrderMapper;
         this.releaseRecordMapper = releaseRecordMapper;
-        this.creditLedgerMapper = creditLedgerMapper;
         this.chatSessionMapper = chatSessionMapper;
         this.userMapper = userMapper;
         this.userProfileMapper = userProfileMapper;
@@ -80,6 +78,7 @@ public class ReleaseService {
         this.notifyService = notifyService;
         this.timelineRecorder = timelineRecorder;
         this.wsSessionRegistry = wsSessionRegistry;
+        this.creditService = creditService;
     }
 
     /** O8 释放：仅当前轮接单者 */
@@ -253,23 +252,10 @@ public class ReleaseService {
             reasonCode = "MID_QUIT";
         }
 
-        User helper = userMapper.selectById(helperId);
-        int balance = helper == null || helper.getCreditScore() == null ? 0 : helper.getCreditScore();
-        int newBalance = Math.max(0, balance + delta);
+        creditService.apply(helperId, delta, reasonCode, order.getId(), 0L, null);
         userMapper.update(null, Wrappers.<User>lambdaUpdate()
                 .eq(User::getId, helperId)
-                .set(User::getCreditScore, newBalance)
                 .setSql("violation_count = violation_count + 1"));
-
-        CreditLedger ledger = new CreditLedger();
-        ledger.setUserId(helperId);
-        ledger.setDelta(delta);
-        ledger.setReasonCode(reasonCode);
-        ledger.setOrderId(order.getId());
-        ledger.setBalanceAfter(newBalance);
-        ledger.setOperatorId(0L);
-        ledger.setCreatedAt(LocalDateTime.now());
-        creditLedgerMapper.insert(ledger);
         notifyService.creditChanged(helperId);
 
         User refreshed = userMapper.selectById(helperId);

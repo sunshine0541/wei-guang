@@ -75,9 +75,9 @@ INSERT INTO `sys_config` (`config_key`, `config_value`, `description`, `default_
 ('urgency.base_remote',             '1',          '紧急度基准分·远程',                      '1',          '0-10',        'system'),
 ('urgency.urgent_weight',           '3',          '急标加权',                               '3',          '0-10',        'system'),
 ('help.tag_max',                    '3',          '标签上限',                               '3',          '1-5',         'system'),
-('help.title_max_length',           '20',         '规范标题长度上限（字）',                 '20',         '5-50',        'system'),
-('content.desc_max_length',         '200',        '求助描述长度上限（字）',                 '200',        '50-1000',     'system'),
-('content.chat_text_max_length',    '500',        '聊天单条文本上限（字）',                 '500',        '100-2000',    'system'),
+('help.title_max_length',           '20',         '规范标题长度上限（字）',                 '20',         '5-20',        'system'),
+('content.desc_max_length',         '200',        '求助描述长度上限（字）',                 '200',        '50-200',      'system'),
+('content.chat_text_max_length',    '500',        '聊天单条文本上限（字）',                 '500',        '100-500',     'system'),
 ('order.pending_limit',             '2',          '同用户待响应求助上限',                   '2',          '1-10',        'system'),
 ('order.pending_timeout_hours',     '24',         '待响应超时（普通，小时）',               '24',         '1-168',       'system'),
 ('order.pending_timeout_urgent_hours', '6',       '待响应超时（急，小时）',                 '6',          '1-72',        'system'),
@@ -118,7 +118,7 @@ INSERT INTO `sys_config` (`config_key`, `config_value`, `description`, `default_
 ('ai.thinking',                     'false',      '思考模式开关（固定 false，管理端不可改）', 'false',    '固定 false（写死，管理端不可改）', 'system'),
 ('ai.timeout_ms',                   '5000',       'AI 超时（毫秒）',                        '5000',       '1000-30000',  'system'),
 ('ai.retry',                        '1',          'AI 重试次数',                            '1',          '0-3',         'system'),
-('ai.letter_max_length',            '200',        '感谢信草稿长度上限（字）',               '200',        '50-1000',     'system'),
+('ai.letter_max_length',            '200',        '感谢信草稿长度上限（字）',               '200',        '50-500',      'system'),
 ('storage.provider',                'local',      '存储实现 local/oss',                     'local',      'local/oss（oss 后置不实现）', 'system'),
 ('storage.image_max_size_mb',       '5',          '图片大小上限（MB）',                     '5',          '1-20',        'system'),
 ('storage.local_path',              './uploads',  '本地存储目录',                           './uploads',  '合法路径',    'system'),
@@ -139,9 +139,9 @@ INSERT INTO `sys_config` (`config_key`, `config_value`, `description`, `default_
 ('risk.min_minutes.plants',         '5',          '存疑求助保底·花草宠物（分钟）',           '5',          '1-120',       'system'),
 ('risk.min_minutes.other',          '3',          '存疑求助保底·其他小事（分钟）',           '3',          '1-120',       'system'),
 ('privacy.policy_version',          'v1.0',       '隐私说明版本号',                         'v1.0',       'vX.Y',        'system'),
-('community.post_max_length',       '500',        '动态正文长度上限（字）',                 '500',        '50-2000',     'system'),
+('community.post_max_length',       '500',        '动态正文长度上限（字）',                 '500',        '50-1000',     'system'),
 ('community.post_image_max',        '3',          '动态图片张数上限',                       '3',          '0-9',         'system'),
-('community.comment_max_length',    '200',        '评论长度上限（字）',                     '200',        '20-500',      'system'),
+('community.comment_max_length',    '200',        '评论长度上限（字）',                     '200',        '20-200',      'system'),
 ('community.ai_review_enabled',     'true',       '动态/评论 AI 内容审核开关',              'true',       'true/false',  'system'),
 ('community.feed_page_size',        '10',         '社区信息流默认分页条数',                 '10',         '5-50',        'system')
 ON DUPLICATE KEY UPDATE
@@ -373,6 +373,11 @@ INSERT INTO `help_order`
      NOW() - INTERVAL 1 DAY, NULL, NULL, NULL, NULL, NULL, NULL, NOW() - INTERVAL 1 DAY, 'REQUESTER',
      '孙女周末回来教我了，先不用啦，谢谢。', NULL, 0, NOW() - INTERVAL 2 DAY);
 
+-- 协商取消挂起样例：#19 服务中，求助者发起协商，等待助人者回应（管理端裁决区演示）
+UPDATE `help_order` SET `cancel_pending_by` = 'REQUESTER',
+  `cancel_pending_deadline` = NOW() + INTERVAL 23 HOUR
+WHERE `id` = 19;
+
 -- 4C 风险演示：真实用时口径 = 开始服务 → 助人者标记完成（不含等待对方确认）；
 --    #8 为「网上办事」低于保底 5 分钟的存疑样例（实际 3 分钟），其余完成单按类型给出合理服务时长。
 UPDATE `help_order` SET `complete_requested_at` = CASE `id`
@@ -479,6 +484,7 @@ INSERT INTO `order_timeline` (`order_id`, `event_type`, `operator_id`, `remark`,
 (19, 'PUBLISH', 9,  NULL, NOW() - INTERVAL 90 MINUTE),
 (19, 'ACCEPT',  8,  NULL, NOW() - INTERVAL 70 MINUTE),
 (19, 'START',   8,  NULL, NOW() - INTERVAL 50 MINUTE),
+(19, 'CANCEL_REQUEST', 9, '临时要陪老伴去复诊，想和邻居商量取消', NOW() - INTERVAL 20 MINUTE),
 (20, 'PUBLISH', 7,  NULL, NOW() - INTERVAL 6 HOUR),
 (20, 'ACCEPT',  6,  NULL, NOW() - INTERVAL 5 HOUR - INTERVAL 30 MINUTE),
 (20, 'START',   6,  NULL, NOW() - INTERVAL 5 HOUR),
@@ -544,6 +550,12 @@ WHERE t.`event_type` IN ('PUBLISH','ACCEPT','START','COMPLETE_REQUEST','CONFIRM'
     OR (t.`event_type` = 'START' AND o.`started_at` IS NOT NULL)
     OR (t.`event_type` = 'COMPLETE_REQUEST' AND o.`complete_requested_at` IS NOT NULL)
     OR (t.`event_type` IN ('CONFIRM','COMPLETE') AND o.`completed_at` IS NOT NULL));
+-- 待确认单（#6/#20）：时间线已有 COMPLETE_REQUEST，订单列必须同步，避免确认完成后缺 complete_requested_at
+UPDATE `help_order` o JOIN `order_timeline` t
+  ON t.`order_id` = o.`id` AND t.`event_type` = 'COMPLETE_REQUEST'
+SET o.`complete_requested_at` = t.`created_at`,
+    o.`confirm_deadline` = t.`created_at` + INTERVAL 24 HOUR
+WHERE o.`status` = 'PENDING_CONFIRM' AND o.`complete_requested_at` IS NULL;
 -- #13 拒绝确认→申诉→仲裁落回：仲裁与最终完成同刻，申诉发起在标记完成之后
 UPDATE `order_timeline` t JOIN `help_order` o ON o.id = t.order_id
 SET t.`created_at` = o.`completed_at` - INTERVAL 50 MINUTE
@@ -634,7 +646,7 @@ INSERT INTO `chat_message` (`session_id`, `sender_id`, `message_type`, `content`
 INSERT INTO `report`
 (`order_id`, `message_id`, `target_type`, `target_id`, `target_user_id`, `reporter_id`, `type`, `evidence`, `status`, `handler_id`, `handle_note`, `action`, `created_at`, `handled_at`) VALUES
 (18, (SELECT `id` FROM `chat_message` WHERE `client_msg_id` = 'seed_msg_46'),
- 18, 18, 4, NULL, 'FRAUD_RISK', '命中要素：验证码；方向：HELPER→REQUESTER', 'PENDING', NULL, NULL, NULL, NOW() - INTERVAL 26 MINUTE, NULL);
+ 'ORDER', 18, 4, NULL, 'FRAUD_RISK', '命中要素：验证码；方向：HELPER→REQUESTER', 'PENDING', NULL, NULL, NULL, NOW() - INTERVAL 26 MINUTE, NULL);
 
 -- ---------- 9. 微光值与积分账本（用户余额=账本末笔 balance_after，保持一致） ----------
 INSERT INTO `credit_ledger` (`user_id`, `delta`, `reason_code`, `order_id`, `balance_after`, `operator_id`, `remark`, `created_at`) VALUES

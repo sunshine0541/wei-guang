@@ -10,19 +10,19 @@ export function confirmOrder(id, data) {
   return request({ url: `/api/orders/${id}/confirm`, method: 'POST', data, silent: true })
 }
 
-/** S1 提交评价（仅受助者、一单一评） */
+/** S1 提交评价（仅受助者、一单一评）；silent：评价页按错误码给文案 */
 export function submitEvaluation(id, data) {
-  return request({ url: `/api/orders/${id}/evaluation`, method: 'POST', data })
+  return request({ url: `/api/orders/${id}/evaluation`, method: 'POST', data, silent: true })
 }
 
-/** S3 提交感谢信（仅受助者、一单一封） */
+/** S3 提交感谢信（仅受助者、一单一封）；silent：感谢信页按错误码给文案 */
 export function submitLetter(id, data) {
-  return request({ url: `/api/orders/${id}/thank-letter`, method: 'POST', data })
+  return request({ url: `/api/orders/${id}/thank-letter`, method: 'POST', data, silent: true })
 }
 
-/** S2 感谢信 AI 起头（返回 {letterDraft, degraded}） */
+/** S2 感谢信 AI 起头（返回 {letterDraft, degraded}）；silent：页面自行兜底文案 */
 export function aiDraftLetter(id) {
-  return request({ url: `/api/orders/${id}/thank-letter/ai-draft`, method: 'POST' })
+  return request({ url: `/api/orders/${id}/thank-letter/ai-draft`, method: 'POST', silent: true })
 }
 
 /** S5 查看故事卡 */

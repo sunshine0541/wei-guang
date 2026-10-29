@@ -6,8 +6,11 @@ import com.weiguang.common.error.ErrorCode;
 import com.weiguang.common.exception.BizException;
 import com.weiguang.common.result.PageVO;
 import com.weiguang.common.util.PageUtils;
-import com.weiguang.modules.incentive.entity.CreditLedger;
-import com.weiguang.modules.incentive.mapper.CreditLedgerMapper;
+import com.weiguang.modules.community.entity.CommunityComment;
+import com.weiguang.modules.community.entity.CommunityPost;
+import com.weiguang.modules.community.mapper.CommunityCommentMapper;
+import com.weiguang.modules.community.mapper.CommunityPostMapper;
+import com.weiguang.modules.incentive.service.CreditService;
 import com.weiguang.modules.notify.service.NotifyService;
 import com.weiguang.modules.report.dto.AdminReportVO;
 import com.weiguang.modules.report.dto.ReportHandleRequest;
@@ -20,6 +23,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 防诈上报（详设 §2.20；管理端列表/处置见 §3.4）。
@@ -32,17 +39,23 @@ public class ReportService {
 
     private final ReportMapper reportMapper;
     private final UserMapper userMapper;
-    private final CreditLedgerMapper creditLedgerMapper;
     private final NotifyService notifyService;
+    private final CreditService creditService;
+    private final CommunityPostMapper communityPostMapper;
+    private final CommunityCommentMapper communityCommentMapper;
 
     public ReportService(ReportMapper reportMapper,
                          UserMapper userMapper,
-                         CreditLedgerMapper creditLedgerMapper,
-                         NotifyService notifyService) {
+                         NotifyService notifyService,
+                         CreditService creditService,
+                         CommunityPostMapper communityPostMapper,
+                         CommunityCommentMapper communityCommentMapper) {
         this.reportMapper = reportMapper;
         this.userMapper = userMapper;
-        this.creditLedgerMapper = creditLedgerMapper;
         this.notifyService = notifyService;
+        this.creditService = creditService;
+        this.communityPostMapper = communityPostMapper;
+        this.communityCommentMapper = communityCommentMapper;
     }
 
     /** 管理端上报列表（状态筛选可选，按时间倒序） */
@@ -52,7 +65,24 @@ public class ReportService {
                 Wrappers.<Report>lambdaQuery()
                         .eq(status != null && !status.isBlank(), Report::getStatus, status)
                         .orderByDesc(Report::getId));
-        return PageVO.of(result.convert(this::toVO));
+
+        Set<Long> postIds = result.getRecords().stream()
+                .filter(r -> "POST".equals(r.getTargetType()))
+                .map(Report::getTargetId)
+                .collect(Collectors.toSet());
+        Set<Long> commentIds = result.getRecords().stream()
+                .filter(r -> "COMMENT".equals(r.getTargetType()))
+                .map(Report::getTargetId)
+                .collect(Collectors.toSet());
+        Map<Long, CommunityComment> comments = commentIds.isEmpty() ? Map.of()
+                : communityCommentMapper.selectBatchIds(commentIds).stream()
+                .collect(Collectors.toMap(CommunityComment::getId, Function.identity()));
+        postIds.addAll(comments.values().stream().map(CommunityComment::getPostId).collect(Collectors.toSet()));
+        Map<Long, CommunityPost> posts = postIds.isEmpty() ? Map.of()
+                : communityPostMapper.selectBatchIds(postIds).stream()
+                .collect(Collectors.toMap(CommunityPost::getId, Function.identity()));
+
+        return PageVO.of(result.convert(report -> toVO(report, posts, comments)));
     }
 
     /**
@@ -98,6 +128,9 @@ public class ReportService {
         if (rows == 0) {
             throw new BizException(ErrorCode.DUPLICATE_SUBMIT);
         }
+        if (report.getReporterId() != null) {
+            notifyService.reportResult(report.getReporterId(), result);
+        }
 
         Long target = report.getTargetUserId();
         if ("CONFIRMED".equals(result) && target != null && !"NONE".equals(action)) {
@@ -114,26 +147,13 @@ public class ReportService {
         log.info("上报处置：report={} result={} action={} admin={}", id, result, action, adminId);
     }
 
-    /** 联动扣减：微光值（下限 0 收敛）+ 明细（ADMIN_ADJUST） */
+    /** 联动扣减：微光值（原子更新 + 明细） */
     private void applyCreditDelta(Long userId, int delta, Long adminId, String note) {
-        User user = userMapper.selectById(userId);
-        int current = user == null || user.getCreditScore() == null ? 0 : user.getCreditScore();
-        int balance = Math.max(0, current + delta);
-        userMapper.update(null, Wrappers.<User>lambdaUpdate()
-                .eq(User::getId, userId)
-                .set(User::getCreditScore, balance));
-        CreditLedger ledger = new CreditLedger();
-        ledger.setUserId(userId);
-        ledger.setDelta(delta);
-        ledger.setReasonCode("ADMIN_ADJUST");
-        ledger.setBalanceAfter(balance);
-        ledger.setOperatorId(adminId);
-        ledger.setRemark("上报处置：" + note);
-        ledger.setCreatedAt(LocalDateTime.now());
-        creditLedgerMapper.insert(ledger);
+        creditService.apply(userId, delta, "ADMIN_ADJUST", null, adminId, "上报处置：" + note);
     }
 
-    private AdminReportVO toVO(Report report) {
+    private AdminReportVO toVO(Report report, Map<Long, CommunityPost> posts,
+                               Map<Long, CommunityComment> comments) {
         AdminReportVO vo = new AdminReportVO();
         vo.setId(report.getId());
         vo.setOrderId(report.getOrderId());
@@ -149,6 +169,27 @@ public class ReportService {
         vo.setHandleNote(report.getHandleNote());
         vo.setCreatedAt(report.getCreatedAt());
         vo.setHandledAt(report.getHandledAt());
+
+        if ("POST".equals(report.getTargetType())) {
+            CommunityPost post = posts.get(report.getTargetId());
+            if (post != null) {
+                vo.setTargetPostId(post.getId());
+                vo.setTargetTitle(post.getTitle());
+                vo.setTargetContent(post.getContent());
+                vo.setTargetStatus(post.getStatus());
+            }
+        } else if ("COMMENT".equals(report.getTargetType())) {
+            CommunityComment comment = comments.get(report.getTargetId());
+            if (comment != null) {
+                vo.setTargetPostId(comment.getPostId());
+                vo.setTargetContent(comment.getContent());
+                vo.setTargetStatus(comment.getStatus());
+                CommunityPost post = posts.get(comment.getPostId());
+                if (post != null) {
+                    vo.setTargetTitle(post.getTitle());
+                }
+            }
+        }
         return vo;
     }
 }

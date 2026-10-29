@@ -2,6 +2,7 @@ package com.weiguang.modules.admin.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.weiguang.common.enums.OrderStatus;
 import com.weiguang.common.error.ErrorCode;
 import com.weiguang.common.exception.BizException;
 import com.weiguang.common.result.PageVO;
@@ -111,35 +112,40 @@ public class AdminOrderService {
                 .eq(orderType != null && !orderType.isBlank(), HelpOrder::getOrderType, orderType)
                 .like(keyword != null && !keyword.isBlank(), HelpOrder::getTitle, keyword)
                 .orderByDesc(HelpOrder::getId);
-        boolean riskFilter = "SUSPICIOUS".equals(riskStatus) || "REVIEWED".equals(riskStatus);
-        if (!riskFilter) {
+        // 风险筛选：已核实可直接 SQL 分页；存疑先按「已完成 + 未核实 + 有时间戳 + 用时 < 最大保底」缩小候选
+        if ("REVIEWED".equals(riskStatus)) {
+            wrapper.isNotNull(HelpOrder::getRiskReviewedAt);
             Page<HelpOrder> result = helpOrderMapper.selectPage(
                     new Page<>(PageUtils.normalizePage(page), PageUtils.normalizeSize(pageSize)), wrapper);
             Map<Long, String> nicknames = nicknames(collectUserIds(result.getRecords()));
             return PageVO.of(result.convert(order -> toVO(order, nicknames)));
         }
-
-        // 风险判定依赖实时配置，SQL 无法直接过滤：先取候选集，再在内存中筛选与分页
-        List<HelpOrder> candidates = helpOrderMapper.selectList(wrapper);
-        List<HelpOrder> filtered = candidates.stream()
-                .filter(order -> {
-                    boolean reviewed = order.getRiskReviewedAt() != null;
-                    if ("REVIEWED".equals(riskStatus)) {
-                        return reviewed;
-                    }
-                    return !reviewed && orderRiskService.evaluate(order).suspicious();
-                })
-                .toList();
-        long current = PageUtils.normalizePage(page);
-        long size = PageUtils.normalizeSize(pageSize);
-        int from = (int) Math.min(filtered.size(), (current - 1) * size);
-        int to = (int) Math.min(filtered.size(), from + size);
-        List<HelpOrder> pageOrders = filtered.subList(from, to);
-        Map<Long, String> nicknames = nicknames(collectUserIds(pageOrders));
-        Page<AdminOrderVO> voPage = new Page<>(current, size);
-        voPage.setRecords(pageOrders.stream().map(order -> toVO(order, nicknames)).toList());
-        voPage.setTotal(filtered.size());
-        return PageVO.of(voPage);
+        if ("SUSPICIOUS".equals(riskStatus)) {
+            wrapper.eq(HelpOrder::getStatus, OrderStatus.COMPLETED.name())
+                    .isNull(HelpOrder::getRiskReviewedAt)
+                    .isNotNull(HelpOrder::getStartedAt)
+                    .isNotNull(HelpOrder::getCompleteRequestedAt)
+                    // 120 分钟为 risk.min_minutes.* 的最大可配置值，先宽后精确
+                    .apply("TIMESTAMPDIFF(MINUTE, started_at, complete_requested_at) < 120");
+            List<HelpOrder> candidates = helpOrderMapper.selectList(wrapper);
+            List<HelpOrder> filtered = candidates.stream()
+                    .filter(order -> orderRiskService.evaluate(order).suspicious())
+                    .toList();
+            long current = PageUtils.normalizePage(page);
+            long size = PageUtils.normalizeSize(pageSize);
+            int from = (int) Math.min(filtered.size(), (current - 1) * size);
+            int to = (int) Math.min(filtered.size(), from + size);
+            List<HelpOrder> pageOrders = filtered.subList(from, to);
+            Map<Long, String> nicknames = nicknames(collectUserIds(pageOrders));
+            Page<AdminOrderVO> voPage = new Page<>(current, size);
+            voPage.setRecords(pageOrders.stream().map(order -> toVO(order, nicknames)).toList());
+            voPage.setTotal(filtered.size());
+            return PageVO.of(voPage);
+        }
+        Page<HelpOrder> result = helpOrderMapper.selectPage(
+                new Page<>(PageUtils.normalizePage(page), PageUtils.normalizeSize(pageSize)), wrapper);
+        Map<Long, String> nicknames = nicknames(collectUserIds(result.getRecords()));
+        return PageVO.of(result.convert(order -> toVO(order, nicknames)));
     }
 
     /** GET /admin/orders/{id} 详情（时间线 + 双方 + 聊天记录门控 + 裁决可用标记） */

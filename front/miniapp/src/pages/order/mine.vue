@@ -7,7 +7,8 @@
       <view class="wg-seg-item" :class="{ 'wg-seg-item-active': tab === 'HELPING' }" @click="switchTab('HELPING')">我接取的求助</view>
     </view>
 
-    <view v-if="orders.length === 0" class="wg-empty">{{ emptyText }}</view>
+    <view v-if="loading" class="wg-empty">{{ loadingText }}</view>
+    <view v-else-if="orders.length === 0" class="wg-empty">{{ emptyText }}</view>
 
     <view
       v-for="order in orders"
@@ -48,7 +49,10 @@ export default {
   data() {
     return {
       tab: 'DOING',
-      orders: []
+      orders: [],
+      loading: true,
+      loadingText: MESSAGES.LOADING,
+      reqSeq: 0
     }
   },
   computed: {
@@ -84,11 +88,20 @@ export default {
       this.load()
     },
     async load() {
+      const seq = ++this.reqSeq
+      this.loading = true
       try {
         const result = await listMyOrders({ tab: this.tab, page: 1, pageSize: 50 })
+        if (seq !== this.reqSeq) {
+          return
+        }
         this.orders = result.records || []
       } catch (e) {
         console.error('[微光] 我的求助加载失败', e)
+      } finally {
+        if (seq === this.reqSeq) {
+          this.loading = false
+        }
       }
     },
     statusText(order) {
@@ -145,7 +158,6 @@ export default {
             this.load()
           } catch (e) {
             console.error('[微光] 一键重发失败', e)
-            uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
           }
         }
       })

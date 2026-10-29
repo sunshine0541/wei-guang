@@ -149,7 +149,8 @@ export default {
       page: 0,
       loading: false,
       finished: false,
-      entered: false
+      entered: false,
+      postSeq: 0
     }
   },
   computed: {
@@ -197,7 +198,7 @@ export default {
       this.loadPosts(true)
     },
     async loadPosts(reset) {
-      if (this.loading || (!reset && this.finished)) {
+      if (!reset && (this.loading || this.finished)) {
         return
       }
       if (reset) {
@@ -205,10 +206,14 @@ export default {
         this.page = 0
         this.finished = false
       }
+      const seq = ++this.postSeq
       this.loading = true
-      const page = this.page + 1
+      const page = reset ? 1 : this.page + 1
       try {
         const result = await listPosts({ tab: this.tab, page, pageSize: PAGE_SIZE })
+        if (seq !== this.postSeq) {
+          return
+        }
         const records = result.records || []
         this.posts = reset ? records : this.posts.concat(records)
         this.page = page
@@ -217,7 +222,9 @@ export default {
       } catch (e) {
         console.error('[微光] 社区动态加载失败', e)
       } finally {
-        this.loading = false
+        if (seq === this.postSeq) {
+          this.loading = false
+        }
       }
     },
     async toggleLike(post) {
@@ -370,6 +377,7 @@ export default {
   display: flex;
   align-items: center;
   margin-right: 22px;
+  padding: 10px 0;
   color: var(--wg-text-soft);
 }
 

@@ -77,6 +77,9 @@ export function request(options, retried = false) {
         if (needRelogin && !retried) {
           // D31 账密登录主导：凭证过期/已注销 → 清凭证回登录页，不再静默重登
           clearToken()
+          if (typeof uni !== 'undefined' && typeof uni.$emit === 'function') {
+            uni.$emit('wg:auth-expired')
+          }
           if (options.url !== '/api/auth/login' && options.url !== '/api/auth/register') {
             uni.reLaunch({ url: '/pages/login/index' })
           }

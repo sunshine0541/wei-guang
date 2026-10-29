@@ -36,6 +36,15 @@ public class ConfigService implements ApplicationRunner {
     private static final Set<String> IMMUTABLE_KEYS = Set.of("ai.thinking");
     /** 数字范围 value_range（如 "50-100"、"-100-0"） */
     private static final Pattern RANGE_PATTERN = Pattern.compile("^(-?\\d+)-(-?\\d+)$");
+    /** 长度类配置的列宽硬上限：value_range 可以放宽，但落库前必须小于等于对应列宽 */
+    private static final Map<String, Integer> COLUMN_MAX_LENGTH = Map.of(
+            "help.title_max_length", 20,
+            "content.desc_max_length", 200,
+            "content.chat_text_max_length", 500,
+            "ai.letter_max_length", 500,
+            "community.post_max_length", 1000,
+            "community.comment_max_length", 200
+    );
 
     private final SysConfigMapper sysConfigMapper;
     private final Map<String, String> cache = new ConcurrentHashMap<>();
@@ -89,6 +98,7 @@ public class ConfigService implements ApplicationRunner {
             throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
         }
         validateValue(config.getValueRange(), trimmed);
+        validateColumnMax(key, trimmed);
         sysConfigMapper.update(null, Wrappers.<SysConfig>lambdaUpdate()
                 .eq(SysConfig::getConfigKey, key)
                 .set(SysConfig::getConfigValue, trimmed)
@@ -129,6 +139,21 @@ public class ConfigService implements ApplicationRunner {
             if (number < min || number > max) {
                 throw new BizException(ErrorCode.PARAM_INVALID);
             }
+        }
+    }
+
+    /** 长度类配置还要受对应数据库列宽约束，避免“合法范围”内却写库溢出 */
+    private void validateColumnMax(String key, String value) {
+        Integer max = COLUMN_MAX_LENGTH.get(key);
+        if (max == null) {
+            return;
+        }
+        try {
+            if (Long.parseLong(value) > max) {
+                throw new BizException(ErrorCode.PARAM_INVALID);
+            }
+        } catch (NumberFormatException e) {
+            throw new BizException(ErrorCode.PARAM_INVALID);
         }
     }
 

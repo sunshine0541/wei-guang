@@ -15,8 +15,11 @@
         <el-form-item label="关键词">
           <el-input v-model="query.keyword" placeholder="标题关键词" clearable style="width: 180px" @keyup.enter="load(1)" />
         </el-form-item>
-        <el-form-item>
-          <el-checkbox v-model="suspiciousOnly" @change="load(1)">只看存疑</el-checkbox>
+        <el-form-item label="风险">
+          <el-select v-model="riskFilter" clearable placeholder="全部" style="width: 130px" @change="load(1)">
+            <el-option label="只看存疑" value="SUSPICIOUS" />
+            <el-option label="已核实" value="REVIEWED" />
+          </el-select>
         </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="load(1)">查询</el-button>
@@ -88,7 +91,7 @@ import { ORDER_STATUS_LABELS, ORDER_TYPE_LABELS } from '../utils/labels'
 
 const router = useRouter()
 const query = reactive({ status: '', orderType: '', keyword: '', page: 1, pageSize: 20 })
-const suspiciousOnly = ref(false)
+const riskFilter = ref('')
 const list = ref([])
 const total = ref(0)
 const loading = ref(false)
@@ -108,12 +111,14 @@ async function load(page) {
       status: query.status || undefined,
       orderType: query.orderType || undefined,
       keyword: query.keyword || undefined,
-      riskStatus: suspiciousOnly.value ? 'SUSPICIOUS' : undefined,
+      riskStatus: riskFilter.value || undefined,
       page: query.page,
       pageSize: query.pageSize
     })
     list.value = data.records || []
     total.value = data.total || 0
+  } catch (e) {
+    // 请求层已提示
   } finally {
     loading.value = false
   }

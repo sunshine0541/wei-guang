@@ -102,9 +102,16 @@
           <view class="wg-btn wg-btn-plain" style="margin-top: 8px" @click.stop="goDetail(item)">
             查看处理详情
           </view>
-          <!-- B：处理中的申诉/反馈可撤回 -->
+          <!-- B：处理中的申诉/反馈可撤回；拒绝确认自动发起的申诉只能等管理员裁决 -->
           <view
-            v-if="item.status === 'PENDING'"
+            v-if="item.status === 'PENDING' && item.type === 'CONFIRM_REJECT'"
+            class="wg-label"
+            style="margin-top: 8px"
+          >
+            这笔申诉由拒绝确认自动发起，请等待管理员处理。
+          </view>
+          <view
+            v-if="item.status === 'PENDING' && item.type !== 'CONFIRM_REJECT'"
             class="wg-btn wg-btn-plain"
             style="margin-top: 8px"
             @click.stop="withdraw(item)"
@@ -124,6 +131,7 @@ import { getMyAppeals, submitAppeal, submitFeedback, withdrawAppeal } from '@/ap
 import { uploadImage } from '@/utils/upload'
 import { MESSAGES, STORAGE_KEYS } from '@/utils/constants'
 import { resolveLocalImage } from '@/utils/image'
+import { serverTimeMs } from '@/utils/format'
 import WgImage from '@/components/WgImage.vue'
 
 /* P17 写死文案（详设 §6.2）：空态与提交成功 */
@@ -221,7 +229,7 @@ export default {
         const now = Date.now()
         this.appealableOrders = Object.values(merged).filter((order) => {
           const inRange = order.status === 'COMPLETED' || order.status === 'CANCELLED'
-          const inWindow = order.appealDeadline && new Date(order.appealDeadline).getTime() >= now
+          const inWindow = order.appealDeadline && serverTimeMs(order.appealDeadline) >= now
           return inRange && inWindow && pendingOrderIds.indexOf(order.id) < 0
         })
         if (this.preselectOrderId) {
@@ -269,7 +277,7 @@ export default {
         this.preselectOrderId = null
         await this.load()
       } catch (e) {
-        uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
+        console.error('[微光] 操作失败', e)
       }
     },
     /** B：选择并上传凭证图片（复用 /api/upload/image） */
@@ -346,7 +354,7 @@ export default {
         this.feedbackContent = ''
         await this.loadList()
       } catch (e) {
-        uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
+        console.error('[微光] 操作失败', e)
       }
     }
   }

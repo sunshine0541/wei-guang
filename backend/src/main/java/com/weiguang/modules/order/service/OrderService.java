@@ -61,6 +61,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -526,40 +527,25 @@ public class OrderService {
         AddressBook myDefault = defaultAddress(uid);
         boolean distanceSort = "distance".equals(sort) && hasGeo(myDefault);
         if (distanceSort) {
-            // 距离排序在内存中完成：无坐标/本人发布的单排在后面，其余按直线距离升序
-            List<HelpOrder> candidates = helpOrderMapper.selectList(wrapper);
-            Map<Long, Double> distances = new HashMap<>();
-            for (HelpOrder order : candidates) {
-                distances.put(order.getId(), order.getRequesterId().equals(uid)
-                        ? null : distanceKm(myDefault, order));
-            }
-            candidates.sort((a, b) -> {
-                Double da = distances.get(a.getId());
-                Double db = distances.get(b.getId());
-                if (da == null && db == null) {
-                    return compareUrgency(a, b);
-                }
-                if (da == null) {
-                    return 1;
-                }
-                if (db == null) {
-                    return -1;
-                }
-                int cmp = Double.compare(da, db);
-                return cmp != 0 ? cmp : compareUrgency(a, b);
-            });
+            // SQL 内计算距离并分页：本人发布/无坐标单排最后，其余按直线距离升序
+            Long total = helpOrderMapper.selectCount(wrapper);
             long current = PageUtils.normalizePage(page);
             long size = PageUtils.normalizeSize(pageSize);
-            int from = (int) Math.min(candidates.size(), (current - 1) * size);
-            int to = (int) Math.min(candidates.size(), from + size);
-            List<HelpOrder> pageOrders = candidates.subList(from, to);
+            long offset = (current - 1) * size;
+            String distanceOrder = String.format(Locale.ROOT,
+                    " ORDER BY (requester_id = %d) ASC, (address_lat IS NULL OR address_lng IS NULL) ASC,"
+                            + " ST_Distance_Sphere(POINT(address_lng, address_lat), POINT(%f, %f)) ASC,"
+                            + " urgency_score DESC, age_priority DESC, created_at DESC LIMIT %d OFFSET %d",
+                    uid, myDefault.getLongitude().doubleValue(), myDefault.getLatitude().doubleValue(),
+                    size, offset);
+            List<HelpOrder> pageOrders = helpOrderMapper.selectList(wrapper.last(distanceOrder));
             Map<Long, UserProfile> profiles = loadProfiles(pageOrders.stream()
                     .map(HelpOrder::getRequesterId).toList());
             Page<OrderCardVO> voPage = new Page<>(current, size);
             voPage.setRecords(pageOrders.stream()
                     .map(order -> toCard(order, profiles.get(order.getRequesterId()), uid, myDefault))
                     .toList());
-            voPage.setTotal(candidates.size());
+            voPage.setTotal(total == null ? 0L : total);
             return PageVO.of(voPage);
         }
 
@@ -576,7 +562,6 @@ public class OrderService {
     }
 
     /** O4 求助详情 + 浏览去重（Redis 预检 + order_view 唯一键；发布者本人不计数） */
-    @Transactional
     public OrderDetailVO detail(Long uid, Long orderId) {
         HelpOrder order = helpOrderMapper.selectById(orderId);
         if (order == null) {
@@ -584,13 +569,10 @@ public class OrderService {
         }
         boolean mine = order.getRequesterId().equals(uid);
         if (!mine && markViewed(orderId, uid)) {
-            Long count = orderViewMapper.selectCount(
-                    Wrappers.<OrderView>lambdaQuery().eq(OrderView::getOrderId, orderId));
-            long viewCount = count == null ? 0L : count;
             helpOrderMapper.update(null, Wrappers.<HelpOrder>lambdaUpdate()
                     .eq(HelpOrder::getId, orderId)
-                    .set(HelpOrder::getViewCount, viewCount));
-            order.setViewCount((int) viewCount);
+                    .setSql("view_count = view_count + 1"));
+            order.setViewCount((order.getViewCount() == null ? 0 : order.getViewCount()) + 1);
         }
 
         UserProfile profile = findProfile(order.getRequesterId());
@@ -824,6 +806,10 @@ public class OrderService {
     }
 
     private void requirePendingLimit(Long uid) {
+        // 行锁串行化同一用户的并发发布：先计数后插入在并发下会把上限 2 打成 3+
+        userMapper.selectOne(Wrappers.<User>lambdaQuery()
+                .eq(User::getId, uid)
+                .last("FOR UPDATE"));
         Long pendingCount = helpOrderMapper.selectCount(Wrappers.<HelpOrder>lambdaQuery()
                 .eq(HelpOrder::getRequesterId, uid)
                 .eq(HelpOrder::getStatus, OrderStatus.PENDING.name()));
@@ -959,23 +945,7 @@ public class OrderService {
         return Math.round(earthRadius * c * 100.0) / 100.0;
     }
 
-    /** 距离相同/距离未知时的兜底排序：紧急度 → 年长 → 发布时间 */
-    private int compareUrgency(HelpOrder a, HelpOrder b) {
-        int urgencyA = a.getUrgencyScore() == null ? 0 : a.getUrgencyScore();
-        int urgencyB = b.getUrgencyScore() == null ? 0 : b.getUrgencyScore();
-        int cmp = Integer.compare(urgencyB, urgencyA);
-        if (cmp != 0) {
-            return cmp;
-        }
-        int ageA = a.getAgePriority() == null ? 0 : a.getAgePriority();
-        int ageB = b.getAgePriority() == null ? 0 : b.getAgePriority();
-        cmp = Integer.compare(ageB, ageA);
-        if (cmp != 0) {
-            return cmp;
-        }
-        return b.getCreatedAt().compareTo(a.getCreatedAt());
-    }
-
+    /** 地址快照（发布时解析，落订单时使用） */
     private record AddressSnapshot(String area, String detail, Double lat, Double lng) {
     }
 }

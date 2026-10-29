@@ -6,6 +6,7 @@ import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
@@ -31,6 +32,27 @@ public class RedisHealthProbe implements ApplicationRunner {
             log.warn("redis.enabled=false，限流与热点缓存全部走本地降级实现");
             return;
         }
+        if (ping()) {
+            usable = true;
+            log.info("Redis 探测成功，限流与热点缓存使用 Redis 实现");
+        } else {
+            log.warn("Redis 探测失败，自动降级为本地内存实现");
+        }
+    }
+
+    /** 运行期每 30s 复探一次：Redis 恢复后自动切回，无需重启 */
+    @Scheduled(fixedDelay = 30_000)
+    public void reprobe() {
+        if (usable || !configService.getBool("redis.enabled", true)) {
+            return;
+        }
+        if (ping()) {
+            usable = true;
+            log.info("Redis 已恢复，限流与热点缓存切回 Redis 实现");
+        }
+    }
+
+    private boolean ping() {
         try {
             RedisConnection connection = redisTemplate.getConnectionFactory().getConnection();
             try {
@@ -38,10 +60,9 @@ public class RedisHealthProbe implements ApplicationRunner {
             } finally {
                 connection.close();
             }
-            usable = true;
-            log.info("Redis 探测成功，限流与热点缓存使用 Redis 实现");
+            return true;
         } catch (Exception e) {
-            log.warn("Redis 探测失败，自动降级为本地内存实现：{}", e.getMessage());
+            return false;
         }
     }
 

@@ -2,10 +2,13 @@ package com.weiguang.infra.websocket;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.weiguang.common.error.ErrorCode;
 import com.weiguang.common.exception.BizException;
+import com.weiguang.infra.ratelimit.RateLimitService;
 import com.weiguang.modules.chat.dto.MessageVO;
 import com.weiguang.modules.chat.dto.SendMessageRequest;
 import com.weiguang.modules.chat.service.ChatService;
+import com.weiguang.modules.system.service.ConfigService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
@@ -22,15 +25,21 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 public class WeiguangWsHandler extends TextWebSocketHandler {
 
     private static final CloseStatus UNAUTHORIZED = new CloseStatus(4401, "unauthorized");
+    private static final String RATE_LIMIT_MESSAGE = "您操作得有点快，喝口水歇一下，我马上就好";
 
     private final WsSessionRegistry registry;
     private final ChatService chatService;
     private final ObjectMapper objectMapper;
+    private final RateLimitService rateLimitService;
+    private final ConfigService configService;
 
-    public WeiguangWsHandler(WsSessionRegistry registry, ChatService chatService, ObjectMapper objectMapper) {
+    public WeiguangWsHandler(WsSessionRegistry registry, ChatService chatService, ObjectMapper objectMapper,
+                             RateLimitService rateLimitService, ConfigService configService) {
         this.registry = registry;
         this.chatService = chatService;
         this.objectMapper = objectMapper;
+        this.rateLimitService = rateLimitService;
+        this.configService = configService;
     }
 
     @Override
@@ -77,6 +86,13 @@ public class WeiguangWsHandler extends TextWebSocketHandler {
         request.setContent(payload.path("content").asText(null));
         Long sessionId = payload.path("sessionId").asLong();
         try {
+            // WS 不走 AOP 注解，显式复用 REST 同一限流键与阈值
+            int limit = configService.getInt("rate.chat_per_minute", 20);
+            if (!rateLimitService.tryAcquire("rate:chat:u" + uid, limit)) {
+                registry.sendTo(session, WsEnvelope.system(ErrorCode.RATE_LIMITED, RATE_LIMIT_MESSAGE,
+                        request.getClientMsgId()));
+                return;
+            }
             // 发送成功回执由 ChatService 统一推送（REST/WS 同一条路径），此处不再重复回帧
             chatService.send(uid, sessionId, request);
         } catch (BizException e) {

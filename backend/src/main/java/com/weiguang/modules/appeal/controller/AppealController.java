@@ -1,5 +1,6 @@
 package com.weiguang.modules.appeal.controller;
 
+import com.weiguang.common.annotation.RateLimit;
 import com.weiguang.common.result.PageVO;
 import com.weiguang.common.result.Result;
 import com.weiguang.infra.interceptor.AuthContext;
@@ -31,12 +32,14 @@ public class AppealController {
 
     /** F1 提交申诉 */
     @PostMapping("/appeals")
+    @RateLimit(prefix = "rate:appeal:", limitKey = "rate.publish_per_minute")
     public Result<AppealIdVO> submitAppeal(@RequestBody AppealCreateRequest request) {
         return Result.ok(new AppealIdVO(appealService.submitAppeal(AuthContext.requireUid(), request)));
     }
 
     /** F2 提交反馈 */
     @PostMapping("/feedbacks")
+    @RateLimit(prefix = "rate:appeal:", limitKey = "rate.publish_per_minute")
     public Result<AppealIdVO> submitFeedback(@RequestBody FeedbackCreateRequest request) {
         return Result.ok(new AppealIdVO(appealService.submitFeedback(AuthContext.requireUid(), request)));
     }

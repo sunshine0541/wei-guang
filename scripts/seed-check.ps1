@@ -1,7 +1,8 @@
 ﻿# seed-check.ps1 - verify seed invariants against MySQL (docker container by default).
 # Usage: powershell -ExecutionPolicy Bypass -File scripts\seed-check.ps1
 param(
-    [string]$Container = "weiguang-mysql"
+    [string]$Container = "weiguang-mysql",
+    [string]$Database = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,7 +18,7 @@ function Read-EnvValue([string]$key, [string]$default) {
     return $value
 }
 
-$db = Read-EnvValue "MYSQL_DATABASE" "weiguang"
+$db = if ($Database) { $Database } else { Read-EnvValue "MYSQL_DATABASE" "weiguang" }
 $dbPassword = Read-EnvValue "MYSQL_PASSWORD" "weiguang123"
 
 function Query([string]$sql) {
@@ -51,8 +52,8 @@ $checks = @(
        sql = "SELECT COUNT(*) FROM community_comment c LEFT JOIN community_post p ON p.id = c.post_id WHERE p.id IS NULL" },
     @{ name = "likes without post"; expect = "0";
        sql = "SELECT COUNT(*) FROM community_like l LEFT JOIN community_post p ON p.id = l.post_id WHERE p.id IS NULL" },
-    @{ name = "completed orders have complete_requested_at"; expect = "0";
-       sql = "SELECT COUNT(*) FROM help_order WHERE status='COMPLETED' AND complete_requested_at IS NULL" },
+    @{ name = "completed/pending_confirm have complete_requested_at"; expect = "0";
+       sql = "SELECT COUNT(*) FROM help_order WHERE status IN ('COMPLETED','PENDING_CONFIRM') AND complete_requested_at IS NULL" },
     @{ name = "order time sequence"; expect = "0";
        sql = "SELECT COUNT(*) FROM help_order WHERE (accepted_at IS NOT NULL AND accepted_at < created_at) OR (started_at IS NOT NULL AND (accepted_at IS NULL OR started_at < accepted_at)) OR (complete_requested_at IS NOT NULL AND (started_at IS NULL OR complete_requested_at < started_at)) OR (completed_at IS NOT NULL AND (complete_requested_at IS NULL OR completed_at < complete_requested_at)) OR (start_deadline IS NOT NULL AND accepted_at IS NOT NULL AND start_deadline < accepted_at)" },
     @{ name = "timeline aligned with order"; expect = "0";
@@ -65,8 +66,20 @@ $checks = @(
        sql = "SELECT COUNT(*) FROM chat_message m JOIN chat_session s ON s.id=m.session_id WHERE s.closed_at IS NOT NULL AND m.created_at > s.closed_at" },
     @{ name = "fraud report sample"; expect = "1";
        sql = "SELECT COUNT(*) FROM report WHERE type='FRAUD_RISK'" },
+    @{ name = "report target_type valid"; expect = "0";
+       sql = "SELECT COUNT(*) FROM report WHERE target_type NOT IN ('ORDER','POST','COMMENT')" },
     @{ name = "demo account 13867429153"; expect = "1";
-       sql = "SELECT COUNT(*) FROM user WHERE username = '13867429153'" }
+       sql = "SELECT COUNT(*) FROM user WHERE username = '13867429153'" },
+    @{ name = "appeal reason column 500"; expect = "500";
+       sql = "SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='appeal' AND COLUMN_NAME='reason'" },
+    @{ name = "message composite unique index"; expect = "1";
+       sql = "SELECT COUNT(DISTINCT INDEX_NAME) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='chat_message' AND INDEX_NAME='uk_message_session_client' AND NON_UNIQUE=0" },
+    @{ name = "config ranges within column width"; expect = "0";
+       sql = "SELECT COUNT(*) FROM sys_config WHERE (config_key='help.title_max_length' AND value_range<>'5-20') OR (config_key='content.desc_max_length' AND value_range<>'50-200') OR (config_key='content.chat_text_max_length' AND value_range<>'100-500') OR (config_key='ai.letter_max_length' AND value_range<>'50-500') OR (config_key='community.post_max_length' AND value_range<>'50-1000') OR (config_key='community.comment_max_length' AND value_range<>'20-200')" },
+    @{ name = "cancel pending sample"; expect = "1";
+       sql = "SELECT COUNT(*) FROM help_order WHERE id=19 AND cancel_pending_by='REQUESTER' AND cancel_pending_deadline > NOW()" },
+    @{ name = "cancel pending timeline"; expect = "1";
+       sql = "SELECT COUNT(*) FROM order_timeline WHERE order_id=19 AND event_type='CANCEL_REQUEST'" }
 )
 
 $failed = 0
@@ -88,6 +101,7 @@ foreach ($c in $checks) {
 
 if ($failed -gt 0) {
     Write-Host ("seed-check failed: " + $failed + " check(s)")
+    Write-Host "提示：若演示库已被手动操作，请先执行 scripts\demo-reset.ps1 复位后再跑自检"
     exit 1
 }
 Write-Host "seed-check: all checks passed"

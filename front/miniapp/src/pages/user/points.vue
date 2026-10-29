@@ -6,8 +6,9 @@
       <view class="wg-label">荣誉积分只记录您的善意，不能兑换，也不能提现。</view>
     </view>
 
-    <view v-if="records.length === 0" class="wg-empty">{{ emptyText }}</view>
-    <view v-for="(item, index) in records" :key="index" class="wg-card">
+    <view v-if="loading" class="wg-empty">{{ loadingText }}</view>
+    <view v-else-if="records.length === 0" class="wg-empty">{{ emptyText }}</view>
+    <view v-for="(item, index) in records" :key="item.id || index" class="wg-card">
       <view class="wg-card-head">
         <text class="wg-tag" style="margin: 0">{{ reasonLabel(item.reasonCode) }}</text>
         <text class="wg-plus">+{{ item.delta }}</text>
@@ -25,8 +26,10 @@ import { MESSAGES, POINT_REASON_LABELS } from '@/utils/constants'
 export default {
   data() {
     return {
-      balance: 0,
+      balance: '--',
       records: [],
+      loading: true,
+      loadingText: MESSAGES.LOADING,
       emptyText: MESSAGES.EMPTY
     }
   },
@@ -49,6 +52,8 @@ export default {
         this.records = result.records || []
       } catch (e) {
         console.error('[微光] 积分明细加载失败', e)
+      } finally {
+        this.loading = false
       }
     }
   }

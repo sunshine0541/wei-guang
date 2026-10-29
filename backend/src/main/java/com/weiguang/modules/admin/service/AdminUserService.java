@@ -11,8 +11,8 @@ import com.weiguang.common.util.PageUtils;
 import com.weiguang.modules.admin.dto.AdminUserDetailVO;
 import com.weiguang.modules.admin.dto.AdminUserVO;
 import com.weiguang.modules.admin.dto.CreditAdjustRequest;
-import com.weiguang.modules.incentive.entity.CreditLedger;
 import com.weiguang.modules.incentive.mapper.CreditLedgerMapper;
+import com.weiguang.modules.incentive.service.CreditService;
 import com.weiguang.modules.incentive.service.IncentiveService;
 import com.weiguang.modules.notify.service.NotifyService;
 import com.weiguang.modules.order.entity.HelpOrder;
@@ -25,7 +25,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -48,19 +47,22 @@ public class AdminUserService {
     private final CreditLedgerMapper creditLedgerMapper;
     private final IncentiveService incentiveService;
     private final NotifyService notifyService;
+    private final CreditService creditService;
 
     public AdminUserService(UserMapper userMapper,
                             UserProfileMapper userProfileMapper,
                             HelpOrderMapper helpOrderMapper,
                             CreditLedgerMapper creditLedgerMapper,
                             IncentiveService incentiveService,
-                            NotifyService notifyService) {
+                            NotifyService notifyService,
+                            CreditService creditService) {
         this.userMapper = userMapper;
         this.userProfileMapper = userProfileMapper;
         this.helpOrderMapper = helpOrderMapper;
         this.creditLedgerMapper = creditLedgerMapper;
         this.incentiveService = incentiveService;
         this.notifyService = notifyService;
+        this.creditService = creditService;
     }
 
     /** GET /admin/users 列表（关键词=昵称或 openid 模糊；状态筛选；分页） */
@@ -177,20 +179,7 @@ public class AdminUserService {
         if ("CANCELLED".equals(user.getStatus())) {
             throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
         }
-        int current = user.getCreditScore() == null ? 0 : user.getCreditScore();
-        int balance = Math.max(0, current + delta);
-        userMapper.update(null, Wrappers.<User>lambdaUpdate()
-                .eq(User::getId, id)
-                .set(User::getCreditScore, balance));
-        CreditLedger ledger = new CreditLedger();
-        ledger.setUserId(id);
-        ledger.setDelta(delta);
-        ledger.setReasonCode("ADMIN_ADJUST");
-        ledger.setBalanceAfter(balance);
-        ledger.setOperatorId(adminId);
-        ledger.setRemark(remark);
-        ledger.setCreatedAt(LocalDateTime.now());
-        creditLedgerMapper.insert(ledger);
+        int balance = creditService.apply(id, delta, "ADMIN_ADJUST", null, adminId, remark);
         notifyService.creditChanged(id);
         log.info("微光值人工处置：uid={} delta={} balance={} admin={}", id, delta, balance, adminId);
     }

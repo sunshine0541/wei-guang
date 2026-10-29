@@ -2,10 +2,14 @@ import { defineStore } from 'pinia'
 import { loginAccount as loginAccountApi, registerAccount as registerAccountApi, logout as logoutApi } from '@/api/auth'
 import { getProfile, privacyAgree, setMode, setMotion, lightInvite } from '@/api/user'
 import { clearToken, getToken, setToken } from '@/api/request'
+import { wsClient } from '@/utils/ws'
+import { useNotifyStore } from '@/store/notify'
 
 const DEFAULT_RETENTION_DAYS = 180
 const DEFAULT_ELDER_AGE_THRESHOLD = 60
 const DEFAULT_POLICY_VERSION = 'v1.0'
+/** 启动链路只跑一次：App.onLaunch 与首页 onLoad 可能同时触发 */
+let bootstrapPromise = null
 
 /**
  * 用户态（详设 §1.3 store/user；登录方式见 D31：账密主导）：
@@ -16,6 +20,8 @@ export const useUserStore = defineStore('user', {
   state: () => ({
     /** 无凭证待登录（首页等页面据此跳登录页） */
     needLogin: false,
+    /** 启动链路是否已完成（有 token 时=档案已拉取） */
+    bootstrapped: false,
     isNewUser: false,
     hasPrivacyAgreed: false,
     /** 本人用户 id（U1 下发；用于「我收到的评价」复用 U12 邻居评价接口） */
@@ -49,14 +55,31 @@ export const useUserStore = defineStore('user', {
   },
 
   actions: {
-    /** 启动链路：有 token → 拉档案；无 token → 标记待登录 */
+    /** 启动链路：有 token → 拉档案；无 token → 标记待登录；并发调用共享同一个 Promise */
     async bootstrap() {
+      if (this.bootstrapped) {
+        return
+      }
+      if (bootstrapPromise) {
+        return bootstrapPromise
+      }
+      bootstrapPromise = this.doBootstrap()
+      try {
+        await bootstrapPromise
+      } finally {
+        bootstrapPromise = null
+      }
+    },
+
+    async doBootstrap() {
       if (!getToken()) {
         this.needLogin = true
+        this.bootstrapped = true
         return
       }
       await this.loadProfile()
       this.needLogin = false
+      this.bootstrapped = true
     },
 
     /** 账号登录（登录页调用） */
@@ -88,6 +111,8 @@ export const useUserStore = defineStore('user', {
       }
       this.applyProfile(result.profile)
       this.creditScore = result.creditScore || 0
+      this.bootstrapped = true
+      wsClient.connect()
     },
 
     async loadProfile() {
@@ -152,6 +177,10 @@ export const useUserStore = defineStore('user', {
       }
       clearToken()
       this.$reset()
+      const notifyStore = useNotifyStore()
+      notifyStore.unbindWs()
+      notifyStore.$reset()
+      wsClient.close()
     }
   }
 })

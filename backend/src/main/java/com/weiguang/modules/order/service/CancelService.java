@@ -202,6 +202,8 @@ public class CancelService {
 
         int rows = helpOrderMapper.update(null, Wrappers.<HelpOrder>lambdaUpdate()
                 .eq(HelpOrder::getId, orderId)
+                .notIn(HelpOrder::getStatus, OrderStatus.COMPLETED.name(),
+                        OrderStatus.CANCELLED.name(), OrderStatus.EXPIRED.name())
                 .isNotNull(HelpOrder::getCancelPendingBy)
                 .set(HelpOrder::getCancelPendingBy, null)
                 .set(HelpOrder::getCancelPendingDeadline, null));
@@ -209,6 +211,10 @@ public class CancelService {
             throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
         }
         timelineRecorder.record(orderId, "CANCEL_CONFIRM_REJECT", uid, "协商取消被拒绝");
+        Long initiatorId = "REQUESTER".equals(pendingBy) ? order.getRequesterId() : order.getHelperId();
+        if (initiatorId != null) {
+            notifyService.cancelRejected(initiatorId, order.getTitle(), orderId);
+        }
     }
 
     private void closeSession(HelpOrder order, LocalDateTime now) {

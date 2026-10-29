@@ -102,7 +102,7 @@ export default {
 }
 
 .wg-tabbar-text {
-  font-size: 11px;
+  font-size: 13px;
   margin-top: 3px;
 }
 
@@ -125,7 +125,7 @@ export default {
 }
 
 .mode-elder .wg-tabbar-text {
-  font-size: 13px;
+  font-size: var(--wg-font-sm);
 }
 
 .wg-tabbar-item-active .wg-tabbar-text {

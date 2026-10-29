@@ -37,6 +37,7 @@ import java.util.Map;
 @Service
 public class AdminCommunityService {
 
+    private static final String PENDING_REVIEW = ContentModerationService.STATUS_PENDING_REVIEW;
     private static final String PENDING_MANUAL = ContentModerationService.STATUS_PENDING_MANUAL;
     private static final String PUBLISHED = ContentModerationService.STATUS_PUBLISHED;
     private static final String HIDDEN = ContentModerationService.STATUS_HIDDEN;
@@ -73,13 +74,15 @@ public class AdminCommunityService {
                         .eq(category != null && !category.isBlank(), CommunityPost::getCategory, category)
                         .like(keyword != null && !keyword.isBlank(), CommunityPost::getContent, keyword)
                         .orderByDesc(CommunityPost::getId));
-        return PageVO.of(result.convert(this::toVO));
+        Map<Long, UserProfile> profiles = profiles(result.getRecords().stream()
+                .map(CommunityPost::getAuthorId).toList());
+        return PageVO.of(result.convert(post -> toVO(post, profiles)));
     }
 
     public AdminPostDetailVO detail(Long postId) {
         CommunityPost post = requirePost(postId);
         AdminPostDetailVO detail = new AdminPostDetailVO();
-        detail.setPost(toVO(post));
+        detail.setPost(toVO(post, profiles(List.of(post.getAuthorId()))));
         List<CommunityComment> comments = commentMapper.selectList(Wrappers.<CommunityComment>lambdaQuery()
                 .eq(CommunityComment::getPostId, postId)
                 .ne(CommunityComment::getStatus, DELETED)
@@ -101,13 +104,14 @@ public class AdminCommunityService {
 
     public void review(Long postId, AdminPostReviewRequest request) {
         CommunityPost post = requirePost(postId);
-        if (!PENDING_MANUAL.equals(post.getStatus())) {
+        String expected = post.getStatus();
+        if (!PENDING_MANUAL.equals(expected) && !PENDING_REVIEW.equals(expected)) {
             throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
         }
         boolean approve = "APPROVE".equalsIgnoreCase(request.getResult());
         int rows = postMapper.update(null, Wrappers.<CommunityPost>lambdaUpdate()
                 .eq(CommunityPost::getId, postId)
-                .eq(CommunityPost::getStatus, PENDING_MANUAL)
+                .eq(CommunityPost::getStatus, expected)
                 .set(CommunityPost::getStatus, approve ? PUBLISHED : REJECTED)
                 .set(CommunityPost::getReviewReason, trim(request.getNote())));
         if (rows == 0) {
@@ -163,13 +167,14 @@ public class AdminCommunityService {
 
     public void reviewComment(Long commentId, AdminPostReviewRequest request) {
         CommunityComment comment = requireComment(commentId);
-        if (!PENDING_MANUAL.equals(comment.getStatus())) {
+        String expected = comment.getStatus();
+        if (!PENDING_MANUAL.equals(expected) && !PENDING_REVIEW.equals(expected)) {
             throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
         }
         boolean approve = "APPROVE".equalsIgnoreCase(request.getResult());
         int rows = commentMapper.update(null, Wrappers.<CommunityComment>lambdaUpdate()
                 .eq(CommunityComment::getId, commentId)
-                .eq(CommunityComment::getStatus, PENDING_MANUAL)
+                .eq(CommunityComment::getStatus, expected)
                 .set(CommunityComment::getStatus, approve ? PUBLISHED : DELETED));
         if (rows == 0) {
             throw new BizException(ErrorCode.DUPLICATE_SUBMIT);
@@ -251,7 +256,7 @@ public class AdminCommunityService {
         return json.length() > 1000 ? null : json;
     }
 
-    private AdminPostVO toVO(CommunityPost post) {
+    private AdminPostVO toVO(CommunityPost post, Map<Long, UserProfile> profiles) {
         AdminPostVO vo = new AdminPostVO();
         vo.setId(post.getId());
         vo.setAuthorId(post.getAuthorId());
@@ -267,11 +272,22 @@ public class AdminCommunityService {
         vo.setCommentCount(post.getCommentCount());
         vo.setCreatedAt(post.getCreatedAt());
         if (post.getAuthorId() != null && post.getAuthorId() != 0L) {
-            UserProfile profile = profileOf(post.getAuthorId());
+            UserProfile profile = profiles.get(post.getAuthorId());
             vo.setAuthorNickname(profile == null || profile.getNickname() == null
                     ? "邻居" : profile.getNickname());
         }
         return vo;
+    }
+
+    private Map<Long, UserProfile> profiles(List<Long> userIds) {
+        Map<Long, UserProfile> map = new HashMap<>();
+        List<Long> distinct = userIds.stream().filter(id -> id != null && id != 0L).distinct().toList();
+        if (distinct.isEmpty()) {
+            return map;
+        }
+        userProfileMapper.selectList(Wrappers.<UserProfile>lambdaQuery()
+                .in(UserProfile::getUserId, distinct)).forEach(p -> map.put(p.getUserId(), p));
+        return map;
     }
 
     private List<CommentVO> toCommentVOs(List<CommunityComment> comments) {

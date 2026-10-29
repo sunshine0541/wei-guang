@@ -56,7 +56,19 @@ export const APPEAL_TYPE_LABELS = {
 
 export const APPEAL_STATUS_LABELS = {
   PENDING: '待处理',
-  RESOLVED: '已处理'
+  RESOLVED: '已处理',
+  WITHDRAWN: '已撤回'
+}
+
+export const LIGHT_STATE_LABELS = {
+  UNLIT: '未点亮',
+  LIT: '已点亮',
+  STEADY: '常亮'
+}
+
+export const POINT_REASON_LABELS = {
+  COMPLETE: '完成帮助',
+  APPEAL_REVERT: '仲裁追回'
 }
 
 export const CREDIT_REASON_LABELS = {

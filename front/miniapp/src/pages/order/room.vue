@@ -25,7 +25,7 @@
       <view class="wg-card">
         <view class="wg-label">进展</view>
         <view v-if="timeline.length === 0" class="wg-label" style="margin-top: 6px">还没有记录</view>
-        <view v-for="(item, index) in timeline" :key="index" class="wg-room-tl-row">
+        <view v-for="(item, index) in timeline" :key="item.eventType + '-' + item.createdAt + '-' + index" class="wg-room-tl-row">
           <u-icon name="clock" :size="14" />
           <view class="wg-label wg-room-tl-text">
             {{ timelineLabel(item) }}<template v-if="item.remark"> · {{ item.remark }}</template>
@@ -290,7 +290,6 @@ export default {
         this.load(true)
       } catch (e) {
         console.error('[微光] 操作失败', e)
-        uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
         // 4D-补3：状态已被对方改掉时自动刷新，避免继续点旧按钮
         if (e && (e.code === 40002 || e.code === 40003)) {
           this.load(true)
@@ -314,7 +313,6 @@ export default {
         }, 1200)
       } catch (e) {
         console.error('[微光] 释放失败', e)
-        uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
       }
     },
     doStart() {

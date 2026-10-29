@@ -107,7 +107,12 @@
           <el-table-column prop="createdAt" label="时间" width="160" />
           <el-table-column label="操作" width="150">
             <template #default="{ row }">
-              <el-button link type="success" @click="approveComment(row)">通过</el-button>
+              <el-button
+                v-if="row.status === 'PENDING_MANUAL' || row.status === 'PENDING_REVIEW'"
+                link
+                type="success"
+                @click="approveComment(row)"
+              >通过</el-button>
               <el-button link type="danger" @click="removeComment(row)">删除</el-button>
             </template>
           </el-table-column>
@@ -118,8 +123,16 @@
           <el-table :data="detail.reports" size="small">
             <el-table-column prop="targetType" label="类型" width="90" />
             <el-table-column prop="evidence" label="举报理由" min-width="240" show-overflow-tooltip />
-            <el-table-column prop="status" label="状态" width="100" />
+            <el-table-column label="状态" width="100">
+              <template #default="{ row }">{{ REPORT_STATUS_LABELS[row.status] || row.status }}</template>
+            </el-table-column>
             <el-table-column prop="createdAt" label="时间" width="160" />
+            <el-table-column label="操作" width="100">
+              <template #default="{ row }">
+                <el-button v-if="row.status === 'PENDING'" link type="primary" @click="goHandleReport(row)">去处置</el-button>
+                <span v-else class="muted">—</span>
+              </template>
+            </el-table-column>
           </el-table>
         </template>
       </template>
@@ -129,6 +142,7 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   listCommunityPosts,
@@ -141,6 +155,10 @@ import {
   reviewCommunityComment,
   deleteCommunityComment
 } from '../api/admin'
+import { REPORT_STATUS_LABELS } from '../utils/labels'
+
+const route = useRoute()
+const router = useRouter()
 
 const STATUS_LABELS = {
   PENDING_REVIEW: '审核中',
@@ -163,6 +181,21 @@ const officialVisible = ref(false)
 const officialForm = reactive({ title: '', content: '' })
 const detailVisible = ref(false)
 const detail = reactive({ post: null, comments: [], reports: [] })
+const actionLoading = ref(false)
+
+async function runAction(fn, okText) {
+  if (actionLoading.value) return false
+  actionLoading.value = true
+  try {
+    await fn()
+    if (okText) ElMessage.success(okText)
+    return true
+  } catch (e) {
+    return false
+  } finally {
+    actionLoading.value = false
+  }
+}
 
 function statusTag(status) {
   if (status === 'PUBLISHED') return 'success'
@@ -184,6 +217,8 @@ async function load(page = 1) {
     })
     list.value = data.records || []
     total.value = data.total || 0
+  } catch (e) {
+    // 请求层已提示；保留旧列表，避免整页空白
   } finally {
     loading.value = false
   }
@@ -197,29 +232,28 @@ function openReview(row, result) {
 }
 
 async function submitReview() {
-  await reviewCommunityPost(reviewForm.id, { result: reviewForm.result, note: reviewForm.note || null })
-  ElMessage.success(reviewForm.result === 'APPROVE' ? '已通过' : '已拒绝')
+  const ok = await runAction(
+    () => reviewCommunityPost(reviewForm.id, { result: reviewForm.result, note: reviewForm.note || null }),
+    reviewForm.result === 'APPROVE' ? '已通过' : '已拒绝'
+  )
+  if (!ok) return
   reviewVisible.value = false
   load(query.page)
 }
 
 async function hide(row) {
-  await hideCommunityPost(row.id)
-  ElMessage.success('已隐藏')
-  load(query.page)
+  if (await runAction(() => hideCommunityPost(row.id), '已隐藏')) load(query.page)
 }
 
 async function restore(row) {
-  await restoreCommunityPost(row.id)
-  ElMessage.success('已恢复')
-  load(query.page)
+  if (await runAction(() => restoreCommunityPost(row.id), '已恢复')) load(query.page)
 }
 
 async function remove(row) {
-  await ElMessageBox.confirm('删除后用户端不再展示，确定吗？', '删除动态', { type: 'warning' })
-  await deleteCommunityPost(row.id)
-  ElMessage.success('已删除')
-  load(query.page)
+  const confirmed = await ElMessageBox.confirm('删除后用户端不再展示，确定吗？', '删除动态', { type: 'warning' })
+    .then(() => true).catch(() => false)
+  if (!confirmed) return
+  if (await runAction(() => deleteCommunityPost(row.id), '已删除')) load(query.page)
 }
 
 function openOfficial() {
@@ -233,34 +267,53 @@ async function submitOfficial() {
     ElMessage.warning('请填写正文')
     return
   }
-  await createOfficialPost({ title: officialForm.title || null, content: officialForm.content })
-  ElMessage.success('官方动态已发布')
+  const ok = await runAction(
+    () => createOfficialPost({ title: officialForm.title || null, content: officialForm.content }),
+    '官方动态已发布'
+  )
+  if (!ok) return
   officialVisible.value = false
   load(1)
 }
 
 async function openDetail(row) {
-  const data = await getCommunityPost(row.id)
-  detail.post = data.post
-  detail.comments = data.comments || []
-  detail.reports = data.reports || []
-  detailVisible.value = true
+  try {
+    const data = await getCommunityPost(row.id)
+    detail.post = data.post
+    detail.comments = data.comments || []
+    detail.reports = data.reports || []
+    detailVisible.value = true
+  } catch (e) {
+    // 请求层已提示
+  }
 }
 
 async function approveComment(row) {
-  await reviewCommunityComment(row.id, { result: 'APPROVE', note: null })
-  ElMessage.success('评论已通过')
-  openDetail(detail.post)
+  if (await runAction(() => reviewCommunityComment(row.id, { result: 'APPROVE', note: null }), '评论已通过')) {
+    openDetail(detail.post)
+  }
 }
 
 async function removeComment(row) {
-  await ElMessageBox.confirm('删除这条评论吗？', '删除评论', { type: 'warning' })
-  await deleteCommunityComment(row.id)
-  ElMessage.success('评论已删除')
-  openDetail(detail.post)
+  const confirmed = await ElMessageBox.confirm('删除这条评论吗？', '删除评论', { type: 'warning' })
+    .then(() => true).catch(() => false)
+  if (!confirmed) return
+  if (await runAction(() => deleteCommunityComment(row.id), '评论已删除')) {
+    openDetail(detail.post)
+  }
 }
 
-onMounted(() => load(1))
+function goHandleReport(row) {
+  router.push({ path: '/reports', query: { reportId: row.id } })
+}
+
+onMounted(async () => {
+  await load(1)
+  const postId = Number(route.query.postId)
+  if (postId) {
+    openDetail({ id: postId })
+  }
+})
 </script>
 
 <style scoped>

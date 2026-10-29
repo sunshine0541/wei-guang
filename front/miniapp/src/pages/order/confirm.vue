@@ -52,6 +52,7 @@ import { useUserStore } from '@/store/user'
 import { getOrder } from '@/api/order'
 import { confirmOrder } from '@/api/incentive'
 import { MESSAGES, ORDER_TYPE_LABELS } from '@/utils/constants'
+import { serverTimeMs } from '@/utils/format'
 import { wsClient } from '@/utils/ws'
 
 export default {
@@ -97,11 +98,10 @@ export default {
       if (!this.order || !this.order.startedAt) {
         return ''
       }
-      const toTime = (value) => new Date(String(value).replace(/-/g, '/').replace('T', ' ')).getTime()
-      const start = toTime(this.order.startedAt)
+      const start = serverTimeMs(this.order.startedAt)
       const end = this.order.completeRequestedAt
-        ? toTime(this.order.completeRequestedAt)
-        : (this.order.completedAt ? toTime(this.order.completedAt) : Date.now())
+        ? serverTimeMs(this.order.completeRequestedAt)
+        : (this.order.completedAt ? serverTimeMs(this.order.completedAt) : Date.now())
       if (!start || !end || end <= start) {
         return '不到 1 分钟'
       }

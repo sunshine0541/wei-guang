@@ -67,6 +67,11 @@
             <!-- 通知内容两种模式都展示：悄悄话等以通知为唯一查看渠道（D76） -->
             <view class="wg-notify-content">{{ item.content }}</view>
             <view class="wg-label" style="margin-top: 6px">{{ item.createdAt }}</view>
+            <!-- 年长模式：除滑动手势外提供显式按钮，避免目标用户难以发现 -->
+            <view v-if="userStore.isElder" class="wg-notify-elder-actions">
+              <view v-if="item.isRead === 0" class="wg-btn wg-btn-plain" @click.stop="markRead(item)">标记已读</view>
+              <view class="wg-btn wg-btn-plain" @click.stop="remove(item)">删除</view>
+            </view>
           </view>
         </view>
       </template>
@@ -91,7 +96,7 @@ import WgTabBar from '@/components/WgTabBar.vue'
 const EMPTY_TEXT = '暂无新消息'
 const READ_ALL_TEXT = '全部已读'
 
-/* 通知类型图标（详设 §4.4 十三类 + v1.3 §15.6 新增六类）：五色低饱和分色，图标用 uview-plus 字体图标 */
+/* 通知类型图标（详设 §4.4 + v1.3 §15.6 + T30 新增，现 22 类）：五色低饱和分色，图标用 uview-plus 字体图标 */
 const TYPE_ICONS = {
   NEW_MESSAGE: { icon: 'chat-fill', bg: '#dbe3e7', fg: '#4e6b78' },
   ACCEPTED: { icon: 'man-add', bg: '#d9e2d6', fg: '#4f6b4a' },
@@ -106,8 +111,10 @@ const TYPE_ICONS = {
   CREDIT_CHANGED: { icon: 'integral', bg: '#d9e2d6', fg: '#4f6b4a' },
   ADMIN_ACTION: { icon: 'warning', bg: '#ead9d3', fg: '#8a5f52' },
   FEEDBACK_RESULT: { icon: 'email', bg: '#ead9d3', fg: '#8a5f52' },
+  REPORT_RESULT: { icon: 'checkmark-circle', bg: '#d9e2d6', fg: '#4f6b4a' },
   CANCEL_NOTICE: { icon: 'close-circle', bg: '#ead9d3', fg: '#8a5f52' },
   CANCEL_REQUEST: { icon: 'chat', bg: '#e4deec', fg: '#63568c' },
+  CANCEL_REJECTED: { icon: 'close-circle', bg: '#ead9d3', fg: '#8a5f52' },
   CONFIRM_REJECT: { icon: 'close', bg: '#ead9d3', fg: '#8a5f52' },
   APPEAL_OPEN: { icon: 'file-text', bg: '#e4deec', fg: '#63568c' },
   POST_REVIEW_RESULT: { icon: 'eye', bg: '#dbe3e7', fg: '#4e6b78' },
@@ -128,6 +135,7 @@ export default {
       loadingText: MESSAGES.LOADING,
       emptyText: EMPTY_TEXT,
       readAllText: READ_ALL_TEXT,
+      reqSeq: 0,
       /** B：左滑删除状态（同时只展开一条） */
       slideId: null,
       slideX: 0,
@@ -254,16 +262,20 @@ export default {
         : { backgroundColor: '#dbe3e7', color: '#4e6b78' }
     },
     async load(reset = true) {
-      if (this.loadingMore) {
+      if (!reset && (this.loadingMore || this.finished)) {
         return
       }
       if (reset) {
         this.page = 1
         this.finished = false
       }
+      const seq = ++this.reqSeq
       this.loadingMore = true
       try {
         const result = await listNotifications({ page: this.page, pageSize: this.pageSize })
+        if (seq !== this.reqSeq) {
+          return
+        }
         const records = result.records || []
         this.list = reset ? records : this.list.concat(records)
         const total = result.total || 0
@@ -271,8 +283,10 @@ export default {
       } catch (e) {
         console.error('[微光] 通知列表加载失败', e)
       } finally {
-        this.loading = false
-        this.loadingMore = false
+        if (seq === this.reqSeq) {
+          this.loading = false
+          this.loadingMore = false
+        }
       }
     },
     /** B：左滑手势（仅横向拖动超过 8px 才进入滑动，避免干扰纵向滚动） */
@@ -330,7 +344,7 @@ export default {
         this.slideX = 0
         this.notifyStore.refresh()
       } catch (e) {
-        uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
+        console.error('[微光] 通知操作失败', e)
       }
     },
     /** B：删除单条通知 */
@@ -349,7 +363,7 @@ export default {
             this.slideX = 0
             this.notifyStore.refresh()
           } catch (e) {
-            uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
+            console.error('[微光] 通知操作失败', e)
           }
         }
       })
@@ -436,6 +450,17 @@ export default {
   margin-top: 6px;
   color: var(--wg-text);
   font-size: var(--wg-font-base);
+}
+
+.wg-notify-elder-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.wg-notify-elder-actions .wg-btn {
+  flex: 1;
+  margin: 0;
 }
 
 .wg-notify-bar {

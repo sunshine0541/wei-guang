@@ -9,9 +9,9 @@
 | --- | --- |
 | `backend/` | Spring Boot 3.5（Java 17）后端：REST + WebSocket + 定时任务；MySQL 8.4 / Redis 7.4；含 `docker-compose.yml`（MySQL + Redis + 后端容器一键起） |
 | `front/miniapp/` | uni-app + Vue3 微信小程序端（唯一用户端形态） |
-| `admin-web/` | Vue3 + Element Plus 管理后台（概览 / 订单 / 协商取消裁决 / 上报处置 / 用户 / 配置） |
+| `admin-web/` | Vue3 + Element Plus 管理后台（概览 / 订单 / 协商取消裁决 / 上报处置 / 用户 / 配置 / 社区审核 / 申诉反馈） |
 | `sql/` | `schema.sql` 全量建表（26 张表）；`seed.sql` 拟真演示数据（自包含一键重置）；`reset.sql` ≡ seed.sql |
-| `scripts/` | `seed-check`（18 条不变量）、`demo-reset`、`smoke`、`run-demo` 四个 PowerShell 脚本 |
+| `scripts/` | `seed-check`（24 条不变量）、`demo-reset`、`smoke`、`run-demo` 四个 PowerShell 脚本 |
 | `docs/` | 《实现偏差清单》《验收走查记录》《seed契约》《论文研究边界与前提假设》 |
 | 根目录两篇 v1.2 文档 | 详细设计 / 执行文档（任务卡与验收判据） |
 
@@ -42,8 +42,8 @@ docker exec -i weiguang-mysql mysql --default-character-set=utf8mb4 -uroot -p we
 ```
 
 > 也可在仓库根目录用本地 mysql 客户端：`Get-Content sql\schema.sql | mysql -u root -p weiguang`。
-> 数据库口令取自 `backend/.env` 的 `MYSQL_PASSWORD`（compose 缺省 `weiguang123`）。
-> 一键复位 + 自检：`powershell -ExecutionPolicy Bypass -File scripts\demo-reset.ps1`（执行 `reset.sql` 后自动跑 18 条 seed 不变量断言）。
+> 数据库口令取自 `backend/.env` 的 `MYSQL_PASSWORD`（compose 缺省 `weiguang123`，仅演示环境使用；正式环境请改用专用低权限账号）。
+> 一键复位 + 自检：`powershell -ExecutionPolicy Bypass -File scripts\demo-reset.ps1`（执行 `reset.sql` 后自动跑 24 条 seed 不变量断言）。
 
 ### 3. 启动后端
 
@@ -53,7 +53,8 @@ mvn spring-boot:run          # 开发方式
 # 或打包后走容器：mvn -DskipTests package && docker compose up -d backend
 ```
 
-- 健康检查：http://localhost:8080/actuator/health （含 `db`、`redis` 明细）
+- 健康检查：http://localhost:8080/actuator/health （只返回 `UP/DOWN` 状态，DB/Redis 明细已关闭）
+- 集成测试（Testcontainers，需 Docker）：`mvn "-Dtest=AcceptConcurrencyTest,PointConcurrencyTest,ConfirmRejectAppealTest,OrderFullFlowTest,CancelNegotiationFlowTest,CommunityReportFlowTest" test`
 - 接口文档：http://localhost:8080/swagger-ui.html （springdoc）
 - 首次启动自动按 `.env` 初始化管理员账号（`ADMIN_SEED_USERNAME` / `ADMIN_SEED_PASSWORD`）
 - 后端默认监听 `0.0.0.0:8080`，真机可通过电脑局域网 IP 访问
@@ -81,6 +82,8 @@ cd admin-web
 npm install
 npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到 :8080）
 ```
+
+> 生产部署到静态站点时，可用 `VITE_API_BASE` 指定后端基址（如 `https://api.example.com`）；不配置则沿用同源 `/admin` 反代。
 
 ## 四、演示账号（账密登录，密码统一 `wg123456`，账号即本人手机号）
 
@@ -156,10 +159,12 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 
 - 详细设计：`微光-详细设计文档v1.2.md`（第 11 章为 15 条 MVP 验收判据全文）
 - 执行文档：`微光-执行文档v1.2.md`（T01–T19 任务卡）
-- 实现偏差：`docs/实现偏差清单.md`（D01–D87）
-- 验收走查：`docs/验收走查记录.md`（T20 15 条判据 + 2026-10 体验批次 + T29 v1.3 收口）
-- seed 契约：`docs/seed契约.md`（数据画像、覆盖矩阵、18 条不变量、时间自洽规则）
-- 研究边界：`docs/论文研究边界与前提假设.md`（v1.0 定稿）
+- 实现偏差：`docs/实现偏差清单.md`（D01–D105）
+- 验收走查：`docs/验收走查记录.md`（T20 15 条判据 + 2026-10 体验批次 + T29/T30 收口）
+- seed 契约：`docs/seed契约.md`（数据画像、覆盖矩阵、24 条不变量、时间自洽规则；本地文档，不入代码仓库）
+- 研究边界：`docs/论文研究边界与前提假设.md`（v1.0 定稿；本地文档，不入代码仓库）
+
+> `design/`、`.screenshots/`、`docs/交接文档.md`、`docs/seed契约.md`、`docs/论文研究边界与前提假设.md` 为本地 Agent/论文资料，已在 `.gitignore` 排除，不属于代码交付物。
 
 ## 附录 A：页面清单（30 页）
 
@@ -192,8 +197,9 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 | 批 4G | 社区 tab + 邻里动态；首页社区卡迁移；只读，不做感谢墙/发帖 | 已完成 |
 | 批 4F | README/验收走查、全量回归、三端构建、仓库卫生 | 已完成 |
 | T21–T24 | 光语 v2、社区 2.0（发帖/点赞/评论/举报/删帖）、AI 内容审核、通知 19 类 | 已完成 |
-| T25–T26 | 管理端看板、通知/聊天分页、seed 重写与 18 条自检 | 已完成 |
+| T25–T26 | 管理端看板、通知/聊天分页、seed 重写与自检（现 24 条不变量） | 已完成 |
 | T27–T28 | 实测缺陷修复（注销、释放文案、年长模式）、上传魔数校验、Dockerfile、compose 初始化 | 已完成 |
 | T29 | seed 时间自洽与用时口径修正、管理端「年长」文案复验、边界/README/验收/交接收口 | 已完成 |
+| T30 | 2026-10 代码审查优化（批 1–5）：状态机死角、资金一致性、迁移与索引、性能、安全限流、小程序体验、管理端上报补全与举报结果通知 | 已完成 |
 
-> MVP 以 tag `v1.0-mvp` 交付；2026-10 体验改进（批 1–4F）已合入 `master`（commit `b22742b`）。v1.3（T21–T29）实现细节与偏差见 `docs/实现偏差清单.md` D63–D86。
+> MVP 以 tag `v1.0-mvp` 交付；2026-10 体验改进（批 1–4F）已合入 `master`（commit `b22742b`）。v1.3（T21–T29）与 T30 代码审查优化（D63–D105）实现细节见 `docs/实现偏差清单.md`。

@@ -2,11 +2,13 @@ package com.weiguang.modules.community.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.weiguang.common.error.ErrorCode;
 import com.weiguang.common.exception.BizException;
 import com.weiguang.common.result.PageVO;
 import com.weiguang.common.util.JsonUtils;
 import com.weiguang.common.util.PageUtils;
+import com.weiguang.infra.cache.HotCacheService;
 import com.weiguang.modules.community.dto.CommentCreateRequest;
 import com.weiguang.modules.community.dto.CommentVO;
 import com.weiguang.modules.community.dto.CommunitySummaryVO;
@@ -59,6 +61,7 @@ public class CommunityService {
     private static final String STATUS_DELETED = ContentModerationService.STATUS_DELETED;
     private static final int TITLE_MAX = 50;
     private static final int IMAGE_URL_MAX = 1000;
+    private static final String SUMMARY_CACHE_KEY = "cache:community:summary";
 
     private final CommunityPostMapper postMapper;
     private final CommunityCommentMapper commentMapper;
@@ -70,6 +73,8 @@ public class CommunityService {
     private final HonorService honorService;
     private final ConfigService configService;
     private final ContentModerationService moderationService;
+    private final HotCacheService hotCacheService;
+    private final ObjectMapper objectMapper;
 
     public CommunityService(CommunityPostMapper postMapper,
                             CommunityCommentMapper commentMapper,
@@ -80,7 +85,9 @@ public class CommunityService {
                             ReportMapper reportMapper,
                             HonorService honorService,
                             ConfigService configService,
-                            ContentModerationService moderationService) {
+                            ContentModerationService moderationService,
+                            HotCacheService hotCacheService,
+                            ObjectMapper objectMapper) {
         this.postMapper = postMapper;
         this.commentMapper = commentMapper;
         this.likeMapper = likeMapper;
@@ -91,11 +98,31 @@ public class CommunityService {
         this.honorService = honorService;
         this.configService = configService;
         this.moderationService = moderationService;
+        this.hotCacheService = hotCacheService;
+        this.objectMapper = objectMapper;
     }
 
     // ---------- CM1 顶部三块 ----------
 
     public CommunitySummaryVO summary() {
+        String cached = hotCacheService.get(SUMMARY_CACHE_KEY);
+        if (cached != null) {
+            try {
+                return objectMapper.readValue(cached, CommunitySummaryVO.class);
+            } catch (Exception e) {
+                hotCacheService.evict(SUMMARY_CACHE_KEY);
+            }
+        }
+        CommunitySummaryVO vo = buildSummary();
+        try {
+            hotCacheService.put(SUMMARY_CACHE_KEY, objectMapper.writeValueAsString(vo));
+        } catch (Exception e) {
+            // 缓存序列化失败不影响本次返回
+        }
+        return vo;
+    }
+
+    private CommunitySummaryVO buildSummary() {
         HomeSummaryVO honor = honorService.summary();
         CommunitySummaryVO vo = new CommunitySummaryVO();
         vo.setStars(honor.getHonorTop10());
@@ -143,7 +170,9 @@ public class CommunityService {
                         .orderByDesc(CommunityPost::getCreatedAt)
                         .orderByDesc(CommunityPost::getId));
         Set<Long> liked = likedSet(uid, result.getRecords());
-        return PageVO.of(result.convert(post -> toVO(post, uid, false, liked)));
+        Map<Long, UserProfile> profiles = profiles(result.getRecords().stream()
+                .map(CommunityPost::getAuthorId).toList());
+        return PageVO.of(result.convert(post -> toVO(post, uid, false, liked, profiles)));
     }
 
     public PageVO<PostVO> mine(Long uid, Long page, Long pageSize) {
@@ -155,7 +184,9 @@ public class CommunityService {
                         .orderByDesc(CommunityPost::getCreatedAt)
                         .orderByDesc(CommunityPost::getId));
         Set<Long> liked = likedSet(uid, result.getRecords());
-        return PageVO.of(result.convert(post -> toVO(post, uid, true, liked)));
+        Map<Long, UserProfile> profiles = profiles(result.getRecords().stream()
+                .map(CommunityPost::getAuthorId).toList());
+        return PageVO.of(result.convert(post -> toVO(post, uid, true, liked, profiles)));
     }
 
     public PostVO detail(Long uid, Long postId) {
@@ -167,7 +198,8 @@ public class CommunityService {
         if (!STATUS_PUBLISHED.equals(post.getStatus()) && !author) {
             throw new BizException(ErrorCode.FORBIDDEN);
         }
-        return toVO(post, uid, author, likedSet(uid, List.of(post)));
+        return toVO(post, uid, author, likedSet(uid, List.of(post)),
+                profiles(List.of(post.getAuthorId())));
     }
 
     // ---------- CM3/CM5 发布与删除 ----------
@@ -334,10 +366,17 @@ public class CommunityService {
         Long targetUserId;
         if ("POST".equals(targetType)) {
             CommunityPost post = requirePost(request.getTargetId());
+            if (!STATUS_PUBLISHED.equals(post.getStatus())) {
+                throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
+            }
             targetUserId = post.getAuthorId();
         } else {
             CommunityComment comment = commentMapper.selectById(request.getTargetId());
-            if (comment == null || STATUS_DELETED.equals(comment.getStatus())) {
+            if (comment == null || !STATUS_PUBLISHED.equals(comment.getStatus())) {
+                throw new BizException(ErrorCode.PARAM_INVALID);
+            }
+            CommunityPost post = postMapper.selectById(comment.getPostId());
+            if (post == null || !STATUS_PUBLISHED.equals(post.getStatus())) {
                 throw new BizException(ErrorCode.PARAM_INVALID);
             }
             targetUserId = comment.getAuthorId();
@@ -420,7 +459,8 @@ public class CommunityService {
         return map;
     }
 
-    private PostVO toVO(CommunityPost post, Long uid, boolean author, Set<Long> liked) {
+    private PostVO toVO(CommunityPost post, Long uid, boolean author, Set<Long> liked,
+                        Map<Long, UserProfile> profiles) {
         PostVO vo = new PostVO();
         vo.setId(post.getId());
         vo.setAuthorId(post.getAuthorId());
@@ -435,9 +475,7 @@ public class CommunityService {
         vo.setLiked(liked.contains(post.getId()));
         vo.setCreatedAt(post.getCreatedAt());
         if (post.getAuthorId() != null && post.getAuthorId() != 0L) {
-            UserProfile profile = userProfileMapper.selectOne(Wrappers.<UserProfile>lambdaQuery()
-                    .eq(UserProfile::getUserId, post.getAuthorId())
-                    .last("LIMIT 1"));
+            UserProfile profile = profiles.get(post.getAuthorId());
             vo.setAuthorNickname(profile == null || profile.getNickname() == null
                     ? "邻居" : profile.getNickname());
             vo.setAuthorAvatarUrl(profile == null ? null : profile.getAvatarUrl());

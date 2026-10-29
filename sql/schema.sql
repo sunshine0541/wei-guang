@@ -1,5 +1,5 @@
 -- ============================================================
--- 微光——社区互助服务系统 · 全量建表脚本（详设第 2 章，共 23 张表）
+-- 微光——社区互助服务系统 · 全量建表脚本（详设第 2 章，共 26 张表）
 -- 执行：mysql --default-character-set=utf8mb4 -u root -p weiguang -e "source <本文件>"
 -- 说明：本脚本为「全量重建」语义（先 DROP 再 CREATE），重复执行安全。
 -- 通用约定：主键 BIGINT UNSIGNED AUTO_INCREMENT；枚举以 VARCHAR 存英文值；
@@ -45,7 +45,7 @@ CREATE TABLE `user` (
   `violation_count` INT NOT NULL DEFAULT 0 COMMENT '违约累计计数，冷却结束清零',
   `cooldown_until` DATETIME NULL DEFAULT NULL COMMENT '接单冷却截止',
   `status` VARCHAR(16) NOT NULL DEFAULT 'NORMAL' COMMENT 'NORMAL/BANNED/CANCELLED',
-  `light_state` VARCHAR(16) NOT NULL DEFAULT 'UNLIT' COMMENT 'UNLIT/STEADY/RESTING',
+  `light_state` VARCHAR(16) NOT NULL DEFAULT 'UNLIT' COMMENT 'UNLIT/LIT/STEADY',
   `light_prev_state` VARCHAR(16) NULL DEFAULT NULL COMMENT '进入熄灭前的持久状态',
   `rest_since` DATETIME NULL DEFAULT NULL COMMENT '进入熄灭时刻',
   `light_passed` TINYINT NOT NULL DEFAULT 0 COMMENT '光已传递徽记',
@@ -61,7 +61,8 @@ CREATE TABLE `user` (
   `deleted` TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_user_openid` (`openid`),
-  UNIQUE KEY `uk_user_username` (`username`)
+  UNIQUE KEY `uk_user_username` (`username`),
+  KEY `idx_user_status_light` (`status`, `light_state`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='账号主体';
 
 -- 2.3 user_profile（画像）
@@ -173,7 +174,8 @@ CREATE TABLE `help_order` (
   KEY `idx_order_publish_deadline` (`publish_deadline`),
   KEY `idx_order_start_deadline` (`start_deadline`),
   KEY `idx_order_confirm_deadline` (`confirm_deadline`),
-  KEY `idx_order_cancel_pending_deadline` (`cancel_pending_deadline`)
+  KEY `idx_order_cancel_pending_deadline` (`cancel_pending_deadline`),
+  KEY `idx_order_status_completed` (`status`, `completed_at`, `helper_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='求助单';
 
 -- 2.7 release_record（释放重派记录，只增不改）
@@ -231,7 +233,7 @@ CREATE TABLE `chat_message` (
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_message_session` (`session_id`, `id`),
-  UNIQUE KEY `uk_message_client_msg_id` (`client_msg_id`)
+  UNIQUE KEY `uk_message_session_client` (`session_id`, `client_msg_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='聊天消息（只增不改不删）';
 
 -- 2.11 credit_ledger（微光值明细，只增不改不删）
@@ -274,7 +276,8 @@ CREATE TABLE `evaluation` (
   `advice` VARCHAR(100) NULL DEFAULT NULL COMMENT '可选一句建议',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_evaluation_order` (`order_id`)
+  UNIQUE KEY `uk_evaluation_order` (`order_id`),
+  KEY `idx_evaluation_helper` (`helper_id`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='评价（一单一评）';
 
 -- 2.14 thank_letter（感谢信）
@@ -287,7 +290,8 @@ CREATE TABLE `thank_letter` (
   `ai_assisted` TINYINT NOT NULL DEFAULT 0,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_letter_order` (`order_id`)
+  UNIQUE KEY `uk_letter_order` (`order_id`),
+  KEY `idx_letter_helper` (`helper_id`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='感谢信（一单最多一封）';
 
 -- 2.15 story_card（光之故事卡，本地模板生成）
@@ -333,7 +337,7 @@ CREATE TABLE `whisper` (
 CREATE TABLE `notification` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id` BIGINT UNSIGNED NOT NULL,
-  `type` VARCHAR(32) NOT NULL COMMENT 'NEW_MESSAGE/ACCEPTED/SERVICE_STARTED/CONFIRM_REQUEST/SETTLED/RELEASED/EXPIRED/APPEAL_RESULT/COOLDOWN/POINTS_CREDITED/CREDIT_CHANGED/ADMIN_ACTION/FEEDBACK_RESULT',
+  `type` VARCHAR(32) NOT NULL COMMENT 'NEW_MESSAGE/ACCEPTED/SERVICE_STARTED/CONFIRM_REQUEST/SETTLED/RELEASED/EXPIRED/APPEAL_RESULT/COOLDOWN/POINTS_CREDITED/CREDIT_CHANGED/ADMIN_ACTION/FEEDBACK_RESULT/REPORT_RESULT/CANCEL_NOTICE/CANCEL_REQUEST/CANCEL_REJECTED/CONFIRM_REJECT/APPEAL_OPEN/POST_REVIEW_RESULT/COMMENT_REPLY/WHISPER',
   `title` VARCHAR(50) NOT NULL,
   `content` VARCHAR(200) NOT NULL,
   `jump_type` VARCHAR(16) NULL DEFAULT NULL COMMENT 'ORDER/SESSION/APPEAL/NONE',
@@ -352,7 +356,7 @@ CREATE TABLE `appeal` (
   `order_id` BIGINT UNSIGNED NULL DEFAULT NULL COMMENT '申诉必填；FEEDBACK 为 NULL',
   `initiator_id` BIGINT UNSIGNED NOT NULL,
   `type` VARCHAR(24) NOT NULL COMMENT 'CONFIRM_REJECT/POST_ORDER/FEEDBACK',
-  `reason` VARCHAR(200) NOT NULL,
+  `reason` VARCHAR(500) NOT NULL,
   `evidence_url` VARCHAR(255) NULL DEFAULT NULL COMMENT '凭证图片相对地址（可选）',
   `status` VARCHAR(16) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING/RESOLVED',
   `handler_id` BIGINT UNSIGNED NULL DEFAULT NULL,
@@ -361,7 +365,8 @@ CREATE TABLE `appeal` (
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `resolved_at` DATETIME NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `idx_appeal_order` (`order_id`)
+  KEY `idx_appeal_order` (`order_id`),
+  KEY `idx_appeal_initiator` (`initiator_id`, `id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='申诉与反馈';
 
 -- 2.20 report（高危上报与内容举报，仅管理员可见）

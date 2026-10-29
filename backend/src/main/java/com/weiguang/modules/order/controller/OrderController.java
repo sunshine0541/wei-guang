@@ -58,6 +58,7 @@ public class OrderController {
 
     /** O1 能力一：自由描述 → 类型/标签/紧急度/标题建议（不落库） */
     @PostMapping("/ai-suggest")
+    @RateLimit(prefix = "rate:ai:", limitKey = "rate.publish_per_minute")
     public Result<UnderstandHelpResult> aiSuggest(@Valid @RequestBody AiSuggestRequest request) {
         return Result.ok(orderService.aiSuggest(request.getText()));
     }

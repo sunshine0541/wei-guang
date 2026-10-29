@@ -9,12 +9,10 @@ import com.weiguang.modules.appeal.entity.Appeal;
 import com.weiguang.modules.appeal.mapper.AppealMapper;
 import com.weiguang.modules.chat.entity.ChatSession;
 import com.weiguang.modules.chat.mapper.ChatSessionMapper;
-import com.weiguang.modules.incentive.entity.CreditLedger;
-import com.weiguang.modules.incentive.entity.PointLedger;
 import com.weiguang.modules.incentive.entity.StoryCard;
-import com.weiguang.modules.incentive.mapper.CreditLedgerMapper;
-import com.weiguang.modules.incentive.mapper.PointLedgerMapper;
 import com.weiguang.modules.incentive.mapper.StoryCardMapper;
+import com.weiguang.modules.incentive.service.CreditService;
+import com.weiguang.modules.incentive.service.PointLedgerService;
 import com.weiguang.modules.light.entity.LightEvent;
 import com.weiguang.modules.light.mapper.LightEventMapper;
 import com.weiguang.modules.light.service.LightService;
@@ -51,8 +49,6 @@ public class SettleService {
     private final UserMapper userMapper;
     private final UserProfileMapper userProfileMapper;
     private final ChatSessionMapper chatSessionMapper;
-    private final CreditLedgerMapper creditLedgerMapper;
-    private final PointLedgerMapper pointLedgerMapper;
     private final StoryCardMapper storyCardMapper;
     private final LightEventMapper lightEventMapper;
     private final LightService lightService;
@@ -61,13 +57,13 @@ public class SettleService {
     private final NotifyService notifyService;
     private final ConfigService configService;
     private final WsSessionRegistry wsSessionRegistry;
+    private final CreditService creditService;
+    private final PointLedgerService pointLedgerService;
 
     public SettleService(HelpOrderMapper helpOrderMapper,
                          UserMapper userMapper,
                          UserProfileMapper userProfileMapper,
                          ChatSessionMapper chatSessionMapper,
-                         CreditLedgerMapper creditLedgerMapper,
-                         PointLedgerMapper pointLedgerMapper,
                          StoryCardMapper storyCardMapper,
                          LightEventMapper lightEventMapper,
                          LightService lightService,
@@ -75,13 +71,13 @@ public class SettleService {
                          OrderTimelineRecorder timelineRecorder,
                          NotifyService notifyService,
                          ConfigService configService,
-                         WsSessionRegistry wsSessionRegistry) {
+                         WsSessionRegistry wsSessionRegistry,
+                         CreditService creditService,
+                         PointLedgerService pointLedgerService) {
         this.helpOrderMapper = helpOrderMapper;
         this.userMapper = userMapper;
         this.userProfileMapper = userProfileMapper;
         this.chatSessionMapper = chatSessionMapper;
-        this.creditLedgerMapper = creditLedgerMapper;
-        this.pointLedgerMapper = pointLedgerMapper;
         this.storyCardMapper = storyCardMapper;
         this.lightEventMapper = lightEventMapper;
         this.lightService = lightService;
@@ -90,6 +86,8 @@ public class SettleService {
         this.notifyService = notifyService;
         this.configService = configService;
         this.wsSessionRegistry = wsSessionRegistry;
+        this.creditService = creditService;
+        this.pointLedgerService = pointLedgerService;
     }
 
     /** O11 标记完成：双方任一方，IN_SERVICE → PENDING_CONFIRM */
@@ -182,6 +180,8 @@ public class SettleService {
                 .eq(HelpOrder::getStatus, OrderStatus.PENDING_CONFIRM.name())
                 .set(HelpOrder::getStatus, OrderStatus.COMPLETED.name())
                 .set(HelpOrder::getCompletedAt, now)
+                .set(HelpOrder::getCancelPendingBy, null)
+                .set(HelpOrder::getCancelPendingDeadline, null)
                 .set(HelpOrder::getAppealDeadline,
                         now.plusDays(configService.getInt("order.appeal_window_days", 7))));
         if (rows == 0) {
@@ -193,22 +193,9 @@ public class SettleService {
         User requester = userMapper.selectById(requesterId);
         User helper = userMapper.selectById(helperId);
 
-        // 1) 助人者微光值 +credit.complete（下限 0 收敛）
+        // 1) 助人者微光值 +credit.complete（原子更新 + 明细）
         int creditDelta = configService.getInt("credit.complete", 2);
-        int helperCredit = helper == null || helper.getCreditScore() == null ? 0 : helper.getCreditScore();
-        int newCredit = Math.max(0, helperCredit + creditDelta);
-        userMapper.update(null, Wrappers.<User>lambdaUpdate()
-                .eq(User::getId, helperId)
-                .set(User::getCreditScore, newCredit));
-        CreditLedger creditLedger = new CreditLedger();
-        creditLedger.setUserId(helperId);
-        creditLedger.setDelta(creditDelta);
-        creditLedger.setReasonCode("COMPLETE");
-        creditLedger.setOrderId(order.getId());
-        creditLedger.setBalanceAfter(newCredit);
-        creditLedger.setOperatorId(0L);
-        creditLedger.setCreatedAt(now);
-        creditLedgerMapper.insert(creditLedger);
+        creditService.apply(helperId, creditDelta, "COMPLETE", order.getId(), 0L, null);
         notifyService.creditChanged(helperId);
 
         // 2) 积分：同对用户（不区分方向）本自然周已结算 <points.weekly_pair_limit 才发放；
@@ -225,19 +212,10 @@ public class SettleService {
                                 .eq(HelpOrder::getHelperId, requesterId))));
         if (pairCount != null && pairCount <= weeklyLimit) {
             int perComplete = configService.getInt("points.per_complete", 10);
-            try {
-                PointLedger pointLedger = new PointLedger();
-                pointLedger.setUserId(helperId);
-                pointLedger.setDelta(perComplete);
-                pointLedger.setReasonCode("COMPLETE");
-                pointLedger.setOrderId(order.getId());
-                pointLedger.setUniqueKey("ORDER_COMPLETE_" + order.getId());
-                pointLedger.setBalanceAfter(latestPointBalance(helperId) + perComplete);
-                pointLedger.setCreatedAt(now);
-                pointLedgerMapper.insert(pointLedger);
+            Integer balance = pointLedgerService.addIfAbsent(helperId, perComplete, "COMPLETE",
+                    order.getId(), "ORDER_COMPLETE_" + order.getId());
+            if (balance != null) {
                 notifyService.pointsCredited(helperId, perComplete);
-            } catch (DuplicateKeyException e) {
-                log.info("积分已发放过，跳过：order={}", order.getId());
             }
         }
 
@@ -330,14 +308,6 @@ public class SettleService {
             return "一路同行，一路话家常。";
         }
         return "一次敲门，一份安心。";
-    }
-
-    private int latestPointBalance(Long uid) {
-        PointLedger latest = pointLedgerMapper.selectOne(Wrappers.<PointLedger>lambdaQuery()
-                .eq(PointLedger::getUserId, uid)
-                .orderByDesc(PointLedger::getId)
-                .last("LIMIT 1"));
-        return latest == null || latest.getBalanceAfter() == null ? 0 : latest.getBalanceAfter();
     }
 
     private void recordLightEvent(String eventType, Long uid, String fromState, String toState,

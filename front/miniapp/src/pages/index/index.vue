@@ -166,7 +166,9 @@ export default {
       /** 4D：默认地址是否带地图坐标（有坐标才能按距离排序） */
       myHasGeo: false,
       /** 4D：离我最近排序 */
-      distanceSort: false
+      distanceSort: false,
+      /** 列表请求序号：快速切筛选时丢弃旧响应 */
+      orderSeq: 0
     }
   },
   computed: {
@@ -201,11 +203,13 @@ export default {
   onShow() {
     // 回到首页时刷新列表与横幅（如从详情返回后「已有 N 位邻居看过」需即时更新）
     if (this.bootstrapped) {
-      // 4D-补：先刷新默认地址，再按最新坐标状态决定排序
-      this.refreshAreaThenOrders()
-      this.loadMyStat()
-      this.loadLight()
-      this.notifyStore.refresh()
+      // 4D-补：先刷新默认地址，再按最新坐标状态决定排序；其余独立请求并行
+      Promise.all([
+        this.refreshAreaThenOrders(),
+        this.loadMyStat(),
+        this.loadLight(),
+        this.notifyStore.refresh()
+      ]).catch((e) => console.error('[微光] 首页刷新失败', e))
     }
     // A2：隐藏左上角「返回首页⌂」（reLaunch 后页面栈只剩本页，微信会自动加该按钮）
     if (typeof wx !== 'undefined' && typeof wx.hideHomeButton === 'function') {
@@ -248,13 +252,14 @@ export default {
           uni.redirectTo({ url: '/pages/guide/privacy' })
           return
         }
-        await this.loadOrders()
-        this.loadMyStat()
-        this.loadLight()
-        this.loadMyArea()
+        await Promise.all([
+          this.refreshAreaThenOrders(),
+          this.loadMyStat(),
+          this.loadLight(),
+          this.notifyStore.refresh()
+        ])
         this.checkEntryTip()
         this.bootstrapped = true
-        this.notifyStore.refresh()
       } catch (e) {
         console.error('[微光] 启动失败', e)
         this.loadFailed = true
@@ -268,6 +273,7 @@ export default {
       }
     },
     async loadOrders() {
+      const seq = ++this.orderSeq
       const result = await listOrders({
         // 年长模式隐藏 Tab，固定展示全部求助（不能用 recommend，否则推荐为空时会误显示"没有求助"）
         tab: this.userStore.isElder ? 'all' : this.tab,
@@ -275,6 +281,9 @@ export default {
         urgentOnly: this.urgentOnly ? true : undefined,
         sort: this.distanceSort ? 'distance' : undefined
       })
+      if (seq !== this.orderSeq) {
+        return
+      }
       this.orders = result.records || []
     },
     /** B：取本人默认地址的小区/区域（失败静默，仅影响"很近"提示） */
@@ -364,7 +373,7 @@ export default {
       query.select('#wgOrderList').boundingClientRect()
       query.selectViewport().scrollOffset()
       query.exec((res) => {
-        if (!res || !res[0]) {
+        if (!res || !res[0] || !res[1]) {
           return
         }
         uni.pageScrollTo({ scrollTop: res[0].top + res[1].scrollTop - 12, duration: 220 })

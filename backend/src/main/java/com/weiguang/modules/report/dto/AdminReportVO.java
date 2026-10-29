@@ -15,6 +15,12 @@ public class AdminReportVO {
     private Long messageId;
     private String targetType;
     private Long targetId;
+    /** 内容举报：帖子 ID（评论举报时为评论所在帖子） */
+    private Long targetPostId;
+    /** 内容举报：帖子标题/内容摘要/状态，便于管理端不跳页判断 */
+    private String targetTitle;
+    private String targetContent;
+    private String targetStatus;
     private Long targetUserId;
     private Long reporterId;
     private String type;

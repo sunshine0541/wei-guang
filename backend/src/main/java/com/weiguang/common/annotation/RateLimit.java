@@ -7,7 +7,8 @@ import java.lang.annotation.Target;
 
 /**
  * 限流声明（详设 §3.1）：阈值从 sys_config 运行时读取，改配置即生效。
- * 键前缀固定四类：rate:login: / rate:publish: / rate:chat: / rate:admin:login:
+ * 键前缀按场景区分：rate:login: / rate:publish: / rate:chat: / rate:geo: / rate:ai: /
+ * rate:report: / rate:appeal: / rate:admin:login:
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)

@@ -233,22 +233,26 @@ public class IncentiveService {
                 Wrappers.<ThankLetter>lambdaQuery()
                         .eq(ThankLetter::getHelperId, uid)
                         .orderByDesc(ThankLetter::getId));
-        return PageVO.of(result.convert(letter -> toThankVO(letter, orderTitles(List.of(letter)),
-                senderNicknames(List.of(letter)))));
+        Map<Long, String> titles = orderTitles(result.getRecords());
+        Map<Long, String> nicknames = senderNicknames(result.getRecords());
+        return PageVO.of(result.convert(letter -> toThankVO(letter, titles, nicknames)));
     }
 
     /** U11 邻居公开页（不含年龄/地址/小习惯/紧急联系人/微光值） */
     public NeighborProfileVO neighborProfile(Long targetUid) {
         UserProfile profile = requireNeighbor(targetUid);
-        List<Evaluation> evaluations = evaluationMapper.selectList(Wrappers.<Evaluation>lambdaQuery()
-                .eq(Evaluation::getHelperId, targetUid));
+        Map<String, Object> stats = evaluationMapper.selectMaps(Wrappers.<Evaluation>query()
+                        .select("COUNT(*) AS cnt", "AVG(stars) AS avg")
+                        .eq("helper_id", targetUid))
+                .stream().findFirst().orElse(Map.of());
+        Object count = stats.get("cnt");
+        Object average = stats.get("avg");
         NeighborProfileVO vo = new NeighborProfileVO();
         vo.setNickname(profile.getNickname());
         vo.setAvatarUrl(profile.getAvatarUrl());
         vo.setSignature(profile.getSignature());
-        vo.setEvaluationCount((long) evaluations.size());
-        vo.setEvaluationAvg(evaluations.isEmpty() ? null
-                : evaluations.stream().mapToInt(Evaluation::getStars).average().orElse(0));
+        vo.setEvaluationCount(count == null ? 0L : ((Number) count).longValue());
+        vo.setEvaluationAvg(average == null ? null : ((Number) average).doubleValue());
         List<ThankLetter> letters = thankLetterMapper.selectList(Wrappers.<ThankLetter>lambdaQuery()
                 .eq(ThankLetter::getHelperId, targetUid)
                 .orderByDesc(ThankLetter::getId)

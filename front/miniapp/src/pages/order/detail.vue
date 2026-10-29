@@ -329,7 +329,6 @@ export default {
             this.load(true)
           } catch (e) {
             console.error('[微光] 标记完成失败', e)
-            uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
             // 4D-补3：状态已被对方改掉（如对方先点了完成）时自动刷新，避免继续点旧按钮
             if (e && (e.code === 40002 || e.code === 40003)) {
               this.load(true)

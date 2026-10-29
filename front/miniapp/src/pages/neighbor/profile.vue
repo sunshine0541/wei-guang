@@ -23,7 +23,7 @@
 
       <view v-if="evaluations.length === 0" class="wg-empty">{{ emptyText }}</view>
       <view v-else class="wg-rows">
-        <view v-for="(item, index) in evaluations" :key="index" class="wg-row wg-neighbor-item">
+        <view v-for="(item, index) in evaluations" :key="item.createdAt + '-' + index" class="wg-row wg-neighbor-item">
           <view class="wg-neighbor-item-head">
             <view class="wg-neighbor-stars">
               <u-icon v-for="n in item.stars" :key="n" name="star-fill" :size="14" />
@@ -35,7 +35,7 @@
       </view>
 
       <view class="wg-card">
-        <text class="wg-subtitle">我收到的感谢</text>
+        <text class="wg-subtitle">{{ profile.nickname || '邻居' }} 收到的感谢</text>
         <view v-if="profile.thanks.length === 0" class="wg-empty" style="margin-top: 8px">{{ emptyText }}</view>
         <view v-for="item in profile.thanks" :key="item.letterId" class="wg-thanks-item">
           <view class="wg-label">{{ item.senderNickname || '邻居' }} · {{ item.title }}</view>

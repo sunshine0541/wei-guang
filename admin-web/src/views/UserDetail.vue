@@ -31,7 +31,7 @@
         <el-descriptions-item label="微光值">{{ user.creditScore }}</el-descriptions-item>
         <el-descriptions-item label="违约计数">{{ user.violationCount }}</el-descriptions-item>
         <el-descriptions-item label="模式">{{ user.uiMode === 'ELDER' ? '年长' : '普通' }}</el-descriptions-item>
-        <el-descriptions-item label="光语状态">{{ user.lightState }}</el-descriptions-item>
+        <el-descriptions-item label="光语状态">{{ LIGHT_STATE_LABELS[user.lightState] || user.lightState }}</el-descriptions-item>
         <el-descriptions-item label="光已传递">{{ user.lightPassed === 1 ? '是' : '否' }}</el-descriptions-item>
         <el-descriptions-item label="曾被帮助">{{ user.helpedBefore === 1 ? '是' : '否' }}</el-descriptions-item>
         <el-descriptions-item label="发布求助数">{{ user.publishedCount }}</el-descriptions-item>
@@ -78,7 +78,9 @@
         <el-table-column label="变化" width="90">
           <template #default="{ row }">{{ row.delta > 0 ? '+' + row.delta : row.delta }}</template>
         </el-table-column>
-        <el-table-column prop="reasonCode" label="原因" width="160" />
+        <el-table-column label="原因" width="160">
+          <template #default="{ row }">{{ POINT_REASON_LABELS[row.reasonCode] || row.reasonCode }}</template>
+        </el-table-column>
         <el-table-column prop="balanceAfter" label="余额" width="90" />
         <el-table-column prop="createdAt" label="时间" width="170" />
       </el-table>
@@ -107,7 +109,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { banUser, creditAdjust, getUserDetail, unbanUser } from '../api/admin'
-import { CREDIT_REASON_LABELS, USER_STATUS_LABELS } from '../utils/labels'
+import { CREDIT_REASON_LABELS, LIGHT_STATE_LABELS, POINT_REASON_LABELS, USER_STATUS_LABELS } from '../utils/labels'
 
 const route = useRoute()
 const router = useRouter()

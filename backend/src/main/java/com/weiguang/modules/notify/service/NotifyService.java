@@ -35,6 +35,10 @@ public class NotifyService {
     public static final String TYPE_NEW_MESSAGE = "NEW_MESSAGE";
     /** N2 横幅聚合条数上限（sys_config） */
     private static final String BANNER_MAX_EXTRA_KEY = "notify.banner_max_extra";
+    /** 与 notification 表列宽一致：title 50 / content 200 / sender_nickname 20 */
+    private static final int TITLE_MAX_LENGTH = 50;
+    private static final int CONTENT_MAX_LENGTH = 200;
+    private static final int NICKNAME_MAX_LENGTH = 20;
 
     private final NotificationMapper notificationMapper;
     private final WsSessionRegistry wsSessionRegistry;
@@ -151,6 +155,14 @@ public class NotifyService {
         insert(userId, "ADMIN_ACTION", "管理员通知", "管理员对您的账号进行了处理，请查看", "NONE", null);
     }
 
+    /** 举报有结果了：您提交的举报已处理（新增 REPORT_RESULT） */
+    public void reportResult(Long reporterId, String result) {
+        String content = "CONFIRMED".equals(result)
+                ? "您提交的举报已核实，感谢您守护邻里"
+                : "您提交的举报经核实未成立，感谢您的关注";
+        insert(reporterId, "REPORT_RESULT", "举报有结果了", content, "NONE", null);
+    }
+
     /** 协商取消有结果了：您参与的"{title}"协商取消，管理员裁决：{conclusion}（订单裁决专用模板，详设 §4.4） */
     public void adminActionOrderArbitrate(Long userId, String orderTitle, String conclusion, Long orderId) {
         insert(userId, "ADMIN_ACTION", "协商取消有结果了",
@@ -167,6 +179,12 @@ public class NotifyService {
     public void cancelRequest(Long peerId, String initiatorNickname, String orderTitle, Long orderId) {
         insert(peerId, "CANCEL_REQUEST", "邻居想和您商量取消",
                 initiatorNickname + " 想和您商量取消\"" + orderTitle + "\"，去看看吧", "ORDER", orderId);
+    }
+
+    /** 协商取消没谈拢：发起方收到对方拒绝（新增 CANCEL_REJECTED） */
+    public void cancelRejected(Long initiatorId, String orderTitle, Long orderId) {
+        insert(initiatorId, "CANCEL_REJECTED", "协商取消没谈拢",
+                "您和邻居关于\"" + orderTitle + "\"的协商取消没有谈拢，可以再商量，或继续完成这次帮助", "ORDER", orderId);
     }
 
     /** 完成确认被拒绝："{title}"的完成确认被对方拒绝（详设 §15.6 CONFIRM_REJECT） */
@@ -302,16 +320,24 @@ public class NotifyService {
         Notification notification = new Notification();
         notification.setUserId(userId);
         notification.setType(type);
-        notification.setTitle(title);
-        notification.setContent(content);
+        notification.setTitle(truncate(title, TITLE_MAX_LENGTH));
+        notification.setContent(truncate(content, CONTENT_MAX_LENGTH));
         notification.setJumpType(jumpType);
         notification.setJumpId(jumpId);
         notification.setIsRead(0);
         notification.setMessageCount(messageCount == null ? 1 : messageCount);
-        notification.setSenderNickname(senderNickname);
+        notification.setSenderNickname(truncate(senderNickname, NICKNAME_MAX_LENGTH));
         notification.setCreatedAt(LocalDateTime.now());
         notificationMapper.insert(notification);
         dispatch(notification);
+    }
+
+    /** 通知标题/正文列宽保护：避免长文案导致 insert 失败并回滚业务事务 */
+    private static String truncate(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength);
     }
 
     /** 在线推送：事务内注册 afterCommit（避免未提交先推送），提交后异步发；无事务时直接异步发 */

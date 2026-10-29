@@ -43,6 +43,7 @@ import { useUserStore } from '@/store/user'
 import { getStoryCard } from '@/api/incentive'
 import { getOrder } from '@/api/order'
 import { MESSAGES, ORDER_TYPE_LABELS } from '@/utils/constants'
+import { serverTimeMs } from '@/utils/format'
 
 export default {
   data() {
@@ -70,8 +71,7 @@ export default {
       if (!start || !end) {
         return ''
       }
-      const toMs = (value) => new Date(String(value).replace(' ', 'T')).getTime()
-      const minutes = Math.round((toMs(end) - toMs(start)) / 60000)
+      const minutes = Math.round((serverTimeMs(end) - serverTimeMs(start)) / 60000)
       if (!Number.isFinite(minutes) || minutes <= 0) {
         return ''
       }

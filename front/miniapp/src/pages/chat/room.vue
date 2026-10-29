@@ -48,7 +48,7 @@
           <text v-else>{{ msg.content }}</text>
           <text v-if="msg.riskFlag === 'HIGHLIGHT'" class="wg-msg-note">涉及敏感内容，请多留个心眼</text>
           <text v-if="msg.pending" class="wg-msg-note">发送中…</text>
-          <text v-else-if="msg.failed" class="wg-msg-note">没发出去，再试试</text>
+          <text v-else-if="msg.failed" class="wg-msg-note wg-msg-retry" @click="retry(msg)">没发出去，点这里重试</text>
         </view>
       </view>
     </scroll-view>
@@ -123,7 +123,9 @@ export default {
       forbiddenText: MESSAGES.FORBIDDEN,
       /** B："对方正在输入"标题恢复定时器 */
       typingTimer: null,
-      lastTypingSentAt: 0
+      lastTypingSentAt: 0,
+      /** 消息回执超时定时器：clientMsgId -> timer */
+      sendTimers: {}
     }
   },
   computed: {
@@ -150,6 +152,8 @@ export default {
     if (this.typingTimer) {
       clearTimeout(this.typingTimer)
     }
+    Object.values(this.sendTimers || {}).forEach((timer) => clearTimeout(timer))
+    this.sendTimers = {}
   },
   methods: {
     async load() {
@@ -365,14 +369,36 @@ export default {
         content,
         pending: true
       })
+      this.sendTimers[clientMsgId] = setTimeout(() => {
+        delete this.sendTimers[clientMsgId]
+        if (this.messages.some((m) => m.clientMsgId === clientMsgId && m.pending)) {
+          this.markFailed(clientMsgId)
+        }
+      }, 10000)
       this.scrollToBottom()
     },
+    clearSendTimer(clientMsgId) {
+      const timer = this.sendTimers[clientMsgId]
+      if (timer) {
+        clearTimeout(timer)
+        delete this.sendTimers[clientMsgId]
+      }
+    },
     markFailed(clientMsgId) {
+      this.clearSendTimer(clientMsgId)
       this.messages = this.messages.map((m) =>
         m.clientMsgId === clientMsgId ? { ...m, pending: false, failed: true } : m
       )
     },
+    retry(msg) {
+      if (!msg || !msg.failed || !msg.clientMsgId) {
+        return
+      }
+      this.messages = this.messages.filter((m) => m.clientMsgId !== msg.clientMsgId)
+      this.deliver(msg.messageType, msg.content)
+    },
     replacePending(clientMsgId, vo) {
+      this.clearSendTimer(clientMsgId)
       this.messages = this.messages.map((m) =>
         m.clientMsgId === clientMsgId
           ? {
@@ -521,6 +547,11 @@ export default {
   margin-top: 4px;
   font-size: var(--wg-font-sm);
   opacity: 0.7;
+}
+
+.wg-msg-retry {
+  text-decoration: underline;
+  opacity: 0.9;
 }
 
 .wg-quick {

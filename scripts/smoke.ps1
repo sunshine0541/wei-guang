@@ -1,7 +1,11 @@
 ﻿# smoke.ps1 - core API smoke test against a running backend.
 # Usage: powershell -ExecutionPolicy Bypass -File scripts\smoke.ps1 [-BaseUrl http://localhost:8080]
 param(
-    [string]$BaseUrl = "http://localhost:8080"
+    [string]$BaseUrl = "http://localhost:8080",
+    [string]$Username = "13867429153",
+    [string]$Password = "wg123456",
+    [string]$AdminUsername = "",
+    [string]$AdminPassword = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,7 +38,7 @@ function Assert-Ok($resp, [string]$name) {
 
 Write-Host "smoke: base=$BaseUrl"
 
-$login = Invoke-Api "POST" "/api/auth/login" $null @{ username = "13867429153"; password = "wg123456" }
+$login = Invoke-Api "POST" "/api/auth/login" $null @{ username = $Username; password = $Password }
 if (-not (Assert-Ok $login "POST /api/auth/login")) { exit 1 }
 $token = $login.data.token
 if (-not $token) {
@@ -62,6 +66,39 @@ foreach ($c in $cases) {
         Write-Host ("FAIL  " + $c.name + " -> " + $_.Exception.Message)
         $failed++
     }
+}
+
+if ($failed -gt 0) {
+    Write-Host ("smoke failed: " + $failed + " case(s)")
+    exit 1
+}
+
+if ($AdminUsername -and $AdminPassword) {
+    try {
+        $adminLogin = Invoke-Api "POST" "/admin/auth/login" $null @{
+            username = $AdminUsername; password = $AdminPassword
+        }
+        if (-not (Assert-Ok $adminLogin "POST /admin/auth/login")) { exit 1 }
+        $adminToken = $adminLogin.data.token
+        $adminCases = @(
+            @{ name = "GET /admin/overview"; path = "/admin/overview" },
+            @{ name = "GET /admin/orders"; path = "/admin/orders?page=1&pageSize=5" }
+        )
+        foreach ($c in $adminCases) {
+            try {
+                $resp = Invoke-Api "GET" $c.path $adminToken $null
+                if (-not (Assert-Ok $resp $c.name)) { $failed++ }
+            } catch {
+                Write-Host ("FAIL  " + $c.name + " -> " + $_.Exception.Message)
+                $failed++
+            }
+        }
+    } catch {
+        Write-Host ("FAIL  admin smoke -> " + $_.Exception.Message)
+        $failed++
+    }
+} else {
+    Write-Host "SKIP  admin smoke（传 -AdminUsername/-AdminPassword 可启用）"
 }
 
 if ($failed -gt 0) {

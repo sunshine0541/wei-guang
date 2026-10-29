@@ -179,7 +179,7 @@ public class ChatService {
             message = transactionTemplate.execute(status -> persist(session, uid, request, decision.riskFlag()));
         } catch (DuplicateKeyException e) {
             fresh = false;
-            message = findByClientMsgId(request.getClientMsgId());
+            message = findByClientMsgId(session.getId(), uid, request.getClientMsgId());
             if (message == null) {
                 throw e;
             }
@@ -258,6 +258,10 @@ public class ChatService {
             throw new BizException(ErrorCode.PARAM_INVALID);
         }
         int maxTextLength = configService.getInt("content.chat_text_max_length", 500);
+        if ("IMAGE".equals(request.getMessageType()) && !request.getContent().startsWith("/files/")) {
+            // 与动态图片同口径：只允许本站上传后的相对地址，避免注入任意外链
+            throw new BizException(ErrorCode.PARAM_INVALID);
+        }
         if ("TEXT".equals(request.getMessageType()) && request.getContent().length() > maxTextLength) {
             throw new BizException(ErrorCode.CONTENT_TOO_LONG);
         }
@@ -275,9 +279,12 @@ public class ChatService {
         return session;
     }
 
-    private MessageVO findByClientMsgId(String clientMsgId) {
+    private MessageVO findByClientMsgId(Long sessionId, Long senderId, String clientMsgId) {
         ChatMessage existing = chatMessageMapper.selectOne(Wrappers.<ChatMessage>lambdaQuery()
-                .eq(ChatMessage::getClientMsgId, clientMsgId));
+                .eq(ChatMessage::getSessionId, sessionId)
+                .eq(ChatMessage::getSenderId, senderId)
+                .eq(ChatMessage::getClientMsgId, clientMsgId)
+                .last("LIMIT 1"));
         return existing == null ? null : toVO(existing);
     }
 

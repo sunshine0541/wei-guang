@@ -40,16 +40,16 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 
-# Actuator：仅暴露 health/info/metrics，敏感端点显式排除
+# Actuator：仅暴露 health/info，敏感端点显式排除
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
-        exclude: env,configprops,beans,heapdump,threaddump,loggers,shutdown
+        include: health,info
+        exclude: env,configprops,beans,heapdump,threaddump,loggers,shutdown,metrics
   endpoint:
     health:
-      show-details: always
+      show-details: never
 
 springdoc:
   api-docs:

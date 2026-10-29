@@ -16,9 +16,19 @@
     <el-card class="table-card">
       <el-table :data="list" v-loading="loading">
         <el-table-column prop="id" label="ID" width="70" />
-        <el-table-column prop="orderId" label="关联求助" width="90" />
+        <el-table-column label="目标" width="130">
+          <template #default="{ row }">
+            {{ targetLabel(row) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="被举报内容" min-width="240" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="row.targetContent">{{ row.targetTitle ? row.targetTitle + ' · ' : '' }}{{ row.targetContent }}</span>
+            <span v-else class="muted">—</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="targetUserId" label="被上报人" width="90" />
-        <el-table-column prop="evidence" label="证据片段" min-width="220" show-overflow-tooltip />
+        <el-table-column prop="evidence" label="举报理由" min-width="180" show-overflow-tooltip />
         <el-table-column label="状态" width="110">
           <template #default="{ row }">
             <el-tag :type="row.status === 'PENDING' ? 'warning' : row.status === 'CONFIRMED' ? 'danger' : 'info'">
@@ -31,10 +41,12 @@
         </el-table-column>
         <el-table-column prop="handleNote" label="处置备注" min-width="140" show-overflow-tooltip />
         <el-table-column prop="createdAt" label="上报时间" width="170" />
-        <el-table-column label="操作" width="90">
+        <el-table-column label="操作" width="130">
           <template #default="{ row }">
             <el-button v-if="row.status === 'PENDING'" link type="primary" @click="openHandle(row)">处置</el-button>
-            <span v-else class="muted">—</span>
+            <el-button v-if="row.targetPostId" link type="primary" @click="viewTarget(row)">看原内容</el-button>
+            <el-button v-else-if="row.orderId" link type="primary" @click="viewOrder(row)">看订单</el-button>
+            <span v-if="row.status !== 'PENDING' && !row.targetPostId && !row.orderId" class="muted">—</span>
           </template>
         </el-table-column>
       </el-table>
@@ -83,9 +95,13 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { handleReport, listReports } from '../api/admin'
 import { REPORT_STATUS_LABELS } from '../utils/labels'
+
+const route = useRoute()
+const router = useRouter()
 
 const query = reactive({ status: '', page: 1, pageSize: 20 })
 const list = ref([])
@@ -100,6 +116,21 @@ function actionLabel(action) {
   return { NONE: '无', CREDIT_MINUS: '微光值扣减', BAN: '封禁' }[action] || action || '—'
 }
 
+function targetLabel(row) {
+  if (row.targetType === 'POST') return `动态 #${row.targetId}`
+  if (row.targetType === 'COMMENT') return `评论 #${row.targetId}`
+  if (row.targetType === 'ORDER') return `订单 #${row.orderId || '—'}`
+  return row.targetType || '—'
+}
+
+function viewTarget(row) {
+  router.push({ path: '/community', query: { postId: row.targetPostId } })
+}
+
+function viewOrder(row) {
+  if (row.orderId) router.push(`/orders/${row.orderId}`)
+}
+
 async function load(page) {
   query.page = page || query.page
   loading.value = true
@@ -107,6 +138,8 @@ async function load(page) {
     const data = await listReports({ status: query.status || undefined, page: query.page, pageSize: query.pageSize })
     list.value = data.records || []
     total.value = data.total || 0
+  } catch (e) {
+    // 请求层已提示
   } finally {
     loading.value = false
   }
@@ -139,12 +172,25 @@ async function submit() {
     ElMessage.success('已处置')
     dialogVisible.value = false
     load()
+  } catch (e) {
+    // 请求层已提示
   } finally {
     submitting.value = false
   }
 }
 
-onMounted(() => load(1))
+onMounted(async () => {
+  await load(1)
+  const reportId = Number(route.query.reportId)
+  if (reportId) {
+    const row = list.value.find((item) => item.id === reportId)
+    if (row && row.status === 'PENDING') {
+      openHandle(row)
+    } else {
+      ElMessage.warning('该上报不在当前列表，请按状态筛选后再处置')
+    }
+  }
+})
 </script>
 
 <style scoped>

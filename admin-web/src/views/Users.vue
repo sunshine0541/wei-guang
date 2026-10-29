@@ -26,7 +26,7 @@
         </el-table-column>
         <el-table-column prop="creditScore" label="微光值" width="90" />
         <el-table-column label="光语" width="100">
-          <template #default="{ row }">{{ row.lightState }}</template>
+          <template #default="{ row }">{{ LIGHT_STATE_LABELS[row.lightState] || row.lightState }}</template>
         </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
@@ -59,7 +59,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { listUsers } from '../api/admin'
-import { USER_STATUS_LABELS } from '../utils/labels'
+import { LIGHT_STATE_LABELS, USER_STATUS_LABELS } from '../utils/labels'
 
 const router = useRouter()
 const query = reactive({ keyword: '', status: '', page: 1, pageSize: 20 })

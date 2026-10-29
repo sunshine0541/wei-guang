@@ -122,8 +122,8 @@ export default {
   components: { WgTabBar, WgImage },
   data() {
     return {
-      creditBalance: 0,
-      pointBalance: 0,
+      creditBalance: '--',
+      pointBalance: '--',
       thanks: [],
       light: null,
       doingCount: 0,
@@ -163,10 +163,12 @@ export default {
     }
   },
   onShow() {
-    this.load()
-    this.loadStats()
-    this.notifyStore.refresh()
-    this.loadLight()
+    Promise.all([
+      this.load(),
+      this.loadStats(),
+      this.loadLight(),
+      this.notifyStore.refresh()
+    ]).catch((e) => console.error('[微光] 个人中心刷新失败', e))
     // A2：隐藏左上角「返回首页⌂」（reLaunch 后页面栈只剩本页，微信会自动加该按钮）
     if (typeof wx !== 'undefined' && typeof wx.hideHomeButton === 'function') {
       wx.hideHomeButton()

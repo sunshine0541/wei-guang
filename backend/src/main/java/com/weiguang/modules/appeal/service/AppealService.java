@@ -27,6 +27,8 @@ import com.weiguang.modules.incentive.entity.CreditLedger;
 import com.weiguang.modules.incentive.entity.PointLedger;
 import com.weiguang.modules.incentive.mapper.CreditLedgerMapper;
 import com.weiguang.modules.incentive.mapper.PointLedgerMapper;
+import com.weiguang.modules.incentive.service.CreditService;
+import com.weiguang.modules.incentive.service.PointLedgerService;
 import com.weiguang.modules.notify.service.NotifyService;
 import com.weiguang.modules.order.dto.TimelineVO;
 import com.weiguang.modules.order.entity.HelpOrder;
@@ -36,12 +38,9 @@ import com.weiguang.modules.order.mapper.OrderTimelineMapper;
 import com.weiguang.modules.order.service.OrderTimelineRecorder;
 import com.weiguang.modules.order.service.SettleService;
 import com.weiguang.modules.system.service.ConfigService;
-import com.weiguang.modules.user.entity.User;
 import com.weiguang.modules.user.entity.UserProfile;
-import com.weiguang.modules.user.mapper.UserMapper;
 import com.weiguang.modules.user.mapper.UserProfileMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -80,7 +79,6 @@ public class AppealService {
 
     private final AppealMapper appealMapper;
     private final HelpOrderMapper helpOrderMapper;
-    private final UserMapper userMapper;
     private final UserProfileMapper userProfileMapper;
     private final CreditLedgerMapper creditLedgerMapper;
     private final PointLedgerMapper pointLedgerMapper;
@@ -92,10 +90,11 @@ public class AppealService {
     private final ConfigService configService;
     private final SettleService settleService;
     private final WsSessionRegistry wsSessionRegistry;
+    private final CreditService creditService;
+    private final PointLedgerService pointLedgerService;
 
     public AppealService(AppealMapper appealMapper,
                          HelpOrderMapper helpOrderMapper,
-                         UserMapper userMapper,
                          UserProfileMapper userProfileMapper,
                          CreditLedgerMapper creditLedgerMapper,
                          PointLedgerMapper pointLedgerMapper,
@@ -106,10 +105,11 @@ public class AppealService {
                          NotifyService notifyService,
                          ConfigService configService,
                          SettleService settleService,
-                         WsSessionRegistry wsSessionRegistry) {
+                         WsSessionRegistry wsSessionRegistry,
+                         CreditService creditService,
+                         PointLedgerService pointLedgerService) {
         this.appealMapper = appealMapper;
         this.helpOrderMapper = helpOrderMapper;
-        this.userMapper = userMapper;
         this.userProfileMapper = userProfileMapper;
         this.creditLedgerMapper = creditLedgerMapper;
         this.pointLedgerMapper = pointLedgerMapper;
@@ -121,6 +121,8 @@ public class AppealService {
         this.configService = configService;
         this.settleService = settleService;
         this.wsSessionRegistry = wsSessionRegistry;
+        this.creditService = creditService;
+        this.pointLedgerService = pointLedgerService;
     }
 
     /** F1 提交申诉（范围：仅 COMPLETED/CANCELLED 且窗口内；封禁用户可提交，拦截器已豁免） */
@@ -228,6 +230,10 @@ public class AppealService {
         if (!STATUS_PENDING.equals(appeal.getStatus())) {
             throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
         }
+        // 「拒绝确认」自动生成的申诉不能由用户撤回：订单离开 APPEALING 的唯一出口是管理端仲裁
+        if (TYPE_CONFIRM_REJECT.equals(appeal.getType())) {
+            throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
+        }
         int rows = appealMapper.update(null, Wrappers.<Appeal>lambdaUpdate()
                 .eq(Appeal::getId, appealId)
                 .eq(Appeal::getInitiatorId, uid)
@@ -276,7 +282,8 @@ public class AppealService {
             throw new BizException(ErrorCode.PARAM_INVALID);
         }
         if (status != null && !status.isBlank()
-                && !STATUS_PENDING.equals(status) && !STATUS_RESOLVED.equals(status)) {
+                && !STATUS_PENDING.equals(status) && !STATUS_RESOLVED.equals(status)
+                && !STATUS_WITHDRAWN.equals(status)) {
             throw new BizException(ErrorCode.PARAM_INVALID);
         }
         LambdaQueryWrapper<Appeal> wrapper = Wrappers.<Appeal>lambdaQuery().orderByDesc(Appeal::getId);
@@ -486,8 +493,9 @@ public class AppealService {
                         && !penalty.getUserId().equals(order.getHelperId()))) {
                     throw new BizException(ErrorCode.PARAM_INVALID);
                 }
-                applyCreditDelta(penalty.getUserId(), configService.getInt("credit.appeal_loss", -20),
-                        "APPEAL_LOSS", order.getId(), adminId);
+                creditService.apply(penalty.getUserId(), configService.getInt("credit.appeal_loss", -20),
+                        "APPEAL_LOSS", order.getId(), adminId, null);
+                notifyService.creditChanged(penalty.getUserId());
             }
         }
 
@@ -528,17 +536,9 @@ public class AppealService {
         PointLedger point = pointLedgerMapper.selectOne(Wrappers.<PointLedger>lambdaQuery()
                 .eq(PointLedger::getUniqueKey, "ORDER_COMPLETE_" + order.getId()));
         if (point != null) {
-            try {
-                PointLedger revert = new PointLedger();
-                revert.setUserId(point.getUserId());
-                revert.setDelta(-point.getDelta());
-                revert.setReasonCode("APPEAL_REVERT");
-                revert.setOrderId(order.getId());
-                revert.setUniqueKey("APPEAL_REVERT_" + order.getId());
-                revert.setBalanceAfter(Math.max(0, latestPointBalance(point.getUserId()) - point.getDelta()));
-                revert.setCreatedAt(LocalDateTime.now());
-                pointLedgerMapper.insert(revert);
-            } catch (DuplicateKeyException e) {
+            Integer balance = pointLedgerService.addIfAbsent(point.getUserId(), -point.getDelta(),
+                    "APPEAL_REVERT", order.getId(), "APPEAL_REVERT_" + order.getId());
+            if (balance == null) {
                 log.info("积分已追回过，跳过：order={}", order.getId());
             }
         }
@@ -560,28 +560,9 @@ public class AppealService {
                     .eq(CreditLedger::getReasonCode, "COMPLETE"));
         }
         for (CreditLedger target : targets) {
-            applyCreditDelta(target.getUserId(), -target.getDelta(), "APPEAL_REVERT", order.getId(), adminId);
+            creditService.apply(target.getUserId(), -target.getDelta(), "APPEAL_REVERT", order.getId(), adminId, null);
+            notifyService.creditChanged(target.getUserId());
         }
-    }
-
-    /** 微光值变动（下限 0 收敛）+ 明细 + 通知 */
-    private void applyCreditDelta(Long userId, int delta, String reasonCode, Long orderId, Long operatorId) {
-        User user = userMapper.selectById(userId);
-        int current = user == null || user.getCreditScore() == null ? 0 : user.getCreditScore();
-        int balance = Math.max(0, current + delta);
-        userMapper.update(null, Wrappers.<User>lambdaUpdate()
-                .eq(User::getId, userId)
-                .set(User::getCreditScore, balance));
-        CreditLedger ledger = new CreditLedger();
-        ledger.setUserId(userId);
-        ledger.setDelta(delta);
-        ledger.setReasonCode(reasonCode);
-        ledger.setOrderId(orderId);
-        ledger.setBalanceAfter(balance);
-        ledger.setOperatorId(operatorId);
-        ledger.setCreatedAt(LocalDateTime.now());
-        creditLedgerMapper.insert(ledger);
-        notifyService.creditChanged(userId);
     }
 
     private void closeActiveSession(HelpOrder order) {
@@ -591,14 +572,6 @@ public class AppealService {
                 .eq(ChatSession::getStatus, "ACTIVE")
                 .set(ChatSession::getStatus, "CLOSED")
                 .set(ChatSession::getClosedAt, LocalDateTime.now()));
-    }
-
-    private int latestPointBalance(Long uid) {
-        PointLedger latest = pointLedgerMapper.selectOne(Wrappers.<PointLedger>lambdaQuery()
-                .eq(PointLedger::getUserId, uid)
-                .orderByDesc(PointLedger::getId)
-                .last("LIMIT 1"));
-        return latest == null || latest.getBalanceAfter() == null ? 0 : latest.getBalanceAfter();
     }
 
     /** 是否可申诉（P07"申诉入口仅在允许范围显示"；O4 的 canAppeal 亦复用本判定） */

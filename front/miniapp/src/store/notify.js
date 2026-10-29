@@ -2,6 +2,9 @@ import { defineStore } from 'pinia'
 import { getNotifyBanner } from '@/api/notify'
 import { wsClient } from '@/utils/ws'
 
+/** WS 监听取消函数（Pinia state 不存函数，避免被响应式包装） */
+let wsUnbind = null
+
 /**
  * 通知态（详设 §1.3 store/notify：红点/横幅）。
  * 横幅与红点数据同源（N2）；在线收到 NOTIFICATION 推送时自动刷新（详设 §3.5）。
@@ -35,11 +38,20 @@ export const useNotifyStore = defineStore('notify', {
         return
       }
       this.wsBound = true
-      wsClient.onMessage((envelope) => {
+      wsUnbind = wsClient.onMessage((envelope) => {
         if (envelope && envelope.type === 'NOTIFICATION') {
           this.refresh()
         }
       })
+    },
+
+    /** 退出登录/凭证失效时解绑，避免旧账号监听残留与重复注册 */
+    unbindWs() {
+      if (wsUnbind) {
+        wsUnbind()
+        wsUnbind = null
+      }
+      this.wsBound = false
     }
   }
 })

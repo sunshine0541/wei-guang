@@ -115,6 +115,7 @@ public class CommunityController {
 
     /** CM12 举报动态/评论 */
     @PostMapping("/reports")
+    @RateLimit(prefix = "rate:report:", limitKey = "rate.publish_per_minute")
     public Result<Void> report(@Valid @RequestBody ReportCreateRequest request) {
         communityService.report(AuthContext.requireUid(), request);
         return Result.ok();

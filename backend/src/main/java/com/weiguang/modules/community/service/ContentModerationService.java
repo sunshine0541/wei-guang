@@ -16,8 +16,10 @@ import com.weiguang.modules.user.entity.UserProfile;
 import com.weiguang.modules.user.mapper.UserProfileMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -142,6 +144,24 @@ public class ContentModerationService {
             }
         } catch (Exception e) {
             log.warn("评论审核异常 commentId={}：{}", commentId, e.getClass().getSimpleName());
+        }
+    }
+
+    /** J11 审核补偿：异步审核中断/线程池拒绝时，超过 5 分钟的 PENDING_REVIEW 转人工队列 */
+    @Scheduled(fixedDelay = 300_000)
+    public void compensateStaleReviews() {
+        LocalDateTime before = LocalDateTime.now().minusMinutes(5);
+        int posts = postMapper.update(null, Wrappers.<CommunityPost>lambdaUpdate()
+                .eq(CommunityPost::getStatus, STATUS_PENDING_REVIEW)
+                .lt(CommunityPost::getCreatedAt, before)
+                .set(CommunityPost::getStatus, STATUS_PENDING_MANUAL)
+                .set(CommunityPost::getReviewReason, "审核超时转人工"));
+        int comments = commentMapper.update(null, Wrappers.<CommunityComment>lambdaUpdate()
+                .eq(CommunityComment::getStatus, STATUS_PENDING_REVIEW)
+                .lt(CommunityComment::getCreatedAt, before)
+                .set(CommunityComment::getStatus, STATUS_PENDING_MANUAL));
+        if (posts + comments > 0) {
+            log.info("J11 审核补偿：动态 {} 条、评论 {} 条转人工", posts, comments);
         }
     }
 

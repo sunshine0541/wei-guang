@@ -26,7 +26,7 @@
         </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'PENDING' ? 'warning' : 'success'">
+            <el-tag :type="row.status === 'PENDING' ? 'warning' : (row.status === 'WITHDRAWN' ? 'info' : 'success')">
               {{ APPEAL_STATUS_LABELS[row.status] || row.status }}
             </el-tag>
           </template>
@@ -173,19 +173,25 @@ async function load(page) {
     })
     list.value = data.records || []
     total.value = data.total || 0
+  } catch (e) {
+    // 请求层已提示；保留旧列表
   } finally {
     loading.value = false
   }
 }
 
 async function openDetail(row) {
-  detail.value = await getAppealDetail(row.id)
-  feedbackConclusion.value = ''
-  arbitrateForm.result = 'TO_COMPLETED'
-  arbitrateForm.conclusion = ''
-  penaltyRequester.value = false
-  penaltyHelper.value = false
-  dialogVisible.value = true
+  try {
+    detail.value = await getAppealDetail(row.id)
+    feedbackConclusion.value = ''
+    arbitrateForm.result = 'TO_COMPLETED'
+    arbitrateForm.conclusion = ''
+    penaltyRequester.value = false
+    penaltyHelper.value = false
+    dialogVisible.value = true
+  } catch (e) {
+    // 请求层已提示
+  }
 }
 
 async function submitFeedback() {
@@ -220,12 +226,20 @@ async function submitArbitrate() {
   if (penalties.length) {
     payload.penalties = penalties
   }
+  const confirmed = await ElMessageBox.confirm(
+    `确定提交裁决吗？结果将直接落回订单并通知双方。`,
+    '裁决确认',
+    { type: 'warning' }
+  ).then(() => true).catch(() => false)
+  if (!confirmed) return
   submitting.value = true
   try {
     await arbitrateAppeal(detail.value.id, payload)
     ElMessage.success('已仲裁')
     dialogVisible.value = false
     load()
+  } catch (e) {
+    // 请求层已提示
   } finally {
     submitting.value = false
   }
