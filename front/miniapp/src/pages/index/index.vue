@@ -119,6 +119,18 @@
       </view>
     </template>
 
+    <!-- AI 助手悬浮入口：可拖动、置顶，不改变底部 Tab 结构 -->
+    <view
+      class="wg-ai-fab"
+      :style="aiFabStyle"
+      @touchstart="onAiFabTouchStart"
+      @touchmove.stop.prevent="onAiFabTouchMove"
+      @touchend="onAiFabTouchEnd"
+    >
+      <u-icon name="chat-fill" :size="18" color="#ffffff" />
+      <text class="wg-ai-fab-text">AI 小助手</text>
+    </view>
+
     <!-- 底部导航（自绘 4 项） -->
     <WgTabBar :active="0" />
   </view>
@@ -168,7 +180,16 @@ export default {
       /** 4D：离我最近排序 */
       distanceSort: false,
       /** 列表请求序号：快速切筛选时丢弃旧响应 */
-      orderSeq: 0
+      orderSeq: 0,
+      /** AI 助手悬浮入口拖拽位置 */
+      aiFabX: 0,
+      aiFabY: 0,
+      aiFabReady: false,
+      aiFabStartX: 0,
+      aiFabStartY: 0,
+      aiFabOriginX: 0,
+      aiFabOriginY: 0,
+      aiFabMoved: false
     }
   },
   computed: {
@@ -194,10 +215,19 @@ export default {
       return this.userStore.isElder
         ? MESSAGES.EMPTY
         : (this.tab === 'recommend' ? '还没有和您方向匹配的求助，去"全部求助"看看吧' : MESSAGES.EMPTY)
+    },
+    aiFabStyle() {
+      return {
+        left: this.aiFabX + 'px',
+        top: this.aiFabY + 'px',
+        opacity: this.aiFabReady ? 1 : 0,
+        pointerEvents: this.aiFabReady ? 'auto' : 'none'
+      }
     }
   },
   onLoad() {
     this.statusBarHeight = (this.statusBarHeightOf() || 0) + 6
+    this.initAiFab()
     this.bootstrap()
   },
   onShow() {
@@ -406,6 +436,58 @@ export default {
     goPublish() {
       uni.navigateTo({ url: '/pages/order/publish' })
     },
+    goAssistant() {
+      uni.navigateTo({ url: '/pages/assistant/chat' })
+    },
+    windowSize() {
+      if (typeof uni.getWindowInfo === 'function') {
+        const info = uni.getWindowInfo()
+        return { w: info.windowWidth || 375, h: info.windowHeight || 667 }
+      }
+      const info = uni.getSystemInfoSync()
+      return { w: info.windowWidth || 375, h: info.windowHeight || 667 }
+    },
+    initAiFab() {
+      const { w, h } = this.windowSize()
+      let x = w - 120
+      let y = h - 180
+      const saved = uni.getStorageSync('wg_ai_fab_pos')
+      if (saved && typeof saved === 'object' && typeof saved.x === 'number' && typeof saved.y === 'number') {
+        x = saved.x
+        y = saved.y
+      }
+      this.aiFabX = Math.max(8, Math.min(x, w - 112))
+      this.aiFabY = Math.max(60, Math.min(y, h - 64))
+      this.aiFabReady = true
+    },
+    onAiFabTouchStart(e) {
+      const touch = e.touches && e.touches[0]
+      if (!touch) return
+      this.aiFabStartX = touch.clientX
+      this.aiFabStartY = touch.clientY
+      this.aiFabOriginX = this.aiFabX
+      this.aiFabOriginY = this.aiFabY
+      this.aiFabMoved = false
+    },
+    onAiFabTouchMove(e) {
+      const touch = e.touches && e.touches[0]
+      if (!touch) return
+      const dx = touch.clientX - this.aiFabStartX
+      const dy = touch.clientY - this.aiFabStartY
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+        this.aiFabMoved = true
+      }
+      const { w, h } = this.windowSize()
+      this.aiFabX = Math.max(8, Math.min(this.aiFabOriginX + dx, w - 112))
+      this.aiFabY = Math.max(60, Math.min(this.aiFabOriginY + dy, h - 64))
+    },
+    onAiFabTouchEnd() {
+      if (this.aiFabMoved) {
+        uni.setStorageSync('wg_ai_fab_pos', { x: this.aiFabX, y: this.aiFabY })
+      } else {
+        this.goAssistant()
+      }
+    },
     /** 横幅点击：按 jump_type 跳对应页；NONE 或无目标 → 通知中心（见偏差 D21） */
     openBanner() {
       const latest = this.notifyStore.latest
@@ -489,5 +571,26 @@ export default {
 /* 年长模式：卡片加大（§6.2 P03 适老差异） */
 .mode-elder .wg-card {
   padding: calc(var(--wg-space) + 4px);
+}
+
+/* AI 助手悬浮入口：可拖动、置顶（高于弹窗遮罩） */
+.wg-ai-fab {
+  position: fixed;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 999px;
+  color: #ffffff;
+  background: var(--wg-primary, #7e9982);
+  box-shadow: 0 8px 18px rgba(126, 153, 130, 0.28);
+  touch-action: none;
+  user-select: none;
+}
+
+.wg-ai-fab-text {
+  margin-left: 6px;
+  font-size: 13px;
+  font-weight: 700;
 }
 </style>

@@ -17,7 +17,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -32,8 +31,6 @@ public class ConfigService implements ApplicationRunner {
 
     /** J9 刷新间隔取自 sys_config（秒） */
     private static final String REFRESH_INTERVAL_KEY = "sys.config_refresh_seconds";
-    /** 写死禁改配置（详设 §7：ai.thinking 固定 false，管理端不可改） */
-    private static final Set<String> IMMUTABLE_KEYS = Set.of("ai.thinking");
     /** 数字范围 value_range（如 "50-100"、"-100-0"） */
     private static final Pattern RANGE_PATTERN = Pattern.compile("^(-?\\d+)-(-?\\d+)$");
     /** 长度类配置的列宽硬上限：value_range 可以放宽，但落库前必须小于等于对应列宽 */
@@ -93,9 +90,6 @@ public class ConfigService implements ApplicationRunner {
                 .eq(SysConfig::getConfigKey, key));
         if (config == null) {
             throw new BizException(ErrorCode.PARAM_INVALID);
-        }
-        if (IMMUTABLE_KEYS.contains(key)) {
-            throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
         }
         validateValue(config.getValueRange(), trimmed);
         validateColumnMax(key, trimmed);

@@ -40,7 +40,10 @@ public class SpringAiAlibabaAiService extends AbstractRealAiService {
         }
         ChatResponse response = chatModel.call(new Prompt(
                 List.of(new SystemMessage(systemPrompt), new UserMessage(userPrompt)),
-                DashScopeChatOptions.builder().withModel(model).withEnableThinking(false).build()));
+                DashScopeChatOptions.builder()
+                        .withModel(model)
+                        .withEnableThinking(configService.getBool("ai.thinking", false))
+                        .build()));
         if (response == null || response.getResult() == null || response.getResult().getOutput() == null) {
             throw new IllegalStateException("模型回复为空");
         }

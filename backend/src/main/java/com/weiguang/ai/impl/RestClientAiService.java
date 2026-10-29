@@ -46,7 +46,7 @@ public class RestClientAiService extends AbstractRealAiService {
                 "messages", List.of(
                         Map.of("role", "system", "content", systemPrompt),
                         Map.of("role", "user", "content", userPrompt)),
-                "enable_thinking", false);
+                "enable_thinking", configService.getBool("ai.thinking", false));
         try {
             String response = RestClient.builder()
                     .requestFactory(factory)

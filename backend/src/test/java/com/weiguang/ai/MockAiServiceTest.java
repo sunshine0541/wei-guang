@@ -1,5 +1,6 @@
 package com.weiguang.ai;
 
+import com.weiguang.ai.dto.AssistantResult;
 import com.weiguang.ai.dto.ModerationResult;
 import com.weiguang.ai.dto.ReviewResult;
 import com.weiguang.ai.dto.UnderstandHelpResult;
@@ -57,6 +58,17 @@ class MockAiServiceTest {
 
         ModerationResult advance = ai.moderateContent("COMMENT", "您先帮我垫付一下");
         assertEquals("RISKY", advance.getRiskLevel());
+    }
+
+    @Test
+    void assistantGuidesAndDetectsPublish() {
+        AssistantResult guide = ai.assistant("怎么发布求助？");
+        assertEquals("GUIDE", guide.getIntent());
+        assertTrue(guide.getReply().contains("我需要帮助"));
+
+        AssistantResult publish = ai.assistant("我想发布一个求助：厨房水管漏水，今天需要");
+        assertEquals("PUBLISH", publish.getIntent());
+        assertTrue(publish.getPublishText().contains("厨房水管漏水"));
     }
 
     @Test

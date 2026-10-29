@@ -1,5 +1,6 @@
 package com.weiguang.ai;
 
+import com.weiguang.ai.dto.AssistantResult;
 import com.weiguang.ai.dto.ModerationResult;
 import com.weiguang.ai.dto.ReviewResult;
 import com.weiguang.ai.dto.ThankLetterDraftResult;
@@ -35,4 +36,10 @@ public interface AiService {
      * 独立于能力二，任何异常不上抛：返回降级结果并置 degraded=true（业务层按降级策略处理）。
      */
     ModerationResult moderateContent(String contentType, String text);
+
+    /**
+     * 能力五 · AI 助手：识别“操作问答 / 发布求助 / 无法判断”意图，并给出回复。
+     * 任何异常不上抛：返回本地规则结果并置 degraded=true。
+     */
+    AssistantResult assistant(String message);
 }

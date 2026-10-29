@@ -1,7 +1,7 @@
 # 微光 · 社区互助服务系统
 
 > 面向社区老年居民与热心邻居的互助小程序：老人一键发布小事求助，邻居接单远程/上门/外出帮忙，聊天协作、双确认完成，配微光值·荣誉积分·光语情感化体系、双向防诈与社区 UGC。
-> 毕业设计 MVP（tag `v1.0-mvp`）；2026-10 体验改进（批 1–4F）+ v1.3 社区 2.0 / AI 审核 / 看板 / 分页（T21–T28）已完成。设计依据：《微光-详细设计文档v1.2》《微光-执行文档v1.2》。
+> 毕业设计 MVP（tag `v1.0-mvp`）；2026-10 体验改进（批 1–4F）+ v1.3 社区 2.0 / AI 审核 / 看板 / 分页（T21–T28）已完成；T31 新增 AI 助手（问答 + 确认后自动发布求助）。设计依据：《微光-详细设计文档v1.2》《微光-执行文档v1.2》。
 
 ## 一、仓库结构
 
@@ -54,7 +54,7 @@ mvn spring-boot:run          # 开发方式
 ```
 
 - 健康检查：http://localhost:8080/actuator/health （只返回 `UP/DOWN` 状态，DB/Redis 明细已关闭）
-- 集成测试（Testcontainers，需 Docker）：`mvn "-Dtest=AcceptConcurrencyTest,PointConcurrencyTest,ConfirmRejectAppealTest,OrderFullFlowTest,CancelNegotiationFlowTest,CommunityReportFlowTest" test`
+- 集成测试（Testcontainers，需 Docker）：`mvn "-Dtest=AcceptConcurrencyTest,PointConcurrencyTest,ConfirmRejectAppealTest,OrderFullFlowTest,CancelNegotiationFlowTest,CommunityReportFlowTest,AssistantFlowTest" test`
 - 接口文档：http://localhost:8080/swagger-ui.html （springdoc）
 - 首次启动自动按 `.env` 初始化管理员账号（`ADMIN_SEED_USERNAME` / `ADMIN_SEED_PASSWORD`）
 - 后端默认监听 `0.0.0.0:8080`，真机可通过电脑局域网 IP 访问
@@ -114,6 +114,7 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
    - **申诉凭证**：完成或取消后 7 天内可发起申诉并上传一张凭证；处理中的申诉/反馈可撤回。
    - **社区页**：底部第 3 个 tab；顶部「助人之星 / 今日新求助 / 已成为微光」三块，下方三 Tab（推荐 / 最新 / 互助故事）；支持发帖、点赞/取消点赞、评论、举报；自己的帖子可删除；非 PUBLISHED 状态仅作者可见。发帖/评论走「本地敏感词 + AI 审核 + 人工队列」。
    - **助人者视角**：求助详情会显示「受助者给了你 X 星」；确认页与故事卡显示「本次用时」（按助人者标记完成时间计算，不含等待确认/申诉）。
+   - **AI 助手**：首页右下角「AI 小助手」→ 可直接问「怎么发布求助」，也可描述一件小事，助手补齐类型/时间/地址后弹确认卡，确认后自动发布。
 7. 分支·释放重派：赵晓琳接远程单演示恢复通道；陈志远演示"实在帮不上"免罚释放 → 李秀英收到"别干等"通知
 8. 分支·防诈：陈志远在聊天中发"验证码"相关索要话术 → 双方收到强提示、管理端「上报处置」出现记录可处置
 9. 管理端：看板（近 7 天趋势 / 状态分布 / 防诈与社区待审）、订单列表/详情与时间线、协商取消裁决、社区审核、把配置页 `elder.age_threshold` 改为 70 → 重新发布验证排序变化，改回
@@ -159,14 +160,14 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 
 - 详细设计：`微光-详细设计文档v1.2.md`（第 11 章为 15 条 MVP 验收判据全文）
 - 执行文档：`微光-执行文档v1.2.md`（T01–T19 任务卡）
-- 实现偏差：`docs/实现偏差清单.md`（D01–D105）
-- 验收走查：`docs/验收走查记录.md`（T20 15 条判据 + 2026-10 体验批次 + T29/T30 收口）
+- 实现偏差：`docs/实现偏差清单.md`（D01–D110）
+- 验收走查：`docs/验收走查记录.md`（T20 15 条判据 + 2026-10 体验批次 + T29/T30/T31 收口）
 - seed 契约：`docs/seed契约.md`（数据画像、覆盖矩阵、24 条不变量、时间自洽规则；本地文档，不入代码仓库）
 - 研究边界：`docs/论文研究边界与前提假设.md`（v1.0 定稿；本地文档，不入代码仓库）
 
 > `design/`、`.screenshots/`、`docs/交接文档.md`、`docs/seed契约.md`、`docs/论文研究边界与前提假设.md` 为本地 Agent/论文资料，已在 `.gitignore` 排除，不属于代码交付物。
 
-## 附录 A：页面清单（30 页）
+## 附录 A：页面清单（31 页）
 
 | 模块 | 页面 |
 | --- | --- |
@@ -179,6 +180,7 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 | 邻居 | `pages/neighbor/profile` |
 | 社区 | `pages/community/index`（信息流）、`publish`（发帖）、`detail`（帖子详情/评论） |
 | 引导 | `pages/guide/privacy`（隐私说明）、`pages/guide/index`（首次引导） |
+| AI 助手 | `pages/assistant/chat`（问答 + 帮发布求助） |
 
 ## 附录 B：版本与改进记录
 
@@ -200,6 +202,7 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 | T25–T26 | 管理端看板、通知/聊天分页、seed 重写与自检（现 24 条不变量） | 已完成 |
 | T27–T28 | 实测缺陷修复（注销、释放文案、年长模式）、上传魔数校验、Dockerfile、compose 初始化 | 已完成 |
 | T29 | seed 时间自洽与用时口径修正、管理端「年长」文案复验、边界/README/验收/交接收口 | 已完成 |
-| T30 | 2026-10 代码审查优化（批 1–5）：状态机死角、资金一致性、迁移与索引、性能、安全限流、小程序体验、管理端上报补全与举报结果通知 | 已完成 |
+| T30 | 2026-10 代码审查优化（批 1–5）：状态机死角、资金一致性、迁移与索引、性能、安全限流、小程序体验、管理端上报补全、举报结果通知与 AI 提示词加固 | 已完成 |
+| T31 | AI 助手（能力五）：操作问答、发布槽位补齐、地址/紧急联系人校验、确认令牌后复用发布链路 | 已完成 |
 
-> MVP 以 tag `v1.0-mvp` 交付；2026-10 体验改进（批 1–4F）已合入 `master`（commit `b22742b`）。v1.3（T21–T29）与 T30 代码审查优化（D63–D105）实现细节见 `docs/实现偏差清单.md`。
+> MVP 以 tag `v1.0-mvp` 交付；2026-10 体验改进（批 1–4F）已合入 `master`（commit `b22742b`）。v1.3（T21–T29）与 T30 代码审查优化（D63–D110）实现细节见 `docs/实现偏差清单.md`。

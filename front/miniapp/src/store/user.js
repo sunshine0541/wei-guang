@@ -176,6 +176,7 @@ export const useUserStore = defineStore('user', {
         // 退出登录失败不阻塞前端清理
       }
       clearToken()
+      uni.removeStorageSync('wg_assistant_state')
       this.$reset()
       const notifyStore = useNotifyStore()
       notifyStore.unbindWs()

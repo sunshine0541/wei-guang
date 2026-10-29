@@ -1,6 +1,7 @@
 package com.weiguang.ai.impl;
 
 import com.weiguang.ai.AiService;
+import com.weiguang.ai.dto.AssistantResult;
 import com.weiguang.ai.dto.ModerationResult;
 import com.weiguang.ai.dto.ReviewResult;
 import com.weiguang.ai.dto.ThankLetterDraftResult;
@@ -130,6 +131,74 @@ public class MockAiService implements AiService {
             result.setSuggestion("内容可能不适合公开展示，建议修改后再发");
         }
         return result;
+    }
+
+    /** 能力五 mock：规则 FAQ + 发布意图识别；正式演示模式 degraded=false */
+    @Override
+    public AssistantResult assistant(String message) {
+        String content = message == null ? "" : message.trim();
+        AssistantResult result = new AssistantResult();
+        result.setDegraded(false);
+
+        String faq = faqReply(content);
+        if (faq != null) {
+            result.setIntent("GUIDE");
+            result.setReply(faq);
+            return result;
+        }
+
+        boolean publishIntent = containsAny(content,
+                "发布求助", "发求助", "帮我发", "我要发布", "我想发布", "需要帮助", "需要人帮", "想请人", "帮我找");
+        boolean looksLikeRequest = content.length() >= 4
+                && containsAny(content, "漏水", "灯不亮", "搬", "陪", "教我用", "取", "买", "修", "打扫", "医院", "药", "照顾")
+                && !containsAny(content, "怎么", "如何", "为什么", "？", "?");
+        if (publishIntent || looksLikeRequest) {
+            String publishText = content.replaceFirst(
+                    "^(帮我|我想|我要)?(发布|发)(一个|一条)?(求助|需求)?[：:，,。\\s]*", "").trim();
+            if (publishText.length() < 4) {
+                result.setIntent("UNKNOWN");
+                result.setReply("可以告诉我需要邻居帮什么忙吗？比如“厨房水管漏水，今天想请人上门看看”。");
+                return result;
+            }
+            result.setIntent("PUBLISH");
+            result.setReply("好的，我先帮您整理这条求助。");
+            result.setPublishText(publishText);
+            return result;
+        }
+
+        result.setIntent("UNKNOWN");
+        result.setReply("我可以回答发布、接单、取消、申诉等操作问题，也可以帮您发布求助。请告诉我您想做什么。");
+        return result;
+    }
+
+    private String faqReply(String text) {
+        if (containsAny(text, "怎么发布", "如何发布", "怎样发布", "发布流程", "发布求助的步骤")) {
+            return "发布求助：在首页点「我需要帮助」，选择模板或直接描述，填写类型、时间、地址后发布。"
+                    + "上门/陪同类需要先填好紧急联系人。需要我帮您发布求助吗？";
+        }
+        if (containsAny(text, "怎么接单", "如何接单", "怎样接单", "接单流程", "怎么帮忙")) {
+            return "接单：在首页点「我可以帮忙」，选一条求助，点「我愿意帮助」，和对方聊天确认后开始帮忙，"
+                    + "完成后由对方确认结算。需要我帮您发布求助吗？";
+        }
+        if (containsAny(text, "取消", "撤回")) {
+            return "待响应的求助可以在「我的求助」撤回；已接单的求助需要和对方协商取消，"
+                    + "对方同意或管理员裁决后才会取消。需要我帮您发布求助吗？";
+        }
+        if (containsAny(text, "确认完成", "怎么确认", "完成确认")) {
+            return "对方标记完成后，您在「我的求助」里点确认；超过 24 小时未确认会进入超时处理。需要我帮您发布求助吗？";
+        }
+        if (containsAny(text, "申诉", "反馈")) {
+            return "完成或取消后 7 天内，可以在「反馈与申诉」提交申诉或反馈，也可以上传一张凭证。需要我帮您发布求助吗？";
+        }
+        if (containsAny(text, "微光值", "积分", "荣誉")) {
+            return "完成一次互助会增加微光值和荣誉积分，违规会扣分；具体明细可以在「我的微光值」「我的荣誉积分」查看。"
+                    + "需要我帮您发布求助吗？";
+        }
+        if (containsAny(text, "隐私", "地址", "安全")) {
+            return "地址会分级展示：远程不需要地址，陪同只显示集合点，上门门牌要接单后才解锁；AI 调用前也会先脱敏。"
+                    + "需要我帮您发布求助吗？";
+        }
+        return null;
     }
 
     /** 能力三兜底模板（详设 §5.4）："{helperName}，谢谢您帮我"{title}"。有您这样的邻居，真好。"（≤200 字） */

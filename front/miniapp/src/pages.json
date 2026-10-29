@@ -188,6 +188,12 @@
       "style": {
         "navigationBarTitleText": "欢迎您"
       }
+    },
+    {
+      "path": "pages/assistant/chat",
+      "style": {
+        "navigationBarTitleText": "AI 小助手"
+      }
     }
   ],
   "globalStyle": {

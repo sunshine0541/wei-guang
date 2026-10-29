@@ -16,7 +16,7 @@ spring:
   jackson:
     time-zone: Asia/Shanghai
     default-property-inclusion: always
-  # AI 网关（详设 §5.1）：Key 取 env DASHSCOPE_API_KEY；护栏：必须关闭思考模式
+  # AI 网关（详设 §5.1）：Key 取 env DASHSCOPE_API_KEY；思考模式默认关闭，可用 ai.thinking 配置开关
   ai:
     dashscope:
       api-key: ${DASHSCOPE_API_KEY:}
