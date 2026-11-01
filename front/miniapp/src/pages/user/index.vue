@@ -196,8 +196,8 @@ export default {
           listMyOrders({ tab: 'DOING' }),
           listMyOrders({ tab: 'HELPING' })
         ])
-        this.doingCount = (doing.records || []).length
-        this.helpingCount = (helping.records || []).length
+        this.doingCount = doing.total ?? (doing.records || []).length
+        this.helpingCount = helping.total ?? (helping.records || []).length
       } catch (e) {
         console.error('[微光] 助人战绩加载失败', e)
       }

@@ -25,13 +25,16 @@ request.interceptors.response.use(
     if (body.code === 0) {
       return body.data
     }
-    if (body.code === 20001 || body.code === 20002 || body.code === 20003) {
+    if (body.code === 20001 || body.code === 20002) {
       localStorage.removeItem('wg_admin_token')
       localStorage.removeItem('wg_admin_name')
       if (router.currentRoute.value.path !== '/login') {
-        ElMessage.error(body.code === 20003 ? '账号权限已失效，请重新登录' : '登录已失效，请重新登录')
+        ElMessage.error('登录已失效，请重新登录')
         router.push('/login')
       }
+    } else if (body.code === 20003) {
+      // 20003 是业务无权访问（如订单不存在/已无权查看），不能当登录失效踢出后台
+      ElMessage.error(body.message || '无权访问该资源')
     } else {
       ElMessage.error(body.message || '操作失败')
     }

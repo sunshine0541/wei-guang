@@ -63,7 +63,8 @@ class AssistantFlowTest extends IntegrationTestBase {
         assertNotNull(draft.getDraft());
         assertEquals("HOME_VISIT", draft.getDraft().getOrderType());
         assertEquals("TODAY", draft.getDraft().getTimeExpect());
-        assertEquals(1L, draft.getDraft().getAddressId());
+        Long addressId = jdbc.queryForObject("SELECT id FROM address_book WHERE user_id = 1", Long.class);
+        assertEquals(addressId, draft.getDraft().getAddressId());
         assertEquals("READY_TO_CONFIRM", draft.getAction());
         assertNotNull(draft.getConfirmToken());
 

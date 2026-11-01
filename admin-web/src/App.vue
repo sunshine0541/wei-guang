@@ -3,9 +3,7 @@
 </template>
 
 <style>
-body {
-  margin: 0;
-  font-family: 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-  background-color: #f5f7fa;
+#app {
+  height: 100%;
 }
 </style>

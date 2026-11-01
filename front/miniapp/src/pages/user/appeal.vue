@@ -245,8 +245,19 @@ export default {
     async loadList() {
       this.listLoading = true
       try {
-        const result = await getMyAppeals({ tab: this.tab, page: 1, pageSize: 50 })
-        this.list = result.records || []
+        if (this.userStore.isElder) {
+          // 年长模式两个 Tab 合并展示：申诉 + 反馈一起按时间倒序
+          const [appeals, feedbacks] = await Promise.all([
+            getMyAppeals({ tab: 'APPEAL', page: 1, pageSize: 50 }),
+            getMyAppeals({ tab: 'FEEDBACK', page: 1, pageSize: 50 })
+          ])
+          const merged = [...(appeals.records || []), ...(feedbacks.records || [])]
+          merged.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))
+          this.list = merged
+        } else {
+          const result = await getMyAppeals({ tab: this.tab, page: 1, pageSize: 50 })
+          this.list = result.records || []
+        }
       } catch (e) {
         console.error('[微光] 申诉记录加载失败', e)
         this.list = []

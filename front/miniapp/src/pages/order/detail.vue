@@ -81,7 +81,10 @@
     </template>
 
     <view v-else class="wg-card">
-      <text>这个页面暂时不能看哦</text>
+      <text>{{ loadError === 'NOT_ALLOWED' ? '这个页面暂时不能看哦' : '加载失败，请检查网络后重试' }}</text>
+      <view v-if="loadError !== 'NOT_ALLOWED'" class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="load()">
+        重新加载
+      </view>
     </view>
   </view>
 </template>
@@ -107,6 +110,7 @@ export default {
   data() {
     return {
       loading: true,
+      loadError: '',
       orderId: null,
       /** B：首次进入由 onLoad 加载，之后 onShow 再刷新 */
       entered: false,
@@ -216,6 +220,7 @@ export default {
     async load(silent = false) {
       if (!silent) {
         this.loading = true
+        this.loadError = ''
       }
       try {
         this.order = await getOrder(this.orderId)
@@ -223,6 +228,7 @@ export default {
         console.error('[微光] 详情加载失败', e)
         if (!silent) {
           this.order = null
+          this.loadError = e && e.code === 20003 ? 'NOT_ALLOWED' : 'NETWORK'
         }
       } finally {
         if (!silent) {

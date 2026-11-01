@@ -4,6 +4,7 @@ import { getProfile, privacyAgree, setMode, setMotion, lightInvite } from '@/api
 import { clearToken, getToken, setToken } from '@/api/request'
 import { wsClient } from '@/utils/ws'
 import { useNotifyStore } from '@/store/notify'
+import { STORAGE_KEYS } from '@/utils/constants'
 
 const DEFAULT_RETENTION_DAYS = 180
 const DEFAULT_ELDER_AGE_THRESHOLD = 60
@@ -169,14 +170,19 @@ export const useUserStore = defineStore('user', {
       await this.loadProfile()
     },
 
-    async logout() {
-      try {
-        await logoutApi()
-      } catch (e) {
-        // 退出登录失败不阻塞前端清理
+    /** 退出登录 / 注销后的统一清理；skipApi=true 用于账号已注销、无需再调退出接口 */
+    async logout(options = {}) {
+      if (!options.skipApi) {
+        try {
+          await logoutApi()
+        } catch (e) {
+          // 退出登录失败不阻塞前端清理
+        }
       }
       clearToken()
       uni.removeStorageSync('wg_assistant_state')
+      uni.removeStorageSync(STORAGE_KEYS.PUBLISH_DRAFT)
+      uni.removeStorageSync(STORAGE_KEYS.APPEAL_DETAIL)
       this.$reset()
       const notifyStore = useNotifyStore()
       notifyStore.unbindWs()

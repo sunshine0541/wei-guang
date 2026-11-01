@@ -55,15 +55,23 @@
 
     <view v-else class="wg-card">
       <template v-if="loadFailed">
-        <text>{{ forbiddenText }}</text>
+        <text>{{ errorCode === 20003 ? forbiddenText : '会话加载失败，请稍后重试' }}</text>
         <!-- A7：20003（无权访问）时给出可理解的原因，不再是干巴巴的错误提示 -->
-        <view class="wg-label" style="margin-top: 6px">常见原因：这次帮助已经结束，或者您暂时不在这次求助里</view>
-        <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="goBack">返回上一页</view>
+        <view v-if="errorCode === 20003" class="wg-label" style="margin-top: 6px">
+          常见原因：这次帮助已经结束，或者您暂时不在这次求助里
+        </view>
+        <view
+          class="wg-btn wg-btn-plain"
+          style="margin-top: 12px"
+          @click="errorCode === 20003 ? goBack() : retryLoad()"
+        >
+          {{ errorCode === 20003 ? '返回上一页' : '重新加载' }}
+        </view>
       </template>
       <text v-else>{{ loadingText }}</text>
     </view>
 
-    <template v-if="session">
+    <template v-if="session && session.status === 'ACTIVE'">
       <!-- B：底部固定区（快捷短语 + 输入）整体加深底色，与可滑动消息区区分 -->
       <view class="wg-chat-bottom">
         <scroll-view scroll-x class="wg-quick" :show-scrollbar="false">
@@ -85,6 +93,10 @@
         </view>
       </view>
     </template>
+
+    <view v-else-if="session" class="wg-card">
+      <text>这次对话已经结束，不能再发消息了</text>
+    </view>
   </view>
 </template>
 
@@ -116,6 +128,8 @@ export default {
       myUid: null,
       wsConnected: false,
       loadFailed: false,
+      errorCode: 0,
+      entered: false,
       scrollTarget: '',
       /** 已弹过强提示的消息 id（本页会话内去重） */
       fraudAlerted: [],
@@ -137,10 +151,22 @@ export default {
     this.orderId = options.orderId || options.id
     this.wsConnected = wsClient.isConnected()
     this.offStatus = wsClient.onStatus((status) => {
+      const wasOpen = this.wsConnected
       this.wsConnected = status === 'open'
+      // 断线重连后补拉最新消息，避免离线期间对方消息缺失
+      if (!wasOpen && status === 'open' && this.entered && this.session) {
+        this.refreshLatest()
+      }
     })
     this.offMessage = wsClient.onMessage((envelope) => this.onWsMessage(envelope))
     this.load()
+  },
+  onShow() {
+    // 仅在 WS 未连通时补拉最新一页，避免正常返回时把已加载的历史消息重置成最新 30 条
+    if (this.entered && this.session && !this.wsConnected) {
+      this.refreshLatest()
+    }
+    this.entered = true
   },
   onUnload() {
     if (this.offStatus) {
@@ -162,6 +188,7 @@ export default {
       } catch (e) {
         console.error('[微光] 会话加载失败', e)
         this.loadFailed = true
+        this.errorCode = (e && e.code) || 0
         return
       }
       this.myUid = this.session.myUserId
@@ -180,6 +207,11 @@ export default {
         .catch(() => {
           this.careTip = null
         })
+    },
+    retryLoad() {
+      this.loadFailed = false
+      this.errorCode = 0
+      this.load()
     },
     async loadMessages() {
       try {
@@ -202,6 +234,39 @@ export default {
         console.error('[微光] 消息加载失败', e)
       }
     },
+    /** 断线/切后台回来时增量合并最新一页，不覆盖已加载的历史消息 */
+    async refreshLatest() {
+      if (!this.session) {
+        return
+      }
+      try {
+        const result = await listMessages(this.session.sessionId, { page: 1, pageSize: 30 })
+        const records = (result.records || []).slice().reverse()
+        const latest = records.map((item) => ({
+          key: 'm:' + item.msgId,
+          msgId: item.msgId,
+          senderId: item.senderId,
+          messageType: item.messageType,
+          content: item.content,
+          riskFlag: item.riskFlag,
+          createdAt: item.createdAt
+        }))
+        if (this.messages.length === 0) {
+          this.messages = latest
+        } else {
+          const existing = new Set(this.messages.map((item) => item.msgId))
+          const added = latest.filter((item) => !existing.has(item.msgId))
+          if (added.length) {
+            this.messages = this.messages.concat(added)
+          }
+        }
+        const total = result.total || 0
+        this.hasOlder = this.messages.length < total
+        this.scrollToBottom()
+      } catch (e) {
+        console.error('[微光] 最新消息补拉失败', e)
+      }
+    },
     /** C2 向前翻页：加载更早的消息并保持当前阅读位置 */
     async loadOlder() {
       if (this.loadingOlder || !this.hasOlder || !this.session) {
@@ -212,15 +277,19 @@ export default {
       try {
         const result = await listMessages(this.session.sessionId, { page: nextPage, pageSize: 30 })
         const records = (result.records || []).slice().reverse()
-        const older = records.map((item) => ({
-          key: 'm:' + item.msgId,
-          msgId: item.msgId,
-          senderId: item.senderId,
-          messageType: item.messageType,
-          content: item.content,
-          riskFlag: item.riskFlag,
-          createdAt: item.createdAt
-        }))
+        // offset 分页期间可能有新消息导致重复，按 msgId 去重
+        const existing = new Set(this.messages.map((item) => item.msgId))
+        const older = records
+          .filter((item) => !existing.has(item.msgId))
+          .map((item) => ({
+            key: 'm:' + item.msgId,
+            msgId: item.msgId,
+            senderId: item.senderId,
+            messageType: item.messageType,
+            content: item.content,
+            riskFlag: item.riskFlag,
+            createdAt: item.createdAt
+          }))
         this.messages = older.concat(this.messages)
         this.messagePage = nextPage
         const total = result.total || 0

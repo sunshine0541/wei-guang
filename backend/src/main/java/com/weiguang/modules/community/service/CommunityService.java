@@ -381,23 +381,26 @@ public class CommunityService {
             }
             targetUserId = comment.getAuthorId();
         }
-        Long exists = reportMapper.selectCount(Wrappers.<Report>lambdaQuery()
-                .eq(Report::getReporterId, uid)
-                .eq(Report::getTargetType, targetType)
-                .eq(Report::getTargetId, request.getTargetId()));
-        if (exists != null && exists > 0) {
-            throw new BizException(ErrorCode.DUPLICATE_SUBMIT);
+        // 单实例下串行化「查重 + 插入」，避免连点/并发产生重复举报
+        synchronized (this) {
+            Long exists = reportMapper.selectCount(Wrappers.<Report>lambdaQuery()
+                    .eq(Report::getReporterId, uid)
+                    .eq(Report::getTargetType, targetType)
+                    .eq(Report::getTargetId, request.getTargetId()));
+            if (exists != null && exists > 0) {
+                throw new BizException(ErrorCode.DUPLICATE_SUBMIT);
+            }
+            Report report = new Report();
+            report.setTargetType(targetType);
+            report.setTargetId(request.getTargetId());
+            report.setTargetUserId(targetUserId);
+            report.setReporterId(uid);
+            report.setType("CONTENT_REPORT");
+            report.setEvidence(reason);
+            report.setStatus("PENDING");
+            report.setCreatedAt(LocalDateTime.now());
+            reportMapper.insert(report);
         }
-        Report report = new Report();
-        report.setTargetType(targetType);
-        report.setTargetId(request.getTargetId());
-        report.setTargetUserId(targetUserId);
-        report.setReporterId(uid);
-        report.setType("CONTENT_REPORT");
-        report.setEvidence(reason);
-        report.setStatus("PENDING");
-        report.setCreatedAt(LocalDateTime.now());
-        reportMapper.insert(report);
     }
 
     // ---------- 内部 ----------

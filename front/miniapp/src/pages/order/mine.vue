@@ -8,6 +8,10 @@
     </view>
 
     <view v-if="loading" class="wg-empty">{{ loadingText }}</view>
+    <view v-else-if="loadFailed" class="wg-empty">
+      <text>加载失败，请检查网络后重试</text>
+      <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="load">重新加载</view>
+    </view>
     <view v-else-if="orders.length === 0" class="wg-empty">{{ emptyText }}</view>
 
     <view
@@ -51,6 +55,7 @@ export default {
       tab: 'DOING',
       orders: [],
       loading: true,
+      loadFailed: false,
       loadingText: MESSAGES.LOADING,
       reqSeq: 0
     }
@@ -90,6 +95,7 @@ export default {
     async load() {
       const seq = ++this.reqSeq
       this.loading = true
+      this.loadFailed = false
       try {
         const result = await listMyOrders({ tab: this.tab, page: 1, pageSize: 50 })
         if (seq !== this.reqSeq) {
@@ -98,6 +104,9 @@ export default {
         this.orders = result.records || []
       } catch (e) {
         console.error('[微光] 我的求助加载失败', e)
+        if (seq === this.reqSeq) {
+          this.loadFailed = true
+        }
       } finally {
         if (seq === this.reqSeq) {
           this.loading = false

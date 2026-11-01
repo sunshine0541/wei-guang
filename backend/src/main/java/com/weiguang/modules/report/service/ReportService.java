@@ -129,7 +129,22 @@ public class ReportService {
             throw new BizException(ErrorCode.DUPLICATE_SUBMIT);
         }
         if (report.getReporterId() != null) {
-            notifyService.reportResult(report.getReporterId(), result);
+            String jumpType = "NONE";
+            Long jumpId = null;
+            if ("POST".equals(report.getTargetType())) {
+                jumpType = "POST";
+                jumpId = report.getTargetId();
+            } else if ("COMMENT".equals(report.getTargetType())) {
+                CommunityComment comment = communityCommentMapper.selectById(report.getTargetId());
+                if (comment != null) {
+                    jumpType = "POST";
+                    jumpId = comment.getPostId();
+                }
+            } else if ("ORDER".equals(report.getTargetType())) {
+                jumpType = "ORDER";
+                jumpId = report.getOrderId();
+            }
+            notifyService.reportResult(report.getReporterId(), result, jumpType, jumpId);
         }
 
         Long target = report.getTargetUserId();

@@ -254,7 +254,11 @@ export default {
           try {
             await deletePost(this.postId)
             uni.showToast({ title: '已删除', icon: 'none' })
-            setTimeout(() => uni.navigateBack(), 600)
+            setTimeout(() => {
+              uni.navigateBack({
+                fail: () => uni.reLaunch({ url: '/pages/community/index' })
+              })
+            }, 600)
           } catch (e) {
             console.error('[微光] 删除动态失败', e)
           }

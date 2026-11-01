@@ -22,5 +22,8 @@ public class CommentVO {
 
     private String content;
 
+    /** 评论审核状态（管理端判断是否可审核） */
+    private String status;
+
     private LocalDateTime createdAt;
 }

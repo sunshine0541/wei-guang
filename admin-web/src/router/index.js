@@ -7,7 +7,7 @@ const routes = [
     component: () => import('../layout/AdminLayout.vue'),
     redirect: '/overview',
     children: [
-      { path: 'overview', component: () => import('../views/Overview.vue'), meta: { title: '数据概览' } },
+      { path: 'overview', component: () => import('../views/Overview.vue'), meta: { title: '工作台' } },
       { path: 'orders', component: () => import('../views/Orders.vue'), meta: { title: '求助/订单管理' } },
       { path: 'orders/:id', component: () => import('../views/OrderDetail.vue'), meta: { title: '订单详情' } },
       { path: 'reports', component: () => import('../views/Reports.vue'), meta: { title: '上报处置' } },

@@ -67,6 +67,7 @@ public class AppealService {
     private static final String STATUS_WITHDRAWN = "WITHDRAWN";
     private static final String RESULT_TO_COMPLETED = "TO_COMPLETED";
     private static final String RESULT_TO_CANCELLED = "TO_CANCELLED";
+    private static final String RESULT_AUTO_RESTORED = "AUTO_RESTORED";
     private static final int REASON_MAX = 200;
     private static final int FEEDBACK_MAX = 500;
     private static final int CONCLUSION_MAX = 255;
@@ -243,6 +244,84 @@ public class AppealService {
         if (rows == 0) {
             throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
         }
+        // 反馈没有订单，撤回只更新反馈状态即可
+        if (TYPE_FEEDBACK.equals(appeal.getType()) || appeal.getOrderId() == null) {
+            return;
+        }
+        // 撤回后订单必须落回申诉前状态，否则订单会永久停在 APPEALING
+        HelpOrder order = helpOrderMapper.selectById(appeal.getOrderId());
+        String restoreStatus = order == null ? null : order.getPreAppealStatus();
+        if (order == null || !OrderStatus.APPEALING.name().equals(order.getStatus()) || restoreStatus == null) {
+            throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
+        }
+        int orderRows = helpOrderMapper.update(null, Wrappers.<HelpOrder>lambdaUpdate()
+                .eq(HelpOrder::getId, order.getId())
+                .eq(HelpOrder::getStatus, OrderStatus.APPEALING.name())
+                .eq(HelpOrder::getPreAppealStatus, restoreStatus)
+                .set(HelpOrder::getStatus, restoreStatus)
+                .set(HelpOrder::getPreAppealStatus, null));
+        if (orderRows == 0) {
+            throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
+        }
+        timelineRecorder.record(order.getId(), "APPEAL_WITHDRAW", uid, "发起人撤回申诉");
+        pushStatus(order.getRequesterId(), order.getHelperId(), order.getId(), restoreStatus, order.getTitle());
+    }
+
+    /** J9 查询超时未处理的事后申诉（CONFIRM_REJECT 只能由管理员裁决，不参与自动恢复） */
+    public List<Long> findTimeoutAppealIds(int hours) {
+        LocalDateTime before = LocalDateTime.now().minusHours(Math.max(1, hours));
+        return appealMapper.selectList(Wrappers.<Appeal>lambdaQuery()
+                        .eq(Appeal::getStatus, STATUS_PENDING)
+                        .eq(Appeal::getType, TYPE_POST_ORDER)
+                        .lt(Appeal::getCreatedAt, before))
+                .stream().map(Appeal::getId).toList();
+    }
+
+    /**
+     * J9 单条超时恢复：独立事务，单条失败不影响其他申诉。
+     * 恢复后关闭申诉窗口，避免 72h 后再次申诉形成循环。
+     */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    public boolean resolveTimeoutOne(Long appealId) {
+        Appeal appeal = appealMapper.selectById(appealId);
+        if (appeal == null || !STATUS_PENDING.equals(appeal.getStatus()) || !TYPE_POST_ORDER.equals(appeal.getType())) {
+            return false;
+        }
+        HelpOrder order = appeal.getOrderId() == null ? null : helpOrderMapper.selectById(appeal.getOrderId());
+        String restoreStatus = order == null ? null : order.getPreAppealStatus();
+        if (order == null || !OrderStatus.APPEALING.name().equals(order.getStatus()) || restoreStatus == null) {
+            return false;
+        }
+        int orderRows = helpOrderMapper.update(null, Wrappers.<HelpOrder>lambdaUpdate()
+                .eq(HelpOrder::getId, order.getId())
+                .eq(HelpOrder::getStatus, OrderStatus.APPEALING.name())
+                .eq(HelpOrder::getPreAppealStatus, restoreStatus)
+                .set(HelpOrder::getStatus, restoreStatus)
+                .set(HelpOrder::getPreAppealStatus, null)
+                .set(HelpOrder::getAppealDeadline, LocalDateTime.now()));
+        if (orderRows == 0) {
+            return false;
+        }
+        int appealRows = appealMapper.update(null, Wrappers.<Appeal>lambdaUpdate()
+                .eq(Appeal::getId, appeal.getId())
+                .eq(Appeal::getStatus, STATUS_PENDING)
+                .set(Appeal::getStatus, STATUS_RESOLVED)
+                .set(Appeal::getResult, RESULT_AUTO_RESTORED)
+                .set(Appeal::getConclusion, "超时未处理，系统已恢复原状态")
+                .set(Appeal::getResolvedAt, LocalDateTime.now()));
+        if (appealRows == 0) {
+            return false;
+        }
+        timelineRecorder.record(order.getId(), "APPEAL_TIMEOUT", 0L, "申诉超时未处理，系统恢复原状态");
+        pushStatus(order.getRequesterId(), order.getHelperId(), order.getId(), restoreStatus, order.getTitle());
+        if (order.getRequesterId() != null) {
+            notifyService.appealTimeout(order.getRequesterId(), order.getTitle(), order.getId());
+        }
+        if (order.getHelperId() != null) {
+            notifyService.appealTimeout(order.getHelperId(), order.getTitle(), order.getId());
+        }
+        log.info("申诉超时兜底：appeal={} order={} restore={}", appeal.getId(), order.getId(), restoreStatus);
+        return true;
     }
 
     /** F3 我的申诉/反馈列表（tab=APPEAL|FEEDBACK） */

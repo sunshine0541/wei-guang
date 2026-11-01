@@ -107,7 +107,10 @@ public class AssistantService {
                 || request.getUrgentFlag() != null;
         String parsedTime = parseTimeExpect(message, null);
         boolean urgentAnswer = isUrgentAnswer(message);
-        if (hasSelection || parsedTime != null || urgentAnswer) {
+        // 只有单纯的时间/急标回答才走快捷分支；完整求助描述里带“今天/急”仍按发布意图处理
+        boolean textSelectionAnswer = (parsedTime != null || urgentAnswer)
+                && !isQuestion(message) && !looksLikeDescription(message);
+        if (hasSelection || textSelectionAnswer) {
             if (session.getDraft() == null || !isUsableDescription(session.getDraft().getDescription())) {
                 session.setDraft(null);
                 return askDescription(sessionId, key, session);
@@ -256,25 +259,36 @@ public class AssistantService {
     }
 
     private AssistantChatResponse doConfirm(Long uid, AssistantSession session, String key) {
-        PublishDraftVO draft = session.getDraft();
+        // 原子消费确认令牌：并发 confirm 只有一个能继续，避免重复建单
+        AssistantSession active = sessionStore.consume(key, session.getConfirmToken());
+        if (active == null) {
+            throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
+        }
+        PublishDraftVO draft = active.getDraft();
         if (draft == null || !isUsableDescription(draft.getDescription())) {
-            sessionStore.remove(key);
             throw new BizException(ErrorCode.STATE_NOT_ALLOWED);
         }
         try {
             PublishVO vo = orderService.publish(uid, toPublishRequest(draft));
+            // 发布成功后确保 Redis 与本地都不再保留该会话
             sessionStore.remove(key);
-            AssistantChatResponse response = base(session.getSessionId(), "PUBLISH", "已帮您发布这条求助。");
+            AssistantChatResponse response = base(active.getSessionId(), "PUBLISH", "已帮您发布这条求助。");
             response.setAction("PUBLISHED");
             response.setDraft(draft);
             response.setOrderId(vo.getOrderId());
             return response;
         } catch (BizException e) {
-            AssistantChatResponse response = base(session.getSessionId(), "PUBLISH", friendlyError(e));
+            // 发布失败：把会话放回，用户修正后可继续用同一令牌重试
+            sessionStore.put(key, active);
+            AssistantChatResponse response = base(active.getSessionId(), "PUBLISH", friendlyError(e));
             response.setAction("ERROR");
             response.setDraft(draft);
-            response.setConfirmToken(session.getConfirmToken());
+            response.setConfirmToken(active.getConfirmToken());
             return response;
+        } catch (Exception e) {
+            // 非业务异常也恢复会话，避免用户草稿因一次异常被吞掉
+            sessionStore.put(key, active);
+            throw e;
         }
     }
 

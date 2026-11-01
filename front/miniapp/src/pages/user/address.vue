@@ -62,7 +62,9 @@
             {{ formIsDefault ? '已设为默认地址' : '设为默认地址' }}
           </view>
         </view>
-        <view class="wg-btn" style="margin-top: var(--wg-gap)" @click="submitForm">保存</view>
+        <view class="wg-btn" :class="{ 'wg-btn-off': saving }" style="margin-top: var(--wg-gap)" @click="submitForm">
+          {{ saving ? '正在保存…' : '保存' }}
+        </view>
         <view class="wg-btn wg-btn-plain" style="margin-top: 10px" @click="formVisible = false">再想想</view>
       </view>
     </view>
@@ -105,7 +107,9 @@ export default {
       formIsDefault: false,
       /** 4D-补5：仅「补全地图位置」进入时聚焦小区输入框 */
       areaFocus: false,
-      pendingDelete: null
+      pendingDelete: null,
+      /** 保存在途锁 */
+      saving: false
     }
   },
   computed: {
@@ -188,6 +192,9 @@ export default {
       this.formLongitude = poi.longitude
     },
     async submitForm() {
+      if (this.saving) {
+        return
+      }
       const area = this.formArea.trim()
       if (!area) {
         uni.showToast({ title: '先填写小区/区域', icon: 'none' })
@@ -201,6 +208,7 @@ export default {
         longitude: this.formLongitude,
         isDefault: this.formIsDefault ? 1 : 0
       }
+      this.saving = true
       try {
         if (this.editing) {
           await updateAddress(this.editing.id, payload)
@@ -211,6 +219,8 @@ export default {
         this.load()
       } catch (e) {
         console.error('[微光] 地址保存失败', e)
+      } finally {
+        this.saving = false
       }
     },
     askDelete(item) {

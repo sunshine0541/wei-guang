@@ -140,7 +140,9 @@ public class CancelService {
                 .set(HelpOrder::getCancelPendingBy, by)
                 .set(HelpOrder::getCancelPendingDeadline,
                         LocalDateTime.now().plusHours(configService.getInt("order.cancel_confirm_timeout_hours", 24)))
-                .set(HelpOrder::getCancelReason, reason));
+                .set(HelpOrder::getCancelReason, reason)
+                // 上一次裁决记录不能残留，否则第二次协商取消无法再次裁决
+                .set(HelpOrder::getCancelArbitrateAt, null));
         if (rows == 0) {
             throw new BizException(ErrorCode.DUPLICATE_SUBMIT);
         }

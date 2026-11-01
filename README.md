@@ -1,7 +1,7 @@
 # 微光 · 社区互助服务系统
 
 > 面向社区老年居民与热心邻居的互助小程序：老人一键发布小事求助，邻居接单远程/上门/外出帮忙，聊天协作、双确认完成，配微光值·荣誉积分·光语情感化体系、双向防诈与社区 UGC。
-> 毕业设计 MVP（tag `v1.0-mvp`）；2026-10 体验改进（批 1–4F）+ v1.3 社区 2.0 / AI 审核 / 看板 / 分页（T21–T28）已完成；T31 新增 AI 助手（问答 + 确认后自动发布求助）。设计依据：《微光-详细设计文档v1.2》《微光-执行文档v1.2》。
+> 毕业设计 MVP（tag `v1.0-mvp`）；2026-10 体验改进（批 1–4F）+ v1.3 社区 2.0 / AI 审核 / 管理端工作台 / 分页（T21–T29）已完成；T30–T35 完成代码审查、管理端 UI 重构、小程序审计、全项目审查与高风险闭环；T31 新增 AI 助手（问答 + 确认后自动发布求助）。设计依据：《微光-详细设计文档v1.2》《微光-执行文档v1.2》。
 
 ## 一、仓库结构
 
@@ -9,10 +9,10 @@
 | --- | --- |
 | `backend/` | Spring Boot 3.5（Java 17）后端：REST + WebSocket + 定时任务；MySQL 8.4 / Redis 7.4；含 `docker-compose.yml`（MySQL + Redis + 后端容器一键起） |
 | `front/miniapp/` | uni-app + Vue3 微信小程序端（唯一用户端形态） |
-| `admin-web/` | Vue3 + Element Plus 管理后台（概览 / 订单 / 协商取消裁决 / 上报处置 / 用户 / 配置 / 社区审核 / 申诉反馈） |
+| `admin-web/` | Vue3 + Element Plus 管理后台（工作台 / 求助与订单（含详情、协商取消裁决）/ 上报处置 / 用户 / 配置 / 社区审核 / 申诉反馈） |
 | `sql/` | `schema.sql` 全量建表（26 张表）；`seed.sql` 拟真演示数据（自包含一键重置）；`reset.sql` ≡ seed.sql |
 | `scripts/` | `seed-check`（24 条不变量）、`demo-reset`、`smoke`、`run-demo` 四个 PowerShell 脚本 |
-| `docs/` | 《实现偏差清单》《验收走查记录》《seed契约》《论文研究边界与前提假设》 |
+| `docs/` | 《实现偏差清单》《验收走查记录》 |
 | 根目录两篇 v1.2 文档 | 详细设计 / 执行文档（任务卡与验收判据） |
 
 ## 二、环境要求
@@ -35,13 +35,13 @@ docker compose up -d mysql redis
 ### 2. 建表与演示数据
 
 ```powershell
+# 在仓库根目录执行
 # 方式 A（推荐，规避 Windows 管道中文编码问题）
 docker cp sql\schema.sql weiguang-mysql:/tmp/schema.sql
 docker exec -i weiguang-mysql mysql --default-character-set=utf8mb4 -uroot -p weiguang -e "source /tmp/schema.sql"
 # 依次 source seed.sql（首次）或 reset.sql（随时一键重置，会清空业务数据）
 ```
 
-> 也可在仓库根目录用本地 mysql 客户端：`Get-Content sql\schema.sql | mysql -u root -p weiguang`。
 > 数据库口令取自 `backend/.env` 的 `MYSQL_PASSWORD`（compose 缺省 `weiguang123`，仅演示环境使用；正式环境请改用专用低权限账号）。
 > 一键复位 + 自检：`powershell -ExecutionPolicy Bypass -File scripts\demo-reset.ps1`（执行 `reset.sql` 后自动跑 24 条 seed 不变量断言）。
 
@@ -54,7 +54,7 @@ mvn spring-boot:run          # 开发方式
 ```
 
 - 健康检查：http://localhost:8080/actuator/health （只返回 `UP/DOWN` 状态，DB/Redis 明细已关闭）
-- 集成测试（Testcontainers，需 Docker）：`mvn "-Dtest=AcceptConcurrencyTest,PointConcurrencyTest,ConfirmRejectAppealTest,OrderFullFlowTest,CancelNegotiationFlowTest,CommunityReportFlowTest,AssistantFlowTest" test`
+- 集成测试（Testcontainers，需 Docker，7 个测试类 / 8 条用例）：`mvn "-Dtest=AcceptConcurrencyTest,PointConcurrencyTest,ConfirmRejectAppealTest,OrderFullFlowTest,CancelNegotiationFlowTest,CommunityReportFlowTest,AssistantFlowTest" test`
 - 接口文档：http://localhost:8080/swagger-ui.html （springdoc）
 - 首次启动自动按 `.env` 初始化管理员账号（`ADMIN_SEED_USERNAME` / `ADMIN_SEED_PASSWORD`）
 - 后端默认监听 `0.0.0.0:8080`，真机可通过电脑局域网 IP 访问
@@ -95,7 +95,7 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 | `18652970318` | 赵晓琳 | 微光值 50（低于门槛，仅可接远程） |
 | 背景邻居 | 张桂花 / 刘建军 / 周慧珍 / 吴国强 / 孙丽华 | `13385649271` / `13745286109` / `15162384756` / `18245037619` / `13072849563` |
 
-管理员账号见 `backend/.env`（`ADMIN_SEED_USERNAME` / `ADMIN_SEED_PASSWORD`）。
+管理员账号在首次启动时由 `backend/.env.example` 中的 `ADMIN_SEED_USERNAME` / `ADMIN_SEED_PASSWORD` 写入 `admin_user`（复制为 `.env` 后填写）。
 
 > 旧登录态失效：数据库重置后请在小程序内退出登录或开发者工具「清缓存 → 清除数据缓存」后再登录。
 
@@ -117,7 +117,7 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
    - **AI 助手**：首页右下角「AI 小助手」→ 可直接问「怎么发布求助」，也可描述一件小事，助手补齐类型/时间/地址后弹确认卡，确认后自动发布。
 7. 分支·释放重派：赵晓琳接远程单演示恢复通道；陈志远演示"实在帮不上"免罚释放 → 李秀英收到"别干等"通知
 8. 分支·防诈：陈志远在聊天中发"验证码"相关索要话术 → 双方收到强提示、管理端「上报处置」出现记录可处置
-9. 管理端：看板（近 7 天趋势 / 状态分布 / 防诈与社区待审）、订单列表/详情与时间线、协商取消裁决、社区审核、把配置页 `elder.age_threshold` 改为 70 → 重新发布验证排序变化，改回
+9. 管理端：工作台（4 项 KPI / 近 7 天趋势与类型分布 / 今日待办 / 实时动态）、订单列表与详情（时间线、协商取消裁决、风险核实）、上报处置、社区审核、申诉处理；把配置页 `elder.age_threshold` 改为 70 → 重新发布验证排序变化，改回
 10. 个人页：微光徽标（被点亮 / 常亮）+「光已传递」徽记；微光值 / 荣誉积分明细
 11. 稳定性：`docker compose stop redis` 后主线仍可走通（降级）；恢复后用 RedisInsight 查看限流键与 TTL
 12. AI：管理端把 `ai.mode` 切 `real` 复跑（需 `.env` 配 `DASHSCOPE_API_KEY`）；切回 `mock`
@@ -150,7 +150,7 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 - **地址搜索提示不可用**：先确认 `backend/.env` 有 `AMAP_WEB_KEY`（必须是「Web服务」类型的 Key），再重启后端；Key 只在后端使用，不下发前端。
 - **头像/聊天图片显示**：开发者工具不允许 `<image>` 直接加载 HTTP，前端已统一用 `WgImage` 先解析成本地路径或 base64；生产环境后端走 HTTPS 时直接显示原图。
 - **换账号演示**：小程序内「设置 → 退出登录」后用另一手机号账号登录（无需 openid，任意账号可切）。
-- **后端地址（自动探测）**：`VITE_API_HOST` 是**编译期**注入的，IP 会随网络变化。已内置探测脚本 `front/miniapp/scripts/detect-lan-host.mjs`，并挂为 `predev:mp-weixin` / `prebuild:mp-weixin` **前置钩子**——每次 `npm run dev:mp-weixin` / `build:mp-weixin` 会**自动探测本机局域网 IPv4 并重写 `.env.local`**（自动排除 WSL / Hyper-V / VPN 等虚拟网卡，按 192.168 > 172.16–31 > 10 优先级取用）。想先看探测结果不写文件：`npm run host:dry`。
+- **后端地址（自动探测）**：`VITE_API_HOST` 是**编译期**注入的，IP 会随网络变化。已内置探测脚本 `front/miniapp/scripts/detect-lan-host.mjs`，并挂为 `predev:mp-weixin` / `prebuild:mp-weixin` **前置钩子**——每次 `npm run dev:mp-weixin` / `npm run build:mp-weixin` 会**自动探测本机局域网 IPv4 并重写 `.env.local`**（自动排除 WSL / Hyper-V / VPN 等虚拟网卡，按 192.168 > 172.16–31 > 10 优先级取用）。想先看探测结果不写文件：`npm run host:dry`。
 - **真机预览 / 换网络**：手机与电脑同一局域网；`npm run dev:mp-weixin` 会自动写入电脑局域网 IP，无需手改。若需固定地址（例如模拟器只想走 `localhost`）：`$env:WGU_HOST='localhost:8080'; npm run dev:mp-weixin`（PowerShell）即可覆盖自动探测。开发者工具开启「开发版调试」，并勾选「不校验合法域名」；防火墙需放行 8080。
 - **重置数据**：优先执行 `powershell -ExecutionPolicy Bypass -File scripts\demo-reset.ps1`（内部用 `docker cp` + `source`，可避免中文乱码），随后所有账号请重新登录。不要用 `Get-Content ... | docker exec -i mysql` 的方式灌 SQL：Windows PowerShell 5.1 会把中文重编码成 ANSI/GBK，落库变成 `?`。
 - **待响应上限**：同一用户最多 2 条待响应（`order.pending_limit`），超限 30003。
@@ -160,12 +160,8 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 
 - 详细设计：`微光-详细设计文档v1.2.md`（第 11 章为 15 条 MVP 验收判据全文）
 - 执行文档：`微光-执行文档v1.2.md`（T01–T19 任务卡）
-- 实现偏差：`docs/实现偏差清单.md`（D01–D110）
-- 验收走查：`docs/验收走查记录.md`（T20 15 条判据 + 2026-10 体验批次 + T29/T30/T31 收口）
-- seed 契约：`docs/seed契约.md`（数据画像、覆盖矩阵、24 条不变量、时间自洽规则；本地文档，不入代码仓库）
-- 研究边界：`docs/论文研究边界与前提假设.md`（v1.0 定稿；本地文档，不入代码仓库）
-
-> `design/`、`.screenshots/`、`docs/交接文档.md`、`docs/seed契约.md`、`docs/论文研究边界与前提假设.md` 为本地 Agent/论文资料，已在 `.gitignore` 排除，不属于代码交付物。
+- 实现偏差：`docs/实现偏差清单.md`（D01–D116）
+- 验收走查：`docs/验收走查记录.md`（T20 15 条判据 + 2026-10 体验批次 + T29–T35 收口）
 
 ## 附录 A：页面清单（31 页）
 
@@ -199,10 +195,14 @@ npm run dev                  # http://localhost:5174（/admin 由 Vite 代理到
 | 批 4G | 社区 tab + 邻里动态；首页社区卡迁移；只读，不做感谢墙/发帖 | 已完成 |
 | 批 4F | README/验收走查、全量回归、三端构建、仓库卫生 | 已完成 |
 | T21–T24 | 光语 v2、社区 2.0（发帖/点赞/评论/举报/删帖）、AI 内容审核、通知 19 类 | 已完成 |
-| T25–T26 | 管理端看板、通知/聊天分页、seed 重写与自检（现 24 条不变量） | 已完成 |
+| T25–T26 | 管理端工作台（原独立看板已并入工作台，不再单独存在）、通知/聊天分页、seed 重写与自检（现 24 条不变量） | 已完成 |
 | T27–T28 | 实测缺陷修复（注销、释放文案、年长模式）、上传魔数校验、Dockerfile、compose 初始化 | 已完成 |
 | T29 | seed 时间自洽与用时口径修正、管理端「年长」文案复验、边界/README/验收/交接收口 | 已完成 |
 | T30 | 2026-10 代码审查优化（批 1–5）：状态机死角、资金一致性、迁移与索引、性能、安全限流、小程序体验、管理端上报补全、举报结果通知与 AI 提示词加固 | 已完成 |
 | T31 | AI 助手（能力五）：操作问答、发布槽位补齐、地址/紧急联系人校验、确认令牌后复用发布链路 | 已完成 |
+| T32 | 管理端 UI 重构为「值班台」：深咖侧栏 + 米色画布 + 陶土主色、工作台待办与实时动态、订单详情三栏、社区审核队列、申诉深链（D111） | 已完成 |
+| T33 | 小程序审计缺陷修复：失败态与重试、EXPIRED 一键重发、聊天只读/断线增量补拉/分页去重、各提交在途锁、通知跳转（D113） | 已完成 |
+| T34 | 全项目审查修复：撤回申诉落回订单、协商取消重开、J2/J3 单笔隔离、评论状态、接单截止校验（D114） | 已完成 |
+| T35 | 高风险闭环：APPEALING 超时兜底、通知 jumpType、AI 确认令牌原子消费、举报串行化、违约计数衰减（D115）；集成测试 8 条复跑通过（D116） | 已完成 |
 
-> MVP 以 tag `v1.0-mvp` 交付；2026-10 体验改进（批 1–4F）已合入 `master`（commit `b22742b`）。v1.3（T21–T29）与 T30 代码审查优化（D63–D110）实现细节见 `docs/实现偏差清单.md`。
+> MVP 以 tag `v1.0-mvp` 交付；2026-10 体验改进（批 1–4F）已合入 `master`（commit `b22742b`）。v1.3（T21–T29）与 T30–T35 的实现细节见 `docs/实现偏差清单.md`（D01–D116）。

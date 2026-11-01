@@ -20,6 +20,10 @@
         <text class="wg-grid-desc">{{ tpl.coverDesc }}</text>
       </view>
     </view>
+    <view v-if="templatesFailed" class="wg-card">
+      <text class="wg-label">模板加载失败，请检查网络后重试</text>
+      <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="loadTemplates">重新加载</view>
+    </view>
     <view class="wg-btn" @click="startFree">自由描述（智能小助手帮我整理）</view>
     <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="loadRepeatOrders">再来一次（选一条历史求助）</view>
     <view v-if="repeatOrders.length > 0" class="wg-card" style="margin-top: 12px">
@@ -64,6 +68,7 @@ export default {
   data() {
     return {
       templates: [],
+      templatesFailed: false,
       repeatOrders: [],
       emergencyTip: EMERGENCY_TIP
     }
@@ -84,7 +89,13 @@ export default {
       return TPL_ICONS[tpl.name] || 'grid'
     },
     async loadTemplates() {
-      this.templates = await listTemplates()
+      this.templatesFailed = false
+      try {
+        this.templates = await listTemplates()
+      } catch (e) {
+        console.error('[微光] 模板加载失败', e)
+        this.templatesFailed = true
+      }
     },
     async loadRepeatOrders() {
       // 「再来一次」= 选一条历史求助（已完成/已取消/已超时均可），不再只限 EXPIRED

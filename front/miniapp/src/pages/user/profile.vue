@@ -83,7 +83,9 @@
 
       <!-- 保存（底部固定，适老加大） -->
       <view class="wg-save-bar">
-        <view class="wg-btn" @click="save">保存</view>
+        <view class="wg-btn" :class="{ 'wg-btn-off': saving }" @click="save">
+          {{ saving ? '正在保存…' : '保存' }}
+        </view>
       </view>
 
     </template>
@@ -122,7 +124,9 @@ export default {
       /** B：有未保存修改时拦截返回 */
       dirty: false,
       /** B：回填阶段不触发 dirty */
-      hydrating: false
+      hydrating: false,
+      /** 保存在途锁：避免连点重复提交 */
+      saving: false
     }
   },
   computed: {
@@ -271,6 +275,9 @@ export default {
       uni.navigateTo({ url: '/pages/user/address' })
     },
     async save() {
+      if (this.saving) {
+        return
+      }
       const nickname = this.nickname.trim()
       if (nickname.length > 20) {
         uni.showToast({ title: '称呼最多 20 个字', icon: 'none' })
@@ -328,6 +335,7 @@ export default {
       payload.emergencyContactName = emergencyName
       payload.emergencyContactPhone = emergencyPhone
       payload.phone = ownPhone
+      this.saving = true
       // 头像：本地临时路径先上传成 /files 相对地址
       if (this.avatarUrl && this.avatarUrl !== (this.userStore.avatarUrl || '')) {
         try {
@@ -352,6 +360,7 @@ export default {
         }, 800)
       } catch (e) {
         console.error('[微光] 画像保存失败', e)
+        this.saving = false
       }
     }
   }

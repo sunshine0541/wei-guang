@@ -68,6 +68,47 @@ public class AssistantSessionStore {
         }
     }
 
+    /**
+     * 原子消费确认令牌：只有第一个携带正确 token 的调用能拿到会话，
+     * 并发两次 confirm 时第二次直接失败，避免重复建单。
+     */
+    public AssistantSession consume(String key, String token) {
+        AssistantSession session = null;
+        if (redisHealthProbe.isUsable()) {
+            try {
+                String json = redisTemplate.opsForValue().getAndDelete(key);
+                if (json != null) {
+                    session = objectMapper.readValue(json, AssistantSession.class);
+                }
+            } catch (Exception e) {
+                // 消费失败时尽力删除 Redis 键，避免恢复后同一会话被二次消费
+                try {
+                    redisTemplate.delete(key);
+                } catch (Exception ignored) {
+                    // Redis 不可用时交给本地降级路径
+                }
+                redisHealthProbe.markUnusable(e);
+            }
+        }
+        if (session == null) {
+            LocalEntry entry = local.remove(key);
+            if (entry != null && System.currentTimeMillis() <= entry.expireAt()) {
+                session = entry.session();
+            }
+        } else {
+            local.remove(key);
+        }
+        if (session == null) {
+            return null;
+        }
+        if (token == null || !token.equals(session.getConfirmToken())) {
+            // 令牌不匹配：把会话放回，避免误删用户草稿
+            put(key, session);
+            return null;
+        }
+        return session;
+    }
+
     public void remove(String key) {
         local.remove(key);
         if (redisHealthProbe.isUsable()) {

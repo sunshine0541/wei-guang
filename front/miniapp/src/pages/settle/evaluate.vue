@@ -38,7 +38,9 @@
         </view>
 
         <!-- B：未选星时提交置灰 -->
-        <view v-if="isRequester" class="wg-btn" :class="{ 'wg-btn-off': !stars }" @click="submit">提交</view>
+        <view v-if="isRequester" class="wg-btn" :class="{ 'wg-btn-off': !stars || submitting }" @click="submit">
+          {{ submitting ? '正在提交…' : '提交' }}
+        </view>
         <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="skip">跳过</view>
       </template>
     </template>
@@ -66,7 +68,9 @@ export default {
       adviceTags: ['准时', '耐心', '细心'],
       focus: '',
       /** B：页面较短时用高亮/聚焦代替滚动锚点 */
-      highlight: ''
+      highlight: '',
+      /** 提交在途锁 */
+      submitting: false
     }
   },
   computed: {
@@ -149,6 +153,10 @@ export default {
         uni.showToast({ title: '先给个星星吧', icon: 'none' })
         return
       }
+      if (this.submitting) {
+        return
+      }
+      this.submitting = true
       try {
         await submitEvaluation(this.orderId, { stars: this.stars, advice: this.advice || null })
         uni.showToast({ title: '谢谢您的评价，这会让善意被更多人看见。', icon: 'none' })
@@ -164,6 +172,8 @@ export default {
           uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
           return
         }
+      } finally {
+        this.submitting = false
       }
       this.next()
     },

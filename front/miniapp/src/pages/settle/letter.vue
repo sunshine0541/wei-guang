@@ -8,7 +8,9 @@
     </view>
     <!-- 能力三 S2："不会写？我帮您起个头"（详设 §6.2 P11） -->
     <view class="wg-btn wg-btn-plain" @click="aiDraft">{{ draftLoading ? '小助手正在起头…' : '不会写？我帮您起个头' }}</view>
-    <view class="wg-btn" style="margin-top: 12px" @click="send">发送</view>
+    <view class="wg-btn" :class="{ 'wg-btn-off': sending }" style="margin-top: 12px" @click="send">
+      {{ sending ? '正在发送…' : '发送' }}
+    </view>
     <view class="wg-btn wg-btn-ghost" style="margin-top: 12px" @click="skip">放弃</view>
   </view>
 </template>
@@ -24,7 +26,9 @@ export default {
       orderId: null,
       content: '',
       draftLoading: false,
-      usedAiDraft: false
+      usedAiDraft: false,
+      /** 发送在途锁 */
+      sending: false
     }
   },
   computed: {
@@ -51,16 +55,21 @@ export default {
         }
       } catch (e) {
         console.error('[微光] 感谢信起头失败', e)
+        uni.showToast({ title: MESSAGES.ERROR, icon: 'none' })
       } finally {
         this.draftLoading = false
       }
     },
     async send() {
+      if (this.sending) {
+        return
+      }
       const text = this.content.trim()
       if (!text) {
         uni.showToast({ title: '写两句再发送吧', icon: 'none' })
         return
       }
+      this.sending = true
       try {
         await submitLetter(this.orderId, { content: text, aiAssisted: this.usedAiDraft ? true : undefined })
         uni.showToast({ title: '您的感谢已送达，它会被好好珍藏。', icon: 'none' })
@@ -70,10 +79,13 @@ export default {
           uni.showToast({ title: '已经写过一封啦', icon: 'none' })
         } else {
           uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
+          this.sending = false
           return
         }
       }
       setTimeout(() => {
+        // 跳转前复位：即使 redirect 失败也不会让发送按钮永久置灰
+        this.sending = false
         uni.redirectTo({ url: `/pages/settle/story?id=${this.orderId}` })
       }, 800)
     },

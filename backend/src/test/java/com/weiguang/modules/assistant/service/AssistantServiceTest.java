@@ -153,13 +153,15 @@ class AssistantServiceTest {
         draft.setDescription("帮我发布求助");
         session.setDraft(draft);
         when(sessionStore.get(anyString())).thenReturn(session);
+        when(sessionStore.consume(anyString(), anyString())).thenReturn(session);
 
         AssistantConfirmRequest request = new AssistantConfirmRequest();
         request.setSessionId("s1");
         request.setConfirmToken("token");
 
         assertThrows(BizException.class, () -> assistantService.confirm(1L, request));
-        verify(sessionStore).remove(anyString());
+        // 确认令牌已被原子消费，非法草稿不会落库
+        verify(sessionStore).consume(anyString(), anyString());
     }
 
     @Test

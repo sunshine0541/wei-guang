@@ -304,6 +304,7 @@ public class AdminCommunityService {
             vo.setPostId(comment.getPostId());
             vo.setAuthorId(comment.getAuthorId());
             vo.setContent(comment.getContent());
+            vo.setStatus(comment.getStatus());
             vo.setCreatedAt(comment.getCreatedAt());
             UserProfile profile = profiles.get(comment.getAuthorId());
             vo.setAuthorNickname(profile == null || profile.getNickname() == null

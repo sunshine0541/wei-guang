@@ -44,7 +44,11 @@
       </view>
     </template>
 
-    <view v-else class="wg-empty">这个页面暂时不能看哦</view>
+    <view v-else class="wg-card">
+      <text>这个页面暂时不能看哦</text>
+      <view class="wg-label">可能是网络问题，请稍后重试</view>
+      <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="load">重新加载</view>
+    </view>
   </view>
 </template>
 
@@ -85,11 +89,19 @@ export default {
       this.loading = true
       try {
         this.profile = await getNeighborProfile(this.userId)
-        const result = await getNeighborEvaluations(this.userId, { page: 1, pageSize: 20 })
-        this.evaluations = result.records || []
       } catch (e) {
         console.error('[微光] 邻居主页加载失败', e)
         this.profile = null
+        this.loading = false
+        return
+      }
+      // 评价失败只清空列表，不把已经拿到的昵称/感谢一起丢掉
+      try {
+        const result = await getNeighborEvaluations(this.userId, { page: 1, pageSize: 20 })
+        this.evaluations = result.records || []
+      } catch (e) {
+        console.error('[微光] 邻居评价加载失败', e)
+        this.evaluations = []
       } finally {
         this.loading = false
       }

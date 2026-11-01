@@ -70,6 +70,10 @@
       <view class="wg-skel-line" style="width: 60%"></view>
       <view class="wg-skel-line" style="width: 90%"></view>
     </view>
+    <view v-else-if="loadFailed" class="wg-card">
+      <text>动态加载失败，请稍后重试</text>
+      <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="loadPosts(true)">重新加载</view>
+    </view>
     <view v-else-if="posts.length === 0" class="wg-empty">邻里还没有新动态，来说说身边的小事吧</view>
 
     <view v-for="post in posts" :key="post.id" class="wg-card wg-post" @click="openPost(post.id)">
@@ -148,6 +152,7 @@ export default {
       posts: [],
       page: 0,
       loading: false,
+      loadFailed: false,
       finished: false,
       entered: false,
       postSeq: 0
@@ -205,6 +210,7 @@ export default {
         this.posts = []
         this.page = 0
         this.finished = false
+        this.loadFailed = false
       }
       const seq = ++this.postSeq
       this.loading = true
@@ -221,6 +227,9 @@ export default {
         this.finished = records.length < PAGE_SIZE || this.posts.length >= total
       } catch (e) {
         console.error('[微光] 社区动态加载失败', e)
+        if (reset && seq === this.postSeq) {
+          this.loadFailed = true
+        }
       } finally {
         if (seq === this.postSeq) {
           this.loading = false

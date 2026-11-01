@@ -36,6 +36,9 @@ export default {
   methods: {
     /** A1：整理结果写入跨页草稿，跳到表单页继续补充 */
     async doAiSuggest() {
+      if (this.aiLoading) {
+        return
+      }
       if (!this.freeText.trim()) {
         uni.showToast({ title: '先写一句话吧', icon: 'none' })
         return

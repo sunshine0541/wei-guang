@@ -372,8 +372,8 @@ export default {
           listMyOrders({ tab: 'DOING' }),
           listMyOrders({ tab: 'HELPING' })
         ])
-        this.doingCount = (doing.records || []).length
-        this.helpingCount = (helping.records || []).length
+        this.doingCount = doing.total ?? (doing.records || []).length
+        this.helpingCount = helping.total ?? (helping.records || []).length
       } catch (e) {
         console.error('[微光] 互助概览加载失败', e)
       }
@@ -501,6 +501,12 @@ export default {
         url = `/pages/chat/room?orderId=${latest.jumpId}`
       } else if (latest.jumpType === 'APPEAL') {
         url = '/pages/user/appeal'
+      } else if (latest.jumpType === 'CREDIT') {
+        url = '/pages/user/credit'
+      } else if (latest.jumpType === 'POINTS') {
+        url = '/pages/user/points'
+      } else if (latest.jumpType === 'PROFILE') {
+        url = '/pages/user/profile'
       }
       uni.navigateTo({
         url,

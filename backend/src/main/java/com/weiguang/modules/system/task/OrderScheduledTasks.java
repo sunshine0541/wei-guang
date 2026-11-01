@@ -2,6 +2,7 @@ package com.weiguang.modules.system.task;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.weiguang.common.enums.OrderStatus;
+import com.weiguang.modules.appeal.service.AppealService;
 import com.weiguang.modules.chat.entity.ChatMessage;
 import com.weiguang.modules.chat.mapper.ChatMessageMapper;
 import com.weiguang.modules.incentive.entity.CreditLedger;
@@ -60,6 +61,7 @@ public class OrderScheduledTasks {
     private final NotifyService notifyService;
     private final ConfigService configService;
     private final CreditService creditService;
+    private final AppealService appealService;
 
     public OrderScheduledTasks(HelpOrderMapper helpOrderMapper,
                                UserMapper userMapper,
@@ -75,7 +77,8 @@ public class OrderScheduledTasks {
                                SettleService settleService,
                                NotifyService notifyService,
                                ConfigService configService,
-                               CreditService creditService) {
+                               CreditService creditService,
+                               AppealService appealService) {
         this.helpOrderMapper = helpOrderMapper;
         this.userMapper = userMapper;
         this.creditLedgerMapper = creditLedgerMapper;
@@ -91,6 +94,7 @@ public class OrderScheduledTasks {
         this.notifyService = notifyService;
         this.configService = configService;
         this.creditService = creditService;
+        this.appealService = appealService;
     }
 
     /** J1 待响应超时：每 1 min，PENDING 且 publish_deadline<now → EXPIRED */
@@ -115,14 +119,14 @@ public class OrderScheduledTasks {
                 .eq(HelpOrder::getStatus, OrderStatus.ACCEPTED.name())
                 .lt(HelpOrder::getStartDeadline, LocalDateTime.now()));
         int moved = 0;
-        try {
-            for (HelpOrder order : orders) {
+        for (HelpOrder order : orders) {
+            try {
                 if (releaseService.releaseByTimeout(order)) {
                     moved++;
                 }
+            } catch (Exception e) {
+                log.warn("J2 单笔处理异常 orderId={}：{}", order.getId(), e.getMessage());
             }
-        } catch (Exception e) {
-            log.warn("J2 执行异常：{}", e.getMessage());
         }
         log.info("J2 确认开始超时：扫描 {} 单，释放 {} 单", orders.size(), moved);
     }
@@ -134,14 +138,14 @@ public class OrderScheduledTasks {
                 .eq(HelpOrder::getStatus, OrderStatus.PENDING_CONFIRM.name())
                 .lt(HelpOrder::getConfirmDeadline, LocalDateTime.now()));
         int moved = 0;
-        try {
-            for (HelpOrder order : orders) {
+        for (HelpOrder order : orders) {
+            try {
                 if (settleService.settle(order, 0L)) {
                     moved++;
                 }
+            } catch (Exception e) {
+                log.warn("J3 单笔处理异常 orderId={}：{}", order.getId(), e.getMessage());
             }
-        } catch (Exception e) {
-            log.warn("J3 执行异常：{}", e.getMessage());
         }
         log.info("J3 待确认超时：扫描 {} 单，结算 {} 单", orders.size(), moved);
     }
@@ -161,6 +165,60 @@ public class OrderScheduledTasks {
             }
         }
         log.info("J4 僵尸单清理：扫描 {} 单，流转 {} 单", orders.size(), moved);
+    }
+
+    /** J9 申诉超时兜底：每 1 h，PENDING 申诉超过配置时长 → 恢复订单原状态并关闭申诉 */
+    @Scheduled(fixedDelay = 3_600_000)
+    public void j9AppealTimeout() {
+        int hours = configService.getInt("order.appeal_timeout_hours", 72);
+        List<Long> appealIds = appealService.findTimeoutAppealIds(hours);
+        int moved = 0;
+        for (Long appealId : appealIds) {
+            try {
+                if (appealService.resolveTimeoutOne(appealId)) {
+                    moved++;
+                }
+            } catch (Exception e) {
+                log.warn("J9 单条处理异常 appealId={}：{}", appealId, e.getMessage());
+            }
+        }
+        log.info("J9 申诉超时兜底：阈值 {} 小时，处理 {} 条", hours, moved);
+    }
+
+    /** J10 违约计数衰减：超过配置周期没有新违约记录的用户，清零历史计数 */
+    @Scheduled(fixedDelay = 3_600_000)
+    public void j10ViolationDecay() {
+        int days = configService.getInt("order.violation_decay_days", 30);
+        LocalDateTime before = LocalDateTime.now().minusDays(days);
+        List<CreditLedger> logs = creditLedgerMapper.selectList(Wrappers.<CreditLedger>lambdaQuery()
+                .in(CreditLedger::getReasonCode,
+                        "ACCEPT_CANCEL", "START_TIMEOUT", "MID_QUIT", "URGENT_ABUSE", "MALICIOUS_CANCEL", "FAKE_ORDER")
+                .orderByDesc(CreditLedger::getCreatedAt));
+        java.util.Map<Long, LocalDateTime> lastByUser = new java.util.HashMap<>();
+        for (CreditLedger log : logs) {
+            if (log.getUserId() == null || log.getCreatedAt() == null) {
+                continue;
+            }
+            LocalDateTime last = lastByUser.get(log.getUserId());
+            if (last == null || log.getCreatedAt().isAfter(last)) {
+                lastByUser.put(log.getUserId(), log.getCreatedAt());
+            }
+        }
+        java.util.Set<Long> decayed = new java.util.HashSet<>();
+        lastByUser.forEach((uid, last) -> {
+            if (last.isBefore(before)) {
+                decayed.add(uid);
+            }
+        });
+        if (decayed.isEmpty()) {
+            return;
+        }
+        int rows = userMapper.update(null, Wrappers.<User>lambdaUpdate()
+                .in(User::getId, decayed)
+                .isNull(User::getCooldownUntil)
+                .gt(User::getViolationCount, 0)
+                .set(User::getViolationCount, 0));
+        log.info("J10 违约计数衰减：{} 天无新违约，清零 {} 人", days, rows);
     }
 
     /** J5 冷却收尾：每 10 min，cooldown_until<now 且 violation_count>0 → 双字段清零 */

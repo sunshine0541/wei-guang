@@ -66,6 +66,11 @@
         <view class="wg-btn wg-btn-plain" style="margin-top: 8px" @click="confirmWithdraw">撤回这条求助</view>
       </view>
 
+      <view v-if="isRequester && order.status === 'EXPIRED'" class="wg-card">
+        <view class="wg-btn" @click="republish">一键重发</view>
+        <view class="wg-label" style="margin-top: 6px">重新发一次，让更多邻居看到</view>
+      </view>
+
       <view v-if="isRequester && canCancel" class="wg-card">
         <view class="wg-btn wg-btn-plain" @click="doCancel">取消这次求助</view>
       </view>
@@ -92,7 +97,7 @@
 
 <script>
 import { useUserStore } from '@/store/user'
-import { cancelConfirmOrder, cancelOrder, getOrder, getOrderTimeline, releaseOrder, startOrder } from '@/api/order'
+import { cancelConfirmOrder, cancelOrder, getOrder, getOrderTimeline, releaseOrder, republishOrder, startOrder } from '@/api/order'
 import { completeOrder } from '@/api/incentive'
 import { getSession } from '@/api/chat'
 import { MESSAGES, ORDER_TYPE_LABELS, TIMELINE_LABELS } from '@/utils/constants'
@@ -126,7 +131,9 @@ export default {
       entered: false,
       /** 4D-补3：状态推送退订函数与防抖计时器 */
       wsOff: null,
-      wsTimer: null
+      wsTimer: null,
+      /** 操作在途锁：避免连点重复提交 */
+      actionLock: false
     }
   },
   computed: {
@@ -212,7 +219,12 @@ export default {
       }
       try {
         this.order = await getOrder(this.orderId)
-        this.timeline = await getOrderTimeline(this.orderId)
+        // 时间线单独兜底：失败时保留已加载的订单，不把整页清空
+        try {
+          this.timeline = await getOrderTimeline(this.orderId)
+        } catch (e) {
+          console.error('[微光] 时间线加载失败', e)
+        }
       } catch (e) {
         console.error('[微光] 订单房间加载失败', e)
         if (!silent) {
@@ -283,9 +295,13 @@ export default {
         }
       })
     },
-    async action(promise, okText) {
+    async action(fn, okText) {
+      if (this.actionLock) {
+        return
+      }
+      this.actionLock = true
       try {
-        await promise
+        await fn()
         uni.showToast({ title: okText, icon: 'none' })
         this.load(true)
       } catch (e) {
@@ -294,15 +310,21 @@ export default {
         if (e && (e.code === 40002 || e.code === 40003)) {
           this.load(true)
         }
+      } finally {
+        this.actionLock = false
       }
     },
     /**
      * 释放类动作成功后的去向：释放后本单已没有接单者（重派中），刷新房间会取不到数据（20003），
      * 故提示后返回上一页（列表/详情），避免停在房间显示"暂时不能看"。
      */
-    async releaseAction(promise, okText) {
+    async releaseAction(fn, okText) {
+      if (this.actionLock) {
+        return
+      }
+      this.actionLock = true
       try {
-        await promise
+        await fn()
         uni.showToast({ title: okText, icon: 'none' })
         setTimeout(() => {
           uni.navigateBack({
@@ -313,10 +335,37 @@ export default {
         }, 1200)
       } catch (e) {
         console.error('[微光] 释放失败', e)
+      } finally {
+        this.actionLock = false
       }
     },
+    /** EXPIRED 单的出口：从通知/详情进入房间后也能一键重发 */
+    republish() {
+      if (this.actionLock) {
+        return
+      }
+      uni.showModal({
+        title: '一键重发',
+        content: '把这条求助再发一次，让更多邻居看到吗？',
+        success: async (res) => {
+          if (!res.confirm) {
+            return
+          }
+          this.actionLock = true
+          try {
+            await republishOrder(this.orderId)
+            uni.showToast({ title: '已经重新发出去了', icon: 'none' })
+            uni.reLaunch({ url: '/pages/order/mine' })
+          } catch (e) {
+            console.error('[微光] 一键重发失败', e)
+          } finally {
+            this.actionLock = false
+          }
+        }
+      })
+    },
     doStart() {
-      this.action(startOrder(this.orderId), '已告诉对方您开始帮忙啦。')
+      this.action(() => startOrder(this.orderId), '已告诉对方您开始帮忙啦。')
     },
     doQuit() {
       uni.showModal({
@@ -324,14 +373,14 @@ export default {
         content: QUIT_CONFIRM,
         success: (res) => {
           if (res.confirm) {
-            this.releaseAction(releaseOrder(this.orderId, { reasonType: 'HELPER_QUIT', reasonText: '主动放弃' }), '已为您重新寻找邻居')
+            this.releaseAction(() => releaseOrder(this.orderId, { reasonType: 'HELPER_QUIT', reasonText: '主动放弃' }), '已为您重新寻找邻居')
           }
         }
       })
     },
     doHelpless() {
       this.askReason('实在帮不上', HELPLESS_PROMPT, (reason) => {
-        this.releaseAction(releaseOrder(this.orderId, { reasonType: 'HELPLESS', reasonText: reason }), '已为您重新寻找邻居')
+        this.releaseAction(() => releaseOrder(this.orderId, { reasonType: 'HELPLESS', reasonText: reason }), '已为您重新寻找邻居')
       })
     },
     doLost() {
@@ -340,19 +389,19 @@ export default {
         content: LOST_CONFIRM,
         success: (res) => {
           if (res.confirm) {
-            this.releaseAction(releaseOrder(this.orderId, { reasonType: 'HELPER_LOST', reasonText: '中途退出' }), '已为您重新寻找邻居')
+            this.releaseAction(() => releaseOrder(this.orderId, { reasonType: 'HELPER_LOST', reasonText: '中途退出' }), '已为您重新寻找邻居')
           }
         }
       })
     },
     doNegotiate() {
       this.askReason('商量取消', '说说想商量的原因', (reason) => {
-        this.action(cancelOrder(this.orderId, { reason, mode: 'NEGOTIATE' }), '已经问过对方啦')
+        this.action(() => cancelOrder(this.orderId, { reason, mode: 'NEGOTIATE' }), '已经问过对方啦')
       })
     },
     doCancel() {
       this.askReason('取消这次求助', '说说取消的原因', (reason) => {
-        this.action(cancelOrder(this.orderId, { reason, mode: 'CANCEL' }), '已取消')
+        this.action(() => cancelOrder(this.orderId, { reason, mode: 'CANCEL' }), '已取消')
       })
     },
     goEdit() {
@@ -372,6 +421,10 @@ export default {
       })
     },
     async doWithdraw() {
+      if (this.actionLock) {
+        return
+      }
+      this.actionLock = true
       try {
         // 撤回仅针对仍处于待响应的单；若刚被接单，刷新页面让入口自然消失
         const latest = await getOrder(this.orderId)
@@ -387,10 +440,12 @@ export default {
       } catch (e) {
         console.error('[微光] 撤回失败', e)
         uni.showToast({ title: (e && e.message) || MESSAGES.ERROR, icon: 'none' })
+      } finally {
+        this.actionLock = false
       }
     },
     answerCancel(agree) {
-      this.action(cancelConfirmOrder(this.orderId, { agree }), agree ? '已取消' : '已回复对方')
+      this.action(() => cancelConfirmOrder(this.orderId, { agree }), agree ? '已取消' : '已回复对方')
     },
     doComplete() {
       uni.showModal({
@@ -398,7 +453,7 @@ export default {
         content: '确认这次帮助已经完成了吗？',
         success: (res) => {
           if (res.confirm) {
-            this.action(completeOrder(this.orderId), '已标记完成，等对方确认一下')
+            this.action(() => completeOrder(this.orderId), '已标记完成，等对方确认一下')
           }
         }
       })

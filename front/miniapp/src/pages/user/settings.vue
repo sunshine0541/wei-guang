@@ -58,7 +58,6 @@
 <script>
 import { useUserStore } from '@/store/user'
 import { cancelAccount } from '@/api/user'
-import { clearToken } from '@/api/request'
 
 /**
  * P18 设置（详设 §6.2）：模式切换 U3 / 动效开关 U4 / 隐私说明查看 / 注销 U6 / 退出登录 A2。
@@ -138,8 +137,8 @@ export default {
       } catch (e) {
         return
       }
-      clearToken()
-      this.userStore.$reset()
+      // 注销后复用退出登录的完整清理链路（不重复调用退出接口）
+      await this.userStore.logout({ skipApi: true })
       uni.showToast({ title: '您的账号已注销，感谢您曾经的点亮。', icon: 'none', duration: 3000 })
       setTimeout(() => {
         uni.reLaunch({ url: '/pages/index/index' })

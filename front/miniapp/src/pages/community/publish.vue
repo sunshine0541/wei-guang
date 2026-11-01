@@ -126,7 +126,6 @@ export default {
         }, 800)
       } catch (e) {
         console.error('[微光] 发布动态失败', e)
-      } finally {
         this.submitting = false
       }
     }

@@ -107,12 +107,12 @@ public class NotifyService {
     /** 荣誉积分到账：您获得了 {points} 荣誉积分，感谢您的善意（数值取 points.per_complete） */
     public void pointsCredited(Long userId, int points) {
         insert(userId, "POINTS_CREDITED", "荣誉积分到账",
-                "您获得了 " + points + " 荣誉积分，感谢您的善意", "NONE", null);
+                "您获得了 " + points + " 荣誉积分，感谢您的善意", "POINTS", null);
     }
 
     /** 微光值变动：您的微光值有变动，去看看明细吧（详设 §4.4 CREDIT_CHANGED） */
     public void creditChanged(Long userId) {
-        insert(userId, "CREDIT_CHANGED", "微光值变动", "您的微光值有变动，去看看明细吧", "NONE", null);
+        insert(userId, "CREDIT_CHANGED", "微光值变动", "您的微光值有变动，去看看明细吧", "CREDIT", null);
     }
 
     /** 邻居已出发：{name} 已确认开始帮忙"{title}"（详设 §4.4 SERVICE_STARTED） */
@@ -147,20 +147,26 @@ public class NotifyService {
 
     /** 您的反馈有回音了：您提交的反馈已处理，感谢您的建议（详设 §4.4 FEEDBACK_RESULT） */
     public void feedbackResult(Long userId) {
-        insert(userId, "FEEDBACK_RESULT", "您的反馈有回音了", "您提交的反馈已处理，感谢您的建议", "NONE", null);
+        insert(userId, "FEEDBACK_RESULT", "您的反馈有回音了", "您提交的反馈已处理，感谢您的建议", "APPEAL", null);
     }
 
     /** 管理员通知：管理员对您的账号进行了处理，请查看（账户级处置场景，详设 §4.4 ADMIN_ACTION） */
     public void adminAction(Long userId) {
-        insert(userId, "ADMIN_ACTION", "管理员通知", "管理员对您的账号进行了处理，请查看", "NONE", null);
+        insert(userId, "ADMIN_ACTION", "管理员通知", "管理员对您的账号进行了处理，请查看", "PROFILE", null);
+    }
+
+    /** 申诉超时自动恢复：订单已回到申诉前状态 */
+    public void appealTimeout(Long userId, String orderTitle, Long orderId) {
+        insert(userId, "APPEAL_RESULT", "申诉已超时恢复",
+                "关于\"" + orderTitle + "\"的申诉超时未处理，订单已恢复原状态", "ORDER", orderId);
     }
 
     /** 举报有结果了：您提交的举报已处理（新增 REPORT_RESULT） */
-    public void reportResult(Long reporterId, String result) {
+    public void reportResult(Long reporterId, String result, String jumpType, Long jumpId) {
         String content = "CONFIRMED".equals(result)
                 ? "您提交的举报已核实，感谢您守护邻里"
                 : "您提交的举报经核实未成立，感谢您的关注";
-        insert(reporterId, "REPORT_RESULT", "举报有结果了", content, "NONE", null);
+        insert(reporterId, "REPORT_RESULT", "举报有结果了", content, jumpType, jumpId);
     }
 
     /** 协商取消有结果了：您参与的"{title}"协商取消，管理员裁决：{conclusion}（订单裁决专用模板，详设 §4.4） */

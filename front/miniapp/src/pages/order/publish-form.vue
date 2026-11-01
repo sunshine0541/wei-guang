@@ -85,7 +85,9 @@
       </view>
     </view>
 
-    <view class="wg-btn" @click="submit">发布求助</view>
+    <view class="wg-btn" :class="{ 'wg-btn-off': publishing }" @click="submit">
+      {{ publishing ? '正在发布…' : '发布求助' }}
+    </view>
     <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="backToEntry">重新选择</view>
 
     <!-- 底部常驻紧急提示条 -->
@@ -124,6 +126,8 @@ export default {
       emergencyPhone: '',
       /** 档案是否成功加载：false 时放行给后端校验，避免网络失败误拦 */
       profileLoaded: false,
+      /** 发布在途锁：避免跳转前重复确认造成重复建单 */
+      publishing: false,
       typeOptions: [
         { label: '上门', value: 'HOME_VISIT' },
         { label: '外出', value: 'ACCOMPANY' },
@@ -289,6 +293,9 @@ export default {
       })
     },
     submit() {
+      if (this.publishing) {
+        return
+      }
       if (this.form.orderType !== 'REMOTE' && this.profileLoaded
           && (!this.emergencyName || !this.emergencyPhone)) {
         this.promptEmergencyContact()
@@ -305,6 +312,9 @@ export default {
       })
     },
     async doPublish() {
+      if (this.publishing) {
+        return
+      }
       if (!this.form.title || !this.form.title.trim()) {
         uni.showToast({ title: '请先填写标题', icon: 'none' })
         return
@@ -329,6 +339,7 @@ export default {
       if (this.form.source === 'REPEAT') {
         payload.repeatFromOrderId = this.form.repeatFromOrderId
       }
+      this.publishing = true
       try {
         const result = await publishOrder(payload)
         // 发布成功 → 清掉跨页草稿，避免下次进入表单页带回旧内容
@@ -344,6 +355,7 @@ export default {
         }, result.careNotice ? 3000 : 1200)
       } catch (e) {
         console.error('[微光] 发布失败', e)
+        this.publishing = false
       }
     }
   }

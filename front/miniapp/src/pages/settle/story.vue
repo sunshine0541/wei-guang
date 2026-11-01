@@ -24,7 +24,7 @@
             <text class="wg-label">位邻居看过</text>
           </view>
         </view>
-        <text class="wg-label" style="margin-top: 10px;color:#4f6b4a;opacity:.8">{{ card.createdAt }}</text>
+        <text class="wg-label" style="margin-top: 10px;color:#4f6b4a;opacity:.8">{{ createdAtText }}</text>
       </view>
       <view class="wg-btn" @click="saveImage">保存图片</view>
       <view class="wg-btn wg-btn-plain" style="margin-top: 12px" @click="goHome">回到首页</view>
@@ -60,6 +60,12 @@ export default {
     },
     typeLabel() {
       return this.order ? ORDER_TYPE_LABELS[this.order.orderType] || '' : ''
+    },
+    createdAtText() {
+      if (!this.card || !this.card.createdAt) {
+        return ''
+      }
+      return String(this.card.createdAt).replace('T', ' ').slice(0, 16)
     },
     /** B：从开始帮忙到完成的耗时（优先取助人者标记完成时间，排除等待确认/申诉处理） */
     durationText() {

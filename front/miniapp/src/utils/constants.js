@@ -125,6 +125,8 @@ export const TIMELINE_LABELS = {
   COMPLETE: '完成结算',
   EXPIRE: '超时未响应',
   APPEAL_OPEN: '进入申诉',
+  APPEAL_WITHDRAW: '撤回申诉',
+  APPEAL_TIMEOUT: '申诉超时恢复',
   ARBITRATE: '管理员裁决',
   ADMIN_ACTION: '管理员操作',
   REPUBLISH: '一键重发',

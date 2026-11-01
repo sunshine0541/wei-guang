@@ -330,6 +330,8 @@ public class OrderService {
                 .eq(HelpOrder::getId, orderId)
                 .eq(HelpOrder::getStatus, OrderStatus.PENDING.name())
                 .eq(HelpOrder::getVersion, order.getVersion())
+                // 已过发布截止时间的单不能再被接走，避免与 J1 超时任务竞争
+                .gt(HelpOrder::getPublishDeadline, now)
                 .set(HelpOrder::getStatus, OrderStatus.ACCEPTED.name())
                 .set(HelpOrder::getHelperId, uid)
                 .set(HelpOrder::getAcceptedAt, now)

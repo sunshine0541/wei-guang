@@ -213,7 +213,6 @@ export default {
   },
   onReachBottom() {
     if (!this.finished && !this.loadingMore) {
-      this.page += 1
       this.load(false)
     }
   },
@@ -270,14 +269,16 @@ export default {
         this.finished = false
       }
       const seq = ++this.reqSeq
+      const page = reset ? 1 : this.page + 1
       this.loadingMore = true
       try {
-        const result = await listNotifications({ page: this.page, pageSize: this.pageSize })
+        const result = await listNotifications({ page, pageSize: this.pageSize })
         if (seq !== this.reqSeq) {
           return
         }
         const records = result.records || []
         this.list = reset ? records : this.list.concat(records)
+        this.page = page
         const total = result.total || 0
         this.finished = records.length < this.pageSize || this.list.length >= total
       } catch (e) {
@@ -398,6 +399,12 @@ export default {
         url = `/pages/community/detail?id=${item.jumpId}`
       } else if (item.jumpType === 'APPEAL') {
         url = '/pages/user/appeal'
+      } else if (item.jumpType === 'CREDIT') {
+        url = '/pages/user/credit'
+      } else if (item.jumpType === 'POINTS') {
+        url = '/pages/user/points'
+      } else if (item.jumpType === 'PROFILE') {
+        url = '/pages/user/profile'
       }
       if (!url) {
         return
