@@ -10,7 +10,13 @@ uni-app + Vue3 ｜ Spring Boot 3.5 ｜ Spring AI Alibaba（通义千问）｜ My
 
 </div>
 
-社区互助微信小程序：老人发布一件小事，邻居接单上门 / 外出 / 远程帮忙，聊天协作、双确认后结算微光值与荣誉积分；配套 31 页小程序端、管理后台与 AI 助手，共 105 个接口、26 张表。
+社区互助微信小程序：老人发布一件小事，邻居接单上门 / 外出 / 远程帮忙，聊天协作、双确认后结算微光值与荣誉积分；配套 31 页小程序端、管理后台与 AI 助手。
+
+> 个人项目：独立完成需求拆解、表设计、核心链路实现与集成测试；使用 AI 工具辅助编码，方案审查、关键逻辑与验收由本人负责。
+
+| 接口 | 数据表 | 小程序页面 | 集成测试 | 数据自检 |
+| :---: | :---: | :---: | :---: | :---: |
+| 105 | 26 | 31 | 8 条 / 7 类 | 24 条不变量 |
 
 ## 四个技术点
 
@@ -28,14 +34,26 @@ uni-app + Vue3 ｜ Spring Boot 3.5 ｜ Spring AI Alibaba（通义千问）｜ My
 
 ## 界面
 
+### 普通模式
+
 | | | |
 | :---: | :---: | :---: |
-| <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/01-home.png" width="230" /><br>首页 · 年长模式 | <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/02-ai-assistant.png" width="230" /><br>AI 助手 · 一句话补齐并确认发布 | <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/03-publish-ai.png" width="230" /><br>发布 · 小助手自动归类 |
-| <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/05-chat.png" width="230" /><br>聊天 · 照护提示与门牌解锁 | <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/06-story-card.png" width="230" /><br>完成 · 光之故事卡 | <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/07-community.png" width="230" /><br>社区 · 荣耀榜与邻里动态 |
+| <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/normal-01-home.png" width="230" /><br>首页 | <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/normal-02-ai-assistant.png" width="230" /><br>AI 助手 · 一句话补齐并确认发布 | <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/normal-03-publish-ai.png" width="230" /><br>发布 · 小助手自动归类 |
+| <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/normal-04-chat.png" width="230" /><br>聊天 · 照护提示与门牌解锁 | <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/normal-05-story-card.png" width="230" /><br>完成 · 光之故事卡 | <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/normal-06-community.png" width="230" /><br>社区 · 荣耀榜与邻里动态 |
+
+### 年长模式
+
+> 同一套业务：字号与按钮放大、非必要元素隐藏、动效默认关闭。
+
+| | | |
+| :---: | :---: | :---: |
+| <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/elder-01-home.png" width="230" /><br>首页 · 单列大字卡片 | <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/elder-02-order-detail.png" width="230" /><br>求助详情 · 大字号与操作按钮 | <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/elder-03-notify.png" width="230" /><br>通知中心 · 分组与已读操作 |
+
+### 管理端
 
 | | |
 | :---: | :---: |
-| <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/09-admin-overview.png" width="360" /><br>管理端 · 工作台：KPI / 趋势 / 待办 | <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/10-admin-review.png" width="360" /><br>社区审核 · AI 初审 + 人工复核 |
+| <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/admin-01-overview.png" width="360" /><br>工作台 · KPI / 趋势 / 待办 | <img src="https://gitee.com/sail-peng/wei-guang/raw/master/docs/assets/screenshots/admin-02-review.png" width="360" /><br>社区审核 · AI 初审 + 人工复核 |
 
 ## 架构
 
