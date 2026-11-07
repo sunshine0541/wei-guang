@@ -33,3 +33,9 @@ docs/实现偏差清单.md
 
 # 本地数据库备份
 backend/backups/
+
+# 本地测试工具与临时产物（不入库）
+.tools/
+.postman/
+docs/求职/
+

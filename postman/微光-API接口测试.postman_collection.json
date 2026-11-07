@@ -1,0 +1,4858 @@
+{
+  "info": {
+    "name": "微光 API 接口测试",
+    "description": "微光（邻里互助）项目全量接口测试集合：认证、用户、地址簿、求助单全生命周期、社区、聊天、通知、激励、申诉、助手、管理端等。包含正向、边界、异常与状态流转用例，附断言。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 初始化（登录与测试环境准备）",
+      "item": [
+        {
+          "name": "00-1 管理端登录",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"admin\",\"password\":\"weiguang@2026\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.token\", () => { pm.expect(pm.response.json().data.token).to.be.a(\"string\"); });",
+                  "pm.test(\"data.username = admin\", () => { pm.expect(pm.response.json().data.username).to.eql(\"admin\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"adminToken\", pm.response.json().data.token); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00-2 调整发布限流(测试环境)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/configs/rate.publish_per_minute",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"value\":\"100\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00-3 调整登录限流(测试环境)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/configs/rate.login_per_minute",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"value\":\"100\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00-4 调整发言限流(测试环境)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/configs/rate.chat_per_minute",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"value\":\"200\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00-5 设置待响应上限(测试=2)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/configs/order.pending_limit",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"value\":\"2\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00-6 登录-李秀英(A)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"13867429153\",\"password\":\"wg123456\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.token\", () => { pm.expect(pm.response.json().data.token).to.be.a(\"string\"); });",
+                  "pm.test(\"data.profile.nickname = 李秀英\", () => { pm.expect(pm.response.json().data.profile.nickname).to.eql(\"李秀英\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"tokenA\", pm.response.json().data.token); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00-7 登录-陈志远(B)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"15867132409\",\"password\":\"wg123456\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.token\", () => { pm.expect(pm.response.json().data.token).to.be.a(\"string\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"tokenB\", pm.response.json().data.token); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00-8 登录-王德明(C)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"13957068214\",\"password\":\"wg123456\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.token\", () => { pm.expect(pm.response.json().data.token).to.be.a(\"string\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"tokenC\", pm.response.json().data.token); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "00-9 登录-赵晓琳(D)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"18652970318\",\"password\":\"wg123456\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.token\", () => { pm.expect(pm.response.json().data.token).to.be.a(\"string\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"tokenD\", pm.response.json().data.token); }"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 认证模块",
+      "item": [
+        {
+          "name": "01-1 登录-正常",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"13867429153\",\"password\":\"wg123456\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.token\", () => { pm.expect(pm.response.json().data.token).to.be.a(\"string\"); });",
+                  "pm.test(\"data.profile.nickname = 李秀英\", () => { pm.expect(pm.response.json().data.profile.nickname).to.eql(\"李秀英\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01-2 登录-密码错误",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"13867429153\",\"password\":\"badpass\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 20001\", () => pm.expect(pm.response.json().code).to.eql(20001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01-3 登录-缺少密码",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"13867429153\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 10001\", () => pm.expect(pm.response.json().code).to.eql(10001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01-4 登录-缺少用户名",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"password\":\"wg123456\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 10001\", () => pm.expect(pm.response.json().code).to.eql(10001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01-5 注册-新用户(正常)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"{{regUser}}\",\"password\":\"wg123456\",\"privacyAgreed\":true}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set(\"regUser\", \"t\" + String(Date.now()).slice(-10));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.token\", () => { pm.expect(pm.response.json().data.token).to.be.a(\"string\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "01-6 注册-缺少隐私同意",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"{{regUser2}}\",\"password\":\"wg123456\",\"privacyAgreed\":false}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set(\"regUser2\", \"t2\" + String(Date.now()).slice(-9));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码非 0（预期失败）\", () => pm.expect(pm.response.json().code).to.not.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 用户模块（资料/模式/动效/隐私）",
+      "item": [
+        {
+          "name": "02-1 获取我的资料",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/user/profile"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.userId\", () => { pm.expect(pm.response.json().data.userId).to.be.a(\"number\"); });",
+                  "pm.test(\"data.nickname = 李秀英\", () => { pm.expect(pm.response.json().data.nickname).to.eql(\"李秀英\"); });",
+                  "pm.test(\"data.hobbies\", () => { pm.expect(pm.response.json().data.hobbies).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"userIdA\", pm.response.json().data.userId); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02-2 更新资料-正常",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/user/profile",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"signature\":\"接口自动化测试签名\",\"careTip\":\"自动化测试备注\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02-3 更新资料-昵称超长(21字)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/user/profile",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nickname\":\"一二三四五六七八九十一二三四五六七八九十一\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 10002\", () => pm.expect(pm.response.json().code).to.eql(10002));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02-4 更新资料-年龄越界(200)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/user/profile",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"age\":200}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 10001\", () => pm.expect(pm.response.json().code).to.eql(10001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02-5 切换界面模式-年长",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/user/mode",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"uiMode\":\"ELDER\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.uiMode = ELDER\", () => { pm.expect(pm.response.json().data.uiMode).to.eql(\"ELDER\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02-6 切换界面模式-标准",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/user/mode",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"uiMode\":\"NORMAL\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.uiMode = NORMAL\", () => { pm.expect(pm.response.json().data.uiMode).to.eql(\"NORMAL\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02-7 切换界面模式-非法值",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/user/mode",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"uiMode\":\"XXX\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 10001\", () => pm.expect(pm.response.json().code).to.eql(10001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02-8 动效开关-关闭",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/user/motion",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"enabled\":0}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02-9 动效开关-打开",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/user/motion",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"enabled\":1}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02-10 隐私协议-同意",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/user/privacy-agree",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"version\":\"v1.0\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "02-11 开启微光邀请-缺参数",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/user/light-invite",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 10001\", () => pm.expect(pm.response.json().code).to.eql(10001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 地址簿模块（增删改查）",
+      "item": [
+        {
+          "name": "03-1 地址列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenD}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/addresses"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data\", () => { pm.expect(pm.response.json().data).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03-2 新增地址",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenD}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"label\":\"测试地址\",\"areaText\":\"测试小区1号楼\",\"detailText\":\"101室\",\"latitude\":30.2,\"longitude\":120.1,\"isDefault\":0}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.id\", () => { pm.expect(pm.response.json().data.id).to.be.a(\"number\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"addrId\", pm.response.json().data.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03-3 修改地址",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenD}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/addresses/{{addrId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"label\":\"测试地址改\",\"areaText\":\"测试小区2号楼\",\"detailText\":\"202室\",\"isDefault\":0}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03-4 设为默认",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenD}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/addresses/{{addrId}}/default"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03-5 删除地址",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenD}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/addresses/{{addrId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03-6 新增地址-缺label",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenD}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"areaText\":\"某某小区\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 10001\", () => pm.expect(pm.response.json().code).to.eql(10001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03-7 新增地址-纬度越界",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenD}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"label\":\"测试\",\"areaText\":\"某某小区\",\"latitude\":100}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 10001\", () => pm.expect(pm.response.json().code).to.eql(10001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "03-8 新增地址-label超长(21)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenD}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/addresses",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"label\":\"一二三四五六七八九十一二三四五六七八九十一\",\"areaText\":\"某某小区\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 10002\", () => pm.expect(pm.response.json().code).to.eql(10002));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 求助单-发布与查询",
+      "item": [
+        {
+          "name": "04-1 发布求助-正常(远程)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"source\":\"FREE\",\"orderType\":\"REMOTE\",\"title\":\"接口自动化测试-远程求助\",\"description\":\"这是一条接口自动化测试创建的求助单，用于验证完整主流程。\",\"tags\":[\"网上办事\"],\"timeExpect\":\"ASAP\",\"urgentFlag\":0}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.orderId\", () => { pm.expect(pm.response.json().data.orderId).to.be.a(\"number\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"mainOrderId\", pm.response.json().data.orderId); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04-2 发布求助-缺标题",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"source\":\"FREE\",\"orderType\":\"REMOTE\",\"description\":\"x\",\"tags\":[\"跑腿\"]}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 10001\", () => pm.expect(pm.response.json().code).to.eql(10001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04-3 发布求助-标题超长(21字)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"source\":\"FREE\",\"orderType\":\"REMOTE\",\"title\":\"一二三四五六七八九十一二三四五六七八九十一\",\"tags\":[\"跑腿\"]}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 10002\", () => pm.expect(pm.response.json().code).to.eql(10002));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04-4 发布求助-非法标签",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"source\":\"FREE\",\"orderType\":\"REMOTE\",\"title\":\"非法标签测试\",\"tags\":[\"不存在的标签\"]}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 10001\", () => pm.expect(pm.response.json().code).to.eql(10001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04-5 发布求助-远程却带地址",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"source\":\"FREE\",\"orderType\":\"REMOTE\",\"title\":\"远程带地址测试\",\"tags\":[\"跑腿\"],\"addressId\":1}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 10001\", () => pm.expect(pm.response.json().code).to.eql(10001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04-6 发布求助-上门缺地址",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"source\":\"FREE\",\"orderType\":\"HOME_VISIT\",\"title\":\"上门缺地址测试\",\"tags\":[\"维修\"]}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 10001\", () => pm.expect(pm.response.json().code).to.eql(10001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04-7 发布求助-待响应达上限",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenC}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"source\":\"FREE\",\"orderType\":\"REMOTE\",\"title\":\"待响应上限测试\",\"tags\":[\"跑腿\"]}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 30003\", () => pm.expect(pm.response.json().code).to.eql(30003));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04-8 求助大厅-全部",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders?tab=all&page=1&size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.records\", () => { pm.expect(pm.response.json().data.records).to.be.a(\"array\"); });",
+                  "pm.test(\"data.total\", () => { pm.expect(pm.response.json().data.total).to.be.a(\"number\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04-9 求助大厅-推荐",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders?tab=recommend&page=1&size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.records\", () => { pm.expect(pm.response.json().data.records).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04-10 求助大厅-非法类型",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders?orderType=XXX"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 10001\", () => pm.expect(pm.response.json().code).to.eql(10001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04-11 我的求助-我发布的",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/mine?tab=published&page=1&size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.records\", () => { pm.expect(pm.response.json().data.records).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04-12 我的求助-我接的",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/mine?tab=accepted&page=1&size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.records\", () => { pm.expect(pm.response.json().data.records).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04-13 求助详情",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{mainOrderId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.id\", () => { pm.expect(pm.response.json().data.id).to.be.a(\"number\"); });",
+                  "pm.test(\"data.status = PENDING\", () => { pm.expect(pm.response.json().data.status).to.eql(\"PENDING\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04-14 求助时间线",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{mainOrderId}}/timeline"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data\", () => { pm.expect(pm.response.json().data).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04-15 修改待响应求助",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{mainOrderId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"修改后的标题-自动化\",\"description\":\"修改后的描述\",\"tags\":[\"网上办事\"]}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "04-16 AI 智能识别求助",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/ai-suggest",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"text\":\"我想请人帮我去药店买点感冒药\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 求助单-主流程（接单→开始→完成→确认→评价）",
+      "item": [
+        {
+          "name": "05-1 接单",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{mainOrderId}}/accept"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.sessionId\", () => { pm.expect(pm.response.json().data.sessionId).to.be.a(\"number\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"mainSessionId\", pm.response.json().data.sessionId); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05-2 照护提示卡(接单者可看)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{mainOrderId}}/care-tip"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data\", () => { pm.expect(pm.response.json().data).to.be.a(\"object\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05-3 开始服务",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{mainOrderId}}/start"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05-4 标记完成",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{mainOrderId}}/complete"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05-5 详情-待确认",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{mainOrderId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.status = PENDING_CONFIRM\", () => { pm.expect(pm.response.json().data.status).to.eql(\"PENDING_CONFIRM\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05-6 确认结算",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{mainOrderId}}/confirm",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"agree\":true}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05-7 详情-已完成",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{mainOrderId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.status = COMPLETED\", () => { pm.expect(pm.response.json().data.status).to.eql(\"COMPLETED\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05-8 评价",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{mainOrderId}}/evaluation",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"stars\":5,\"advice\":\"服务很好，自动化测试评价\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.id\", () => { pm.expect(pm.response.json().data.id).to.be.a(\"number\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05-9 感谢信",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{mainOrderId}}/thank-letter",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"content\":\"谢谢你的帮助！\",\"aiAssisted\":false}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.id\", () => { pm.expect(pm.response.json().data.id).to.be.a(\"number\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05-10 故事卡",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{mainOrderId}}/story-card"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.thing\", () => { pm.expect(pm.response.json().data.thing).to.be.a(\"string\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05-11 重复确认-应拒绝",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{mainOrderId}}/confirm",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"agree\":true}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 40003\", () => pm.expect(pm.response.json().code).to.eql(40003));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "05-12 已完成再被接单-应拒绝(接单冲突)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{mainOrderId}}/accept"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 40001\", () => pm.expect(pm.response.json().code).to.eql(40001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 求助单-释放/取消/再来一次",
+      "item": [
+        {
+          "name": "06-1 发布求助(用于释放)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"source\":\"FREE\",\"orderType\":\"REMOTE\",\"title\":\"接口自动化-释放测试单\",\"description\":\"用于测试放弃/释放流程。\",\"tags\":[\"聊天\"],\"timeExpect\":\"TODAY\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.orderId\", () => { pm.expect(pm.response.json().data.orderId).to.be.a(\"number\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"releaseOrderId\", pm.response.json().data.orderId); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06-2 接单",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{releaseOrderId}}/accept"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.sessionId\", () => { pm.expect(pm.response.json().data.sessionId).to.be.a(\"number\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06-3 接单者放弃(释放)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{releaseOrderId}}/release",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"reasonType\":\"HELPER_QUIT\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06-4 详情-释放后回到待响应",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{releaseOrderId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.status = PENDING\", () => { pm.expect(pm.response.json().data.status).to.eql(\"PENDING\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06-5 再次接单",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{releaseOrderId}}/accept"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.sessionId\", () => { pm.expect(pm.response.json().data.sessionId).to.be.a(\"number\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"chatSessionId\", pm.response.json().data.sessionId); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06-6 发布求助(用于取消)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"source\":\"FREE\",\"orderType\":\"REMOTE\",\"title\":\"接口自动化-取消测试单\",\"description\":\"用于测试取消流程。\",\"tags\":[\"跑腿\"],\"timeExpect\":\"TODAY\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.orderId\", () => { pm.expect(pm.response.json().data.orderId).to.be.a(\"number\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"cancelOrderId\", pm.response.json().data.orderId); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06-7 求助者取消",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{cancelOrderId}}/cancel",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"reason\":\"自动化测试：暂不需要了\",\"mode\":\"CANCEL\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06-8 详情-已取消",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{cancelOrderId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.status = CANCELLED\", () => { pm.expect(pm.response.json().data.status).to.eql(\"CANCELLED\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "06-9 再来一次-已取消不可重发(应拒绝)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{cancelOrderId}}/republish"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 40002\", () => pm.expect(pm.response.json().code).to.eql(40002));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07 社区模块（帖子/点赞/评论/举报）",
+      "item": [
+        {
+          "name": "07-1 社区概览",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/community/summary"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.stars\", () => { pm.expect(pm.response.json().data.stars).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07-2 帖子列表-推荐",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/community/posts?tab=recommend&page=1&size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.records\", () => { pm.expect(pm.response.json().data.records).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07-3 发布帖子",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenD}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/community/posts",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"category\":\"NORMAL\",\"title\":\"接口自动化测试帖\",\"content\":\"这是一条接口自动化测试创建的社区帖子内容。\",\"images\":[]}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.id\", () => { pm.expect(pm.response.json().data.id).to.be.a(\"number\"); });",
+                  "pm.test(\"data.status\", () => { pm.expect(pm.response.json().data.status).to.be.a(\"string\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"postId\", pm.response.json().data.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07-4 帖子详情(作者可见)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenD}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/community/posts/{{postId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.id\", () => { pm.expect(pm.response.json().data.id).to.be.a(\"number\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07-5 点赞",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/community/posts/{{postId}}/like"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07-6 取消点赞",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/community/posts/{{postId}}/like"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07-7 发表评论",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/community/posts/{{postId}}/comments",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"content\":\"自动化测试评论\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07-8 评论列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenD}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/community/posts/{{postId}}/comments"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.records\", () => { pm.expect(pm.response.json().data.records).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07-9 发布帖子-缺内容",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenD}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/community/posts",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"category\":\"NORMAL\",\"title\":\"缺少内容\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 10001\", () => pm.expect(pm.response.json().code).to.eql(10001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07-10 举报帖子(举报本轮新建帖)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/community/reports",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"targetType\":\"POST\",\"targetId\": {{postId}}, \"reason\":\"自动化测试举报内容违规\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "07-11 删除自己的帖子",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenD}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/community/posts/{{postId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "08 聊天模块",
+      "item": [
+        {
+          "name": "08-1 获取会话",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{releaseOrderId}}/session"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.sessionId\", () => { pm.expect(pm.response.json().data.sessionId).to.be.a(\"number\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"chatSessionId\", pm.response.json().data.sessionId); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08-2 会话消息列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/sessions/{{chatSessionId}}/messages?page=1&size=10"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.records\", () => { pm.expect(pm.response.json().data.records).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08-3 发送消息",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/sessions/{{chatSessionId}}/messages",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"clientMsgId\":\"auto-m1\",\"messageType\":\"TEXT\",\"content\":\"你好，我是自动化测试\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data\", () => { pm.expect(pm.response.json().data).to.be.a(\"object\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08-4 标记已读",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/sessions/{{chatSessionId}}/read"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08-5 快捷短语-求助者",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/quick-phrases?role=REQUESTER"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data\", () => { pm.expect(pm.response.json().data).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "08-6 快捷短语-接单者",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/quick-phrases?role=HELPER"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data\", () => { pm.expect(pm.response.json().data).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "09 通知模块",
+      "item": [
+        {
+          "name": "09-1 通知列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/notifications?page=1&size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.records\", () => { pm.expect(pm.response.json().data.records).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"notifId\", pm.response.json().data.records[0].id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "09-2 通知横幅",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/notifications/banner"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data\", () => { pm.expect(pm.response.json().data).to.be.a(\"object\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "09-3 单条已读",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/notifications/{{notifId}}/read"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "09-4 全部已读",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/notifications/read-all"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.cleared\", () => { pm.expect(pm.response.json().data.cleared).to.be.a(\"number\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "09-5 删除一条通知",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/notifications/{{notifId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "10 激励与账户（微光/积分/信誉/荣誉）",
+      "item": [
+        {
+          "name": "10-1 微光状态",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/user/light"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.lightState\", () => { pm.expect(pm.response.json().data.lightState).to.be.a(\"string\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10-2 信誉流水",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/user/credit?page=1&size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.balance\", () => { pm.expect(pm.response.json().data.balance).to.be.a(\"number\"); });",
+                  "pm.test(\"data.records\", () => { pm.expect(pm.response.json().data.records).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10-3 积分流水",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/user/points?page=1&size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.balance\", () => { pm.expect(pm.response.json().data.balance).to.be.a(\"number\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10-4 我收到的感谢",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/user/thanks?page=1&size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.records\", () => { pm.expect(pm.response.json().data.records).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10-5 首页/荣誉汇总",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/home/summary"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.honorTop10\", () => { pm.expect(pm.response.json().data.honorTop10).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10-6 感谢信AI草稿",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/orders/{{mainOrderId}}/thank-letter/ai-draft",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"content\":\"帮我生成一封感谢信\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "11 申诉与反馈",
+      "item": [
+        {
+          "name": "11-1 提交申诉",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/appeals",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"orderId\": {{mainOrderId}}, \"type\":\"POST_ORDER\", \"reason\":\"自动化测试申诉：实际服务与描述不符\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.id\", () => { pm.expect(pm.response.json().data.id).to.be.a(\"number\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"appealId\", pm.response.json().data.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11-2 我的申诉列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/appeals/mine?tab=APPEAL&page=1&size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.records\", () => { pm.expect(pm.response.json().data.records).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11-3 提交反馈",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenD}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/feedbacks",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"content\":\"自动化测试反馈：界面很友好\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.id\", () => { pm.expect(pm.response.json().data.id).to.be.a(\"number\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"feedbackId\", pm.response.json().data.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11-4 我的反馈列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenD}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/appeals/mine?tab=FEEDBACK&page=1&size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.records\", () => { pm.expect(pm.response.json().data.records).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11-5 申诉-缺少订单号",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/appeals",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"type\":\"POST_ORDER\",\"reason\":\"x\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 10001\", () => pm.expect(pm.response.json().code).to.eql(10001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11-6 申诉-非法类型(反馈)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenB}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/appeals",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"orderId\": {{mainOrderId}}, \"type\":\"FEEDBACK\", \"reason\":\"x\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 40002\", () => pm.expect(pm.response.json().code).to.eql(40002));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "12 智能助手/模板/地理",
+      "item": [
+        {
+          "name": "12-1 助手对话",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/assistant/chat",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"message\":\"我想请人帮我去药店买药\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.sessionId\", () => { pm.expect(pm.response.json().data.sessionId).to.be.a(\"string\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"assistSessionId\", pm.response.json().data.sessionId); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12-2 助手会话查询",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/assistant/session?sessionId={{assistSessionId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data\", () => { pm.expect(pm.response.json().data).to.be.a(\"object\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12-3 助手草稿更新",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/assistant/draft",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"sessionId\":\"{{assistSessionId}}\",\"title\":\"助手草稿标题\",\"orderType\":\"REMOTE\",\"urgentFlag\":0}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12-4 求助模板",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/templates"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data\", () => { pm.expect(pm.response.json().data).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12-5 地理提示",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/geo/tips"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data\", () => { pm.expect(pm.response.json().data).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12-6 地理搜索",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/geo/pois?keyword=公园"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data\", () => { pm.expect(pm.response.json().data).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12-7 地理搜索-缺关键词",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/geo/pois?keyword="
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 10001\", () => pm.expect(pm.response.json().code).to.eql(10001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "13 文件上传",
+      "item": [
+        {
+          "name": "13-1 上传图片",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/upload/image",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "postman/tools/tiny.png"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.url\", () => { pm.expect(pm.response.json().data.url).to.be.a(\"string\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "14 邻居主页",
+      "item": [
+        {
+          "name": "14-1 邻居资料卡",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/3/profile"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.nickname = 陈志远\", () => { pm.expect(pm.response.json().data.nickname).to.eql(\"陈志远\"); });",
+                  "pm.test(\"data.evaluationAvg\", () => { pm.expect(pm.response.json().data.evaluationAvg).to.be.a(\"number\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "14-2 邻居评价列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/users/3/evaluations?page=1&size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.records\", () => { pm.expect(pm.response.json().data.records).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "15 管理端-查询",
+      "item": [
+        {
+          "name": "15-1 运营概览",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/overview"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.userCount\", () => { pm.expect(pm.response.json().data.userCount).to.be.a(\"number\"); });",
+                  "pm.test(\"data.typeDistribution\", () => { pm.expect(pm.response.json().data.typeDistribution).to.be.a(\"object\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15-2 订单管理列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/orders?page=1&size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.records\", () => { pm.expect(pm.response.json().data.records).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15-3 订单管理详情",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/orders/4"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.id\", () => { pm.expect(pm.response.json().data.id).to.be.a(\"number\"); });",
+                  "pm.test(\"data.timeline\", () => { pm.expect(pm.response.json().data.timeline).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15-4 用户管理列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/users?page=1&size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.records\", () => { pm.expect(pm.response.json().data.records).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15-5 用户管理详情",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/users/1"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.id\", () => { pm.expect(pm.response.json().data.id).to.be.a(\"number\"); });",
+                  "pm.test(\"data.credit\", () => { pm.expect(pm.response.json().data.credit).to.be.a(\"object\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15-6 系统配置列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/configs"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data\", () => { pm.expect(pm.response.json().data).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15-7 举报列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/reports?page=1&size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.records\", () => { pm.expect(pm.response.json().data.records).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15-8 申诉列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/appeals?page=1&size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.records\", () => { pm.expect(pm.response.json().data.records).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15-9 社区帖子管理",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/community/posts?page=1&size=5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.records\", () => { pm.expect(pm.response.json().data.records).to.be.a(\"array\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15-10 帖子管理详情",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/community/posts/5"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.post\", () => { pm.expect(pm.response.json().data.post).to.be.a(\"object\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "16 管理端-操作",
+      "item": [
+        {
+          "name": "16-1 新建待审帖子(含敏感词触发人工审核)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenD}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/community/posts",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"category\":\"NORMAL\",\"title\":\"待管理员审核的帖子\",\"content\":\"这条内容包含刷单等敏感词，应被转入人工审核。\",\"images\":[]}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data.id\", () => { pm.expect(pm.response.json().data.id).to.be.a(\"number\"); });",
+                  "pm.test(\"data.status = PENDING_MANUAL\", () => { pm.expect(pm.response.json().data.status).to.eql(\"PENDING_MANUAL\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));",
+                  "if (pm.response.json().code === 0) { pm.environment.set(\"reviewPostId\", pm.response.json().data.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16-2 审核通过帖子",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/community/posts/{{reviewPostId}}/review",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"result\":\"APPROVE\",\"note\":\"自动化测试审核通过\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16-3 隐藏帖子",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/community/posts/{{reviewPostId}}/hide"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16-4 恢复帖子",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/community/posts/{{reviewPostId}}/restore"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16-5 删除帖子",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/community/posts/{{reviewPostId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16-6 发布官方公告",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/community/official",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\":\"自动化测试公告\",\"content\":\"这是一条接口自动化测试发布的官方公告内容。\",\"images\":[]}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"data\", () => { pm.expect(pm.response.json().data).to.be.a(\"number\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16-7 回复用户反馈",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/feedbacks/{{feedbackId}}/reply",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"conclusion\":\"感谢反馈，已处理（自动化测试）\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16-8 封禁用户5",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/users/5/ban"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16-9 解封用户5",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/users/5/unban"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16-10 调整用户5信誉+5",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/users/5/credit-adjust",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"delta\":5,\"remark\":\"自动化测试加5\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16-11 调整用户5信誉-5",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/users/5/credit-adjust",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"delta\":-5,\"remark\":\"自动化测试还原\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16-12 更新系统配置(幂等)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/configs/rate.browse_dedup_ttl_hours",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"value\":\"24\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "17 鉴权与健壮性",
+      "item": [
+        {
+          "name": "17-1 无 token 访问受保护接口",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/user/profile"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 20001\", () => pm.expect(pm.response.json().code).to.eql(20001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "17-2 错误 token 访问",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{badToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/user/profile"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 20001\", () => pm.expect(pm.response.json().code).to.eql(20001));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "17-3 普通用户访问管理端",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenA}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/overview"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码非 0（预期失败）\", () => pm.expect(pm.response.json().code).to.not.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "17-4 健康检查",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/health"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status = UP\", () => { pm.expect(pm.response.json().status).to.eql(\"UP\"); });",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "18 收尾（恢复配置/注销）",
+      "item": [
+        {
+          "name": "18-1 恢复发布限流",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/configs/rate.publish_per_minute",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"value\":\"3\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "18-2 恢复登录限流",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/configs/rate.login_per_minute",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"value\":\"5\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "18-3 恢复发言限流",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}"
+              }
+            ],
+            "url": "{{baseUrl}}/admin/configs/rate.chat_per_minute",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"value\":\"20\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "18-4 退出登录(D)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{tokenD}}"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/logout"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"业务码 = 0\", () => pm.expect(pm.response.json().code).to.eql(0));",
+                  "pm.test(\"响应时间 < 3000ms\", () => pm.expect(pm.response.responseTime).to.be.below(3000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
