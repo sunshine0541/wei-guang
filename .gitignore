@@ -5,11 +5,11 @@ node_modules/
 unpackage/
 *.class
 
-# 环境变量与密钥（永不入仓库）
+# 环境变量与密钥（永不入库）
 .env
 .env.local
 
-# 上传文件（本地存储目录）
+# 本地上传文件（本地存储目录）
 uploads/
 
 # IDE
@@ -17,16 +17,20 @@ uploads/
 *.iml
 .vscode/
 
-# 系统
+# 系统文件
 .DS_Store
 Thumbs.db
 
-# 本地非代码交付物（只给 Agent / 论文使用，不入代码仓库）
+# 本地非交付物（仅本人 / 论文使用，不入代码仓库）
 design/
 .screenshots/
+_local/
 docs/交接文档.md
 docs/论文研究边界与前提假设.md
 docs/seed契约.md
+docs/开发记录.md
+docs/验收走查记录.md
+docs/GitHub迁移指南.md
 微光-执行文档v1.2.md
 docs/实现偏差清单.md
 项目经历.txt
@@ -37,5 +41,6 @@ backend/backups/
 # 本地测试工具与临时产物（不入库）
 .tools/
 .postman/
+postman/globals/
+scripts/push-github.ps1
 docs/求职/
-

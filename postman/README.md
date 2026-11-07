@@ -38,12 +38,13 @@ curl http://localhost:8080/actuator/health
 ### 3. 用 Newman 命令行运行（推荐 / 可进 CI）
 
 ```powershell
-# 依赖已安装在本仓库 .tools 下（newman 6.x）
-node .tools\node_modules\newman\bin\newman.js run `
-  "postman\微光-API接口测试.postman_collection.json" `
+# 安装命令行执行器（Node 18+）
+npm install -g newman
+# 执行集合
+newman run "postman\微光-API接口测试.postman_collection.json" `
   -e "postman\微光-本地.postman_environment.json" `
   --timeout-request 15000 `
-  --reporters cli,json --reporter-json-export ".tools\newman-report.json"
+  --reporters cli,json --reporter-json-export "newman-report.json"
 ```
 
 ## 关键约定
